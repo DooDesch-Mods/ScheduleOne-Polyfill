@@ -19,7 +19,7 @@ affected by it.
 
 ## Install
 
-1. [MelonLoader](https://melonloader.co/) 0.7.x
+1. [MelonLoader](https://github.com/LavaGang/MelonLoader/releases) 0.7.x
 2. `Polyfill.Boot.dll` into your `Plugins` folder
 3. `Polyfill.dll` into your `Mods` folder (optional - it only adds the console commands)
 
