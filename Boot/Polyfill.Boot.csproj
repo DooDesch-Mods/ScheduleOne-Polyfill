@@ -1,0 +1,79 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Polyfill.Boot - MelonLoader PLUGIN. Runs before any mod is read from disk, which is the only window in
+    which the interop assemblies are final (the Il2CppAssemblyGenerator has run) and no mod has bound to
+    them yet.
+
+    References ONLY MelonLoader, Mono.Cecil and 0Harmony. No Unity, no Il2Cpp interop: none of that exists,
+    or is safe to touch, at this point in startup. Touching it here would force interop metadata to load
+    before RegisterTypeInIl2Cpp.SetReady() and the support module have run - for every player, whether or
+    not anything needed fixing.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Polyfill</RootNamespace>
+    <AssemblyName>Polyfill.Boot</AssemblyName>
+
+    <!-- Comes from the release tag via -p:Version in CI. Nobody bumps this literal. -->
+    <Version Condition="'$(Version)' == ''">0.0.0-dev</Version>
+
+    <!-- Workspace lib root: local = Workspace is a sibling of the Polyfill repo (../../Workspace from this
+         subfolder); CI checks Workspace out as a subfolder of the repo (../Workspace from here). -->
+    <WorkspaceLibPath Condition="'$(WorkspaceLibPath)' == '' AND Exists('$(MSBuildThisFileDirectory)../../Workspace/lib')">$(MSBuildThisFileDirectory)../../Workspace/lib</WorkspaceLibPath>
+    <WorkspaceLibPath Condition="'$(WorkspaceLibPath)' == ''">$(MSBuildThisFileDirectory)../Workspace/lib</WorkspaceLibPath>
+    <MelonLoaderPath>$(WorkspaceLibPath)/il2cpp/melonloader</MelonLoaderPath>
+
+    <!-- PluginsDirectory comes from Deploy.props, imported below. Never set it here. -->
+  </PropertyGroup>
+
+  <!-- CI checks Workspace out INTO the repo; without this its .cs files would be compiled into the plugin. -->
+  <ItemGroup>
+    <Compile Remove="Workspace/**/*.cs" />
+    <Compile Remove="../Workspace/**/*.cs" />
+  </ItemGroup>
+
+  <Import Project="$(MSBuildThisFileDirectory)../../Workspace/build/Deploy.props" Condition="Exists('$(MSBuildThisFileDirectory)../../Workspace/build/Deploy.props')" />
+  <Import Project="$(MSBuildThisFileDirectory)../Workspace/build/Deploy.props" Condition="Exists('$(MSBuildThisFileDirectory)../Workspace/build/Deploy.props')" />
+  <Import Project="$(MSBuildThisFileDirectory)../../Workspace/build/Hardening.props" Condition="Exists('$(MSBuildThisFileDirectory)../../Workspace/build/Hardening.props')" />
+  <Import Project="$(MSBuildThisFileDirectory)../Workspace/build/Hardening.props" Condition="Exists('$(MSBuildThisFileDirectory)../Workspace/build/Hardening.props')" />
+  <Import Project="$(MSBuildThisFileDirectory)../../Workspace/build/ModVersion.props" Condition="Exists('$(MSBuildThisFileDirectory)../../Workspace/build/ModVersion.props')" />
+  <Import Project="$(MSBuildThisFileDirectory)../Workspace/build/ModVersion.props" Condition="Exists('$(MSBuildThisFileDirectory)../Workspace/build/ModVersion.props')" />
+
+  <!-- The analysis core, shared with nothing else today but kept out of Boot/ because it is the part that
+       will grow: index, triage, and later the injector. -->
+  <ItemGroup>
+    <Compile Include="../Core/**/*.cs" LinkBase="Core" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="MelonLoader">
+      <HintPath>$(MelonLoaderPath)/MelonLoader.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- Reading mods and interop assemblies without loading them. The same reader MelonLoader's own
+         scanner uses on every file. Ships in MelonLoader/net6, so it is never redistributed. -->
+    <Reference Include="Mono.Cecil">
+      <HintPath>$(MelonLoaderPath)/Mono.Cecil.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>$(MelonLoaderPath)/0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="Build" Condition="'$(OS)' == 'Windows_NT'">
+    <Exec Condition="Exists('$(PluginsDirectory)')"
+          Command="cmd /c copy /Y &quot;$(TargetPath)&quot; &quot;$(PluginsDirectory)&quot;"
+          ContinueOnError="true" />
+    <Message Importance="high" Condition="Exists('$(PluginsDirectory)')" Text="  -> $(PluginsDirectory)" />
+    <Message Importance="high" Condition="!Exists('$(PluginsDirectory)')" Text="  -> nicht deployt (kein Ordner $(PluginsDirectory))" />
+  </Target>
+
+</Project>

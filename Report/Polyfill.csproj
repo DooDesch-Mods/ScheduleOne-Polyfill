@@ -1,0 +1,68 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Polyfill (the mod) - the console surface for what Polyfill.Boot (the plugin) decided at startup.
+
+    Deliberately thin: it reads a text file and prints it. All analysis and repair happen in the plugin,
+    before the game exists. If this mod is missing, Polyfill still works - only the in-game report is gone.
+
+    It has to be a MOD and not part of the plugin, because a plugin runs before Il2Cpp interop is usable
+    and therefore cannot patch ScheduleOne.Console at all.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Polyfill.Report</RootNamespace>
+    <AssemblyName>Polyfill</AssemblyName>
+    <Version Condition="'$(Version)' == ''">0.0.0-dev</Version>
+
+    <WorkspaceLibPath Condition="'$(WorkspaceLibPath)' == '' AND Exists('$(MSBuildThisFileDirectory)../../Workspace/lib')">$(MSBuildThisFileDirectory)../../Workspace/lib</WorkspaceLibPath>
+    <WorkspaceLibPath Condition="'$(WorkspaceLibPath)' == ''">$(MSBuildThisFileDirectory)../Workspace/lib</WorkspaceLibPath>
+    <GameManagedPath>$(WorkspaceLibPath)/il2cpp/game</GameManagedPath>
+    <MelonLoaderPath>$(WorkspaceLibPath)/il2cpp/melonloader</MelonLoaderPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Workspace/**/*.cs" />
+    <Compile Remove="../Workspace/**/*.cs" />
+  </ItemGroup>
+
+  <Import Project="$(MSBuildThisFileDirectory)../../Workspace/build/Deploy.props" Condition="Exists('$(MSBuildThisFileDirectory)../../Workspace/build/Deploy.props')" />
+  <Import Project="$(MSBuildThisFileDirectory)../Workspace/build/Deploy.props" Condition="Exists('$(MSBuildThisFileDirectory)../Workspace/build/Deploy.props')" />
+  <Import Project="$(MSBuildThisFileDirectory)../../Workspace/build/Hardening.props" Condition="Exists('$(MSBuildThisFileDirectory)../../Workspace/build/Hardening.props')" />
+  <Import Project="$(MSBuildThisFileDirectory)../Workspace/build/Hardening.props" Condition="Exists('$(MSBuildThisFileDirectory)../Workspace/build/Hardening.props')" />
+  <Import Project="$(MSBuildThisFileDirectory)../../Workspace/build/ModVersion.props" Condition="Exists('$(MSBuildThisFileDirectory)../../Workspace/build/ModVersion.props')" />
+  <Import Project="$(MSBuildThisFileDirectory)../Workspace/build/ModVersion.props" Condition="Exists('$(MSBuildThisFileDirectory)../Workspace/build/ModVersion.props')" />
+
+  <!-- Hash's command shim, so a terminal and the autocomplete can list these words. Zero-reference source
+       file, reflection-bound, and a no-op when Hash is not installed. Optional: no shim, no declaration. -->
+  <PropertyGroup>
+    <HashShimPath Condition="Exists('$(MSBuildThisFileDirectory)../../Hash/Hash.Api/HashCommands.cs')">$(MSBuildThisFileDirectory)../../Hash/Hash.Api/HashCommands.cs</HashShimPath>
+    <HashShimPath Condition="'$(HashShimPath)' == '' And Exists('$(WorkspaceLibPath)/hash-api/HashCommands.cs')">$(WorkspaceLibPath)/hash-api/HashCommands.cs</HashShimPath>
+    <DefineConstants Condition="'$(HashShimPath)' != ''">$(DefineConstants);HASH_API</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Condition="'$(HashShimPath)' != ''" Include="$(HashShimPath)" Link="Hash.Api.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="MelonLoader"><HintPath>$(MelonLoaderPath)/MelonLoader.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="0Harmony"><HintPath>$(MelonLoaderPath)/0Harmony.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Il2CppInterop.Runtime"><HintPath>$(MelonLoaderPath)/Il2CppInterop.Runtime.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Il2Cppmscorlib"><HintPath>$(GameManagedPath)/Il2Cppmscorlib.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Il2CppSystem"><HintPath>$(GameManagedPath)/Il2CppSystem.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Assembly-CSharp"><HintPath>$(GameManagedPath)/Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(GameManagedPath)/UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="Build" Condition="'$(OS)' == 'Windows_NT'">
+    <Exec Condition="Exists('$(ModsDirectory)')"
+          Command="cmd /c copy /Y &quot;$(TargetPath)&quot; &quot;$(ModsDirectory)&quot;"
+          ContinueOnError="true" />
+  </Target>
+
+</Project>
