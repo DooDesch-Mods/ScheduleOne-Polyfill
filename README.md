@@ -1,10 +1,10 @@
 # Polyfill
 
-> 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/polyfill](https://support.doodesch.de/polyfill).
+> 🛟 **Need help or found a bug?** [support.doodesch.de/polyfill](https://support.doodesch.de/polyfill)
 
 **Your old mods stopped working after a Schedule I update? Polyfill gets a lot of them running again.**
 
-![Version](https://img.shields.io/badge/version-0.1.1-blue)
+![Version](https://img.shields.io/badge/version-0.1.2-blue)
 ![Game](https://img.shields.io/badge/game-Schedule%20I-purple)
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3+-green)
 ![Status](https://img.shields.io/badge/status-early%20beta-orange)
@@ -12,14 +12,12 @@
 > ### ⚠ Early beta
 >
 > Still got a mod that will not run? Open the console, type `polyfillexport`, and send me the file it
-> makes: [support.doodesch.de/polyfill](https://support.doodesch.de/polyfill)
+> creates: [support.doodesch.de/polyfill](https://support.doodesch.de/polyfill)
 
-The game gets an update. Mods made before it stop working.
+The game gets an update. Mods made before it stop working. Polyfill patches the game so they run again.
 
-Polyfill patches the game so those mods run again. It never touches the files in your Mods folder, and it
-only adds things, so nothing you already have can break because of it.
-
-It cannot save every mod. Some are too far gone. The console tells you which ones.
+It never touches the files in your Mods folder. It cannot save every mod - the console tells you which
+ones.
 
 ## Requirements
 
