@@ -35,6 +35,30 @@ namespace Polyfill.Core
             internal Func<ModuleDefinition, TypeDefinition, MethodDefinition> Emit;
         }
 
+        private const string Npc = "Il2CppScheduleOne.NPCs.NPC";
+        private const string Inv = "Il2CppScheduleOne.NPCs.NPCInventory";
+
+        private static readonly string[] BasicInfo = { "NPCData", "BasicInfo" };
+        private static readonly string[] Appearance = { "NPCData", "Appearance" };
+        private static readonly string[] Interaction = { "NPCData", "Interaction" };
+
+        /// <summary>NPCInventory is a component, not the NPC, so its path starts at its own back-reference -
+        /// the same one the component itself now reads through (NPCInventory.cs:62, 113, 122).</summary>
+        private static readonly string[] Inventory = { "_npc", "NPCData", "Inventory" };
+
+        private const bool Write = true;
+        private const bool Read = false;
+
+        private const string NameSplit = "NPC.cs:63-69 until 0.4.5f2, now BasicInfo.cs:4-7";
+        private const string Summon = "NPC.cs:116 until 0.4.5f2, now Interaction.cs:8 - and the game reads it "
+                                    + "from there in NPCEnterableBuilding.cs:96";
+        private const string SlotCount = "NPCInventory.cs:45 until 0.4.5f2, now Inventory.InventorySlotCount, "
+                                       + "which NPCInventory.cs:62 builds the slots from";
+        private const string Renamed = "NPCInventory.cs:51-65 until 0.4.5f2; the value kept its meaning and "
+                                     + "lost its old name in Inventory.cs";
+        private const string Pickpocket = "NPCInventory.cs:47 until 0.4.5f2, now Inventory.CanBePickpocketed, "
+                                        + "read at NPCInventory.cs:372";
+
         private static readonly List<Rule> All = new()
         {
             new Rule
@@ -67,6 +91,24 @@ namespace Polyfill.Core
                         + "migration of this call is MethInstance.cs:51",
                 Emit = EmitOverrideAggression,
             },
+
+            // 0.4.6 emptied NPC and NPCInventory of their loose configuration fields and put the values in
+            // NPCData objects (NPCData.cs). Nothing was dropped and nothing changed meaning - the game reads
+            // the same values back out of the same places it used to write them, so putting the old member
+            // back as a walk down that path is the whole repair.
+            Moved(Npc, "ID", Write, BasicInfo, "ID", NameSplit),
+            Moved(Npc, "FirstName", Write, BasicInfo, "FirstName", NameSplit),
+            Moved(Npc, "LastName", Write, BasicInfo, "LastName", NameSplit),
+            Moved(Npc, "MugshotSprite", Write, Appearance, "Mugshot",
+                  "NPC.cs:71 until 0.4.5f2, now Appearance.Mugshot"),
+            Moved(Npc, "CanBeSummoned", Write, Interaction, "CanBeSummoned", Summon),
+            Moved(Npc, "CanBeSummoned", Read, Interaction, "CanBeSummoned", Summon),
+            Moved(Inv, "SlotCount", Write, Inventory, "InventorySlotCount", SlotCount),
+            Moved(Inv, "SlotCount", Read, Inventory, "InventorySlotCount", SlotCount),
+            Moved(Inv, "ClearInventoryEachNight", Write, Inventory, "ClearInventoryOnNewDay", Renamed),
+            Moved(Inv, "RandomCash", Write, Inventory, "RandomizeCash", Renamed),
+            Moved(Inv, "RandomItems", Write, Inventory, "RandomizeInventory", Renamed),
+            Moved(Inv, "CanBePickpocketed", Write, Inventory, "CanBePickpocketed", Pickpocket),
         };
 
         internal static Rule Find(string assembly, string declaringType, string oldName, int parameterCount)
@@ -231,6 +273,101 @@ namespace Polyfill.Core
             il.Emit(OpCodes.Callvirt, add);
             il.Emit(OpCodes.Ret);
             return method;
+        }
+
+        /// <summary>
+        /// A member that is still there and is reached differently: the old accessor is put back and walks
+        /// <paramref name="hops"/> to wherever the value lives now.
+        /// </summary>
+        private static Rule Moved(string declaringType, string oldName, bool write,
+                                  string[] hops, string target, string because)
+        {
+            string accessor = (write ? "set_" : "get_") + oldName;
+            return new Rule
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = declaringType,
+                OldName = accessor,
+                ParameterCount = write ? 1 : 0,
+                Because = because,
+                Emit = (module, type) => EmitThrough(module, type, accessor, hops, target, write),
+            };
+        }
+
+        /// <summary>
+        /// Emits <c>this.A.B.Target</c> as a read or a write, and refuses if any step of that path is not on
+        /// this build of the game.
+        /// </summary>
+        /// <remarks>
+        /// The type of the rebuilt member is taken from the DESTINATION rather than named in the table, so a
+        /// rule cannot claim a shape the game does not have - if the value changed type on the way, the
+        /// accessor that comes out has the new type and the mod's call simply stays unresolved.
+        ///
+        /// Every hop is null-guarded. These paths run during NPC construction, when the components exist and
+        /// the data object behind them may not yet, and a mod configuring an NPC one property at a time would
+        /// otherwise turn a missing method into a crash - which is the same failure with a worse message.
+        /// </remarks>
+        private static MethodDefinition EmitThrough(ModuleDefinition module, TypeDefinition owner,
+                                                    string accessor, string[] hops, string target, bool write)
+        {
+            var steps = new List<MethodDefinition>();
+            var current = owner;
+            foreach (string hop in hops)
+            {
+                var step = Getter(current, hop);
+                if (step == null) return null;
+                steps.Add(step);
+                current = step.ReturnType?.Resolve();
+                if (current == null) return null;
+            }
+
+            var destination = write ? Method(current, "set_" + target, 1) : Getter(current, target);
+            if (destination == null) return null;
+
+            var valueType = write ? destination.Parameters[0].ParameterType : destination.ReturnType;
+            var returnType = write ? module.TypeSystem.Void : module.ImportReference(valueType);
+
+            var method = new MethodDefinition(accessor, MethodAttributes.Public | MethodAttributes.HideBySig,
+                                              returnType);
+            if (write)
+                method.Parameters.Add(new ParameterDefinition("value", ParameterAttributes.None,
+                                                              module.ImportReference(valueType)));
+
+            var il = method.Body.GetILProcessor();
+            var giveUp = il.Create(OpCodes.Nop);
+
+            il.Emit(OpCodes.Ldarg_0);
+            for (int i = 0; i < steps.Count; i++)
+            {
+                il.Emit(i == 0 ? OpCodes.Call : OpCodes.Callvirt, module.ImportReference(steps[i]));
+                il.Emit(OpCodes.Dup);
+                il.Emit(OpCodes.Brfalse, giveUp);
+            }
+
+            if (write) il.Emit(OpCodes.Ldarg_1);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(destination));
+            il.Emit(OpCodes.Ret);
+
+            // a hop was null: drop it and answer with nothing rather than throwing
+            il.Append(giveUp);
+            il.Emit(OpCodes.Pop);
+            if (!write) EmitDefault(method, il, returnType);
+            il.Emit(OpCodes.Ret);
+
+            method.Body.InitLocals = true;
+            return method;
+        }
+
+        /// <summary>Pushes the zero value of <paramref name="type"/>, whatever kind of type it is.</summary>
+        private static void EmitDefault(MethodDefinition method, ILProcessor il, TypeReference type)
+        {
+            if (!type.IsValueType) { il.Emit(OpCodes.Ldnull); return; }
+
+            var slot = new VariableDefinition(type);
+            method.Body.Variables.Add(slot);
+            il.Emit(OpCodes.Ldloca_S, slot);
+            il.Emit(OpCodes.Initobj, type);
+            il.Emit(OpCodes.Ldloc_S, slot);
         }
 
         private static MethodDefinition Getter(TypeDefinition type, string member)

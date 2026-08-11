@@ -21,6 +21,13 @@ patch back out.
 
 It cannot save every mod. The console tells you which ones.
 
+## Tested on
+
+| | |
+|---|---|
+| T.H.M - The Hitman Mod 5.0.2 | runs |
+| OverTheCounter Dispensary 2.0.10 | being worked on |
+
 ## Requirements
 
 [MelonLoader](https://github.com/LavaGang/MelonLoader) 0.7.3 or newer. Nothing else.

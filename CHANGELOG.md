@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here.
 
+## [0.2.0] - 2026-08-11
+
+### Added
+- Mods that build their own NPC run again: 0.4.6 moved the NPC's name, ID, mugshot and inventory
+  settings, and writing them killed the mod.
+- More names get matched. A member renamed from `CustomerSlots` to `_customerSlots` is found now, which
+  brings back the weather reading and the handover screen for older mods.
+- T.H.M - The Hitman Mod now has a repair for all 6 things it asks for, OverTheCounter Dispensary for 18
+  of 40. It was 5 and 4.
+
 ## [0.1.3] - 2026-08-11
 
 ### Fixed
