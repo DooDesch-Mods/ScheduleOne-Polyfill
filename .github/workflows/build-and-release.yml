@@ -337,9 +337,8 @@ jobs:
             does the work and has to be a plugin - it runs before any mod is read - so a copy of it in `Mods/` is
             ignored by MelonLoader. The mod only adds the console commands and can be left out.
 
-            Polyfill changes the interop assemblies MelonLoader generates from your own copy of the game, and keeps
-            the untouched original beside each one. `polyfillrestore` in the console undoes all of it on the next
-            launch. Your Mods folder is never written to.
+            Polyfill patches the game, not your mods. Your own files are never changed, and `polyfillrestore` in
+            the console takes the patch back out on the next launch.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -353,7 +352,7 @@ jobs:
           VERSION: ${{ needs.build.outputs.version }}
           NOTES: ${{ needs.build.outputs.notes }}
           REPO: ${{ github.repository }}
-          NEXUS_MOD_ID: ${{ secrets.NEXUS_MOD_ID }}
+          NEXUS_MOD_ID: ${{ vars.NEXUS_MOD_ID }}
         run: |
           if [ -z "$WEBHOOK" ]; then echo "DISCORD_RELEASE_WEBHOOK is not set - nothing announced."; exit 0; fi
 
