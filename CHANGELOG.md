@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here.
 
-## [0.2.0] - 2026-08-11
+## [0.2.0] - 2026-08-12
 
 ### Added
 - Mods that build their own NPC run again: 0.4.6 moved the NPC's name, ID, mugshot and inventory
