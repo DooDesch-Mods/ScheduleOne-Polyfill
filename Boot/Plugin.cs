@@ -68,6 +68,13 @@ namespace Polyfill.Boot
                 Diagnostics.RecordInteropLoadState(LoggerInstance);
                 if (RestoreIfAsked()) return;
                 ModScan.Run(LoggerInstance);
+
+                // Layer 2. Off under DryRun like everything else: it answers the same questions the same way,
+                // but it is still a change to a running game, and "repair nothing" has to mean nothing.
+                if (DryRun)
+                    LoggerInstance.Msg("[reflect] not installed - DryRun is on.");
+                else
+                    Dynamic.ReflectionFallback.Install(LoggerInstance, Core.InteropIndex.LocateDirectory());
             }
             catch (Exception e)
             {

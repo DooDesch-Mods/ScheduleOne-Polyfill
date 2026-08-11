@@ -202,6 +202,14 @@ namespace Polyfill.Core
             return _bySimpleName.TryGetValue(simpleName, out var hits) ? hits : Array.Empty<TypeDefinition>();
         }
 
+        /// <summary>Every simple type name the game defines, so a caller can turn the index inside out
+        /// without loading a type to find out what is in it.</summary>
+        internal IEnumerable<string> SimpleNames()
+        {
+            _bySimpleName ??= BuildSimpleNameIndex();
+            return _bySimpleName.Keys;
+        }
+
         private Dictionary<string, List<TypeDefinition>> BuildSimpleNameIndex()
         {
             var index = new Dictionary<string, List<TypeDefinition>>(StringComparer.Ordinal);
