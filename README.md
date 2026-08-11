@@ -1,39 +1,25 @@
-# Polyfill - Keep Older Mods Working After a Game Update
+# Polyfill
 
 > 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/polyfill](https://support.doodesch.de/polyfill).
 
-> A mod built against an older Schedule I asks for names the update took away, and dies the moment you use
-> the feature. Polyfill puts those names back - not into your mods, into the interop assemblies MelonLoader
-> generates from your own copy of the game - pointing at wherever the thing lives now.
+**Your old mods stopped working after a Schedule I update? Polyfill gets a lot of them running again.**
 
-![Version](https://img.shields.io/badge/version-0.1.0-blue)
+![Version](https://img.shields.io/badge/version-0.1.1-blue)
 ![Game](https://img.shields.io/badge/game-Schedule%20I-purple)
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3+-green)
 ![Status](https://img.shields.io/badge/status-early%20beta-orange)
 
 > ### ⚠ Early beta
 >
-> It puts back renames, casing changes and FishNet RPC hashes, and reports everything it cannot.
->
-> **Got an old mod that still will not run?** Type `polyfillexport` in the console. It writes one file
-> covering every mod you have to `UserData/Polyfill/polyfill-report.txt` - send me that, at
-> [support.doodesch.de/polyfill](https://support.doodesch.de/polyfill).
->
-> It names the exact members each mod cannot find, which is what decides whether the next version can
-> reach them. It holds no file paths and nothing that identifies you.
+> Still got a mod that will not run? Open the console, type `polyfillexport`, and send me the file it
+> makes: [support.doodesch.de/polyfill](https://support.doodesch.de/polyfill)
 
-## What it does
+The game gets an update. Mods made before it stop working.
 
-Every update renames things, moves types into other assemblies, and changes FishNet RPC hashes. A mod
-built against an older version asks for names that are not there any more and dies - usually at the
-moment you use the feature, so it reads as a broken mod rather than a version mismatch.
+Polyfill patches the game so those mods run again. It never touches the files in your Mods folder, and it
+only adds things, so nothing you already have can break because of it.
 
-Polyfill puts those names back. Not into your mods - into the interop assemblies MelonLoader generates
-from your own copy of the game - pointing at wherever the thing lives now. One repair serves every mod
-that wants it, and **the files in your Mods folder are never touched**.
-
-It only ever adds. Nothing is renamed, changed or removed, so a mod that already works cannot be
-affected by it.
+It cannot save every mod. Some are too far gone. The console tells you which ones.
 
 ## Requirements
 
