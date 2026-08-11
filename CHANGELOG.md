@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.1.2] - 2026-08-11
+
+### Changed
+- The store pages are shorter and say what the mod does in one line. The previous text still read like
+  documentation instead of a mod page.
+
 ## [0.1.1] - 2026-08-11
 
 ### Changed
