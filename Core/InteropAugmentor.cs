@@ -129,6 +129,21 @@ namespace Polyfill.Core
                         if (module.GetType(Full(forward)) != null)
                         { result.Refused.Add($"{Full(forward)}: the name is taken here"); continue; }
 
+                        // A forwarder is an entry saying "this name lives in ANOTHER assembly". Pointing one at
+                        // the assembly it already sits in says the name is somewhere else and somewhere else is
+                        // here, and the type loader has nowhere to go from there. Measured: the name stays
+                        // unresolvable, and the process dies when a mod's compiled call reaches it rather than
+                        // when reflection asks politely.
+                        //
+                        // This is the type that MOVED WITHIN one assembly - a namespace change. It needs a
+                        // shadow type, not a forwarder, so until that exists it is reported and left alone.
+                        if (string.Equals(forward.TargetAssembly, forward.InAssembly, StringComparison.OrdinalIgnoreCase))
+                        {
+                            result.Refused.Add($"{Full(forward)}: it only changed namespace, and a forwarder "
+                                             + "cannot point at its own assembly");
+                            continue;
+                        }
+
                         var scope = ScopeFor(module, forward.TargetAssembly);
                         if (scope == null)
                         { result.Refused.Add($"{Full(forward)}: {forward.TargetAssembly} is not installed"); continue; }
