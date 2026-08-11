@@ -119,6 +119,14 @@ namespace Polyfill.Core
             //
             // The resolver is disposed BEFORE the live file is replaced, not after: it opens what it resolves
             // and holds the handle, and one of the things it can resolve is the file about to be overwritten.
+            // What the verification is allowed to demand back out of the written image is what was actually
+            // put in, never what was planned. A repair can be refused for good reasons - the name is taken,
+            // the target is not on this build, a forwarder would point at its own assembly - and checking
+            // against the plan turns any one of those into a failed verification, which throws away every
+            // other repair with it. Refusing one repair must cost exactly that one repair.
+            var emittedForwards = new List<TypeForward>();
+            var emittedMembers = new List<MemberForward>();
+
             try
             {
                 using (var resolver = new DefaultAssemblyResolver())
@@ -153,11 +161,12 @@ namespace Polyfill.Core
                             Attributes = TypeAttributes.Forwarder,
                         });
                         result.Applied.Add($"{forward.InAssembly}!{Full(forward)} -> {forward.TargetAssembly}");
+                        emittedForwards.Add(forward);
                         added++;
                     }
 
                     foreach (var member in members)
-                        if (AddMemberForward(module, member, result)) added++;
+                        if (AddMemberForward(module, member, result)) { emittedMembers.Add(member); added++; }
 
                     if (added == 0) return;
                     module.Write(temporary);
@@ -168,7 +177,7 @@ namespace Polyfill.Core
                 // this reported two repairs applied and wrote one, and nothing noticed until a runtime
                 // probe came up empty an hour later. A repair that cannot be found in the output is a bug
                 // in here, and the game gets the original instead.
-                string missing = Verify(temporary, forwards, members);
+                string missing = Verify(temporary, emittedForwards, emittedMembers);
                 if (missing != null)
                 {
                     result.Refused.Add($"{Path.GetFileName(livePath)}: written image is missing {missing}; "
