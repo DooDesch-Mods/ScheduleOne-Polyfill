@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.1.1] - 2026-08-11
+
+### Changed
+- The store pages now say what the mod does in plain words. The old text explained the mechanism instead
+  of the problem, so nobody could tell whether it was for them.
+
 ## [0.1.0] - 2026-08-11
 
 ### Added
