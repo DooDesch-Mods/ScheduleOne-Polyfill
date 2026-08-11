@@ -15,11 +15,12 @@
 >
 > It puts back renames, casing changes and FishNet RPC hashes, and reports everything it cannot.
 >
-> **Got an old mod that still will not run?** Type `polyfillunfixed <mod>` in the console and send me what
-> it prints, at [support.doodesch.de/polyfill](https://support.doodesch.de/polyfill).
+> **Got an old mod that still will not run?** Type `polyfillexport` in the console. It writes one file
+> covering every mod you have to `UserData/Polyfill/polyfill-report.txt` - send me that, at
+> [support.doodesch.de/polyfill](https://support.doodesch.de/polyfill).
 >
-> That output names the exact members the mod cannot find, which is what decides whether the next version
-> can reach them. A "doesn't work" without it is a mod I cannot do anything about.
+> It names the exact members each mod cannot find, which is what decides whether the next version can
+> reach them. It holds no file paths and nothing that identifies you.
 
 ## Features
 
@@ -56,6 +57,7 @@ polyfill                 what it found in your mods at startup
 polyfilllist             every mod, with its verdict
 polyfillshow <mod>       everything one mod asks for that is missing
 polyfillunfixed <mod>    only what cannot be pointed at anything
+polyfillexport           write one file with everything, ready to send
 polyfillprobe <type>     ask the runtime whether a name resolves
 polyfillrestore          undo every repair, takes effect on the next launch
 ```

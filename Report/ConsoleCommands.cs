@@ -28,6 +28,7 @@ namespace Polyfill.Report
             new[] { "polyfilllist",    "every mod, with its verdict", "polyfilllist" },
             new[] { "polyfillshow",    "everything one mod asks for that is missing", "polyfillshow hitman" },
             new[] { "polyfillunfixed", "only what cannot be pointed at anything", "polyfillunfixed hitman" },
+            new[] { "polyfillexport",  "write one file with everything, ready to send", "polyfillexport" },
             new[] { "polyfillprobe",   "can the runtime resolve this type by name?", "polyfillprobe Il2CppScheduleOne.Weather.WeatherConditions" },
             new[] { "polyfillrestore", "undo every repair, restart to take effect", "polyfillrestore" },
             new[] { "polyfillhelp",    "list the polyfill commands", "polyfillhelp" },
@@ -63,7 +64,7 @@ namespace Polyfill.Report
             string command = parts[0].ToLowerInvariant();
             if (command != "polyfill" && command != "polyfilllist" && command != "polyfillshow"
                 && command != "polyfillunfixed" && command != "polyfillhelp" && command != "polyfillprobe"
-                && command != "polyfillrestore")
+                && command != "polyfillrestore" && command != "polyfillexport")
                 return false;                                   // not ours - let the game have it
 
             string signature = string.Join(" ", parts);
@@ -81,6 +82,7 @@ namespace Polyfill.Report
                     case "polyfilllist": List(); break;
                     case "polyfillshow": Show(argument, onlyUnfixable: false); break;
                     case "polyfillunfixed": Show(argument, onlyUnfixable: true); break;
+                    case "polyfillexport": Export(); break;
                     case "polyfillprobe": Probe(argument); break;
                     case "polyfillrestore": Restore(); break;
                     case "polyfillhelp": Help(); break;
@@ -263,6 +265,95 @@ namespace Polyfill.Report
             catch (Exception e)
             {
                 Core.Log.Error("  call FAILED: " + (e.InnerException ?? e));
+            }
+        }
+
+        /// <summary>
+        /// Write one file covering every mod, ready to send without editing it first.
+        /// </summary>
+        /// <remarks>
+        /// The alternative was asking people to run `polyfillunfixed` per mod and paste the console
+        /// output, which nobody does past the second mod - and the mods worth hearing about are exactly
+        /// the ones on a machine with twenty of them.
+        ///
+        /// It is NOT `last-run.txt` renamed. That file carries the full path of every mod, which on a
+        /// player's machine reads `C:\Users\&lt;their real name&gt;\...`. A file written to be sent to a
+        /// stranger must not carry that, so only file names go in here. Nothing else identifying is in
+        /// the report to begin with.
+        ///
+        /// Both halves are written per mod: what Polyfill matched, and what it could not. The matches
+        /// matter as much as the gaps - a wrong match is the failure mode that looks like success, and
+        /// it is only visible by reading what it claimed.
+        /// </remarks>
+        private static void Export()
+        {
+            var mods = ReportReader.Mods;
+            if (mods.Count == 0) { Missing(); return; }
+
+            var text = new System.Text.StringBuilder();
+            int clean = 0, adaptable = 0, blocked = 0;
+            foreach (var mod in mods)
+                switch (mod.Verdict)
+                { case "clean": clean++; break; case "adaptable": adaptable++; break; default: blocked++; break; }
+
+            text.AppendLine("Polyfill report");
+            text.AppendLine("===============");
+            text.AppendLine();
+            text.AppendLine("Generated  " + DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss") + " UTC");
+            text.AppendLine("Game       Schedule I " + ReportReader.GameVersion);
+            text.AppendLine("Polyfill   " + DooDesch.ModVersion.Current);
+            text.AppendLine($"Mods       {mods.Count} checked - {clean} need nothing, "
+                          + $"{adaptable} could be adapted, {blocked} {(blocked == 1 ? "asks" : "ask")} "
+                          + "for something that is gone");
+            text.AppendLine();
+            text.AppendLine("Send this file to https://support.doodesch.de/polyfill");
+            text.AppendLine("It holds no file paths and nothing that identifies you.");
+
+            foreach (var mod in mods)
+            {
+                if (mod.Verdict == "clean") continue;            // nothing to say about a mod that fits
+
+                text.AppendLine();
+                text.AppendLine(new string('-', 78));
+                text.AppendLine($"{mod.Display}  {mod.Version}"
+                              + (string.IsNullOrEmpty(mod.Author) ? "" : $"  by {mod.Author}")
+                              + $"   [{mod.Verdict}]");
+                text.AppendLine($"  file {Path.GetFileName(mod.Path)}"
+                              + $"   {mod.TypeRefs} type refs, {mod.MemberRefs} member refs, "
+                              + $"{mod.HarmonyChecked} Harmony target{(mod.HarmonyChecked == 1 ? "" : "s")} checked");
+
+                Section(text, mod, "MATCHED - Polyfill points these at something", wantFixable: true);
+                Section(text, mod, "MISSING - nothing to point at", wantFixable: false);
+            }
+
+            string path = Path.Combine(Path.GetDirectoryName(ReportReader.Path), "polyfill-report.txt");
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(path));
+                File.WriteAllText(path, text.ToString());
+            }
+            catch (Exception e) { Core.Log.Error("could not write the report: " + e.Message); return; }
+
+            Core.Log.Msg($"written to {path}");
+            Core.Log.Msg("Send that file to https://support.doodesch.de/polyfill - it covers every mod at "
+                       + "once and holds no file paths.");
+        }
+
+        private static void Section(System.Text.StringBuilder text, ModLine mod, string title, bool wantFixable)
+        {
+            var lines = new List<FindingLine>();
+            foreach (var finding in mod.Findings)
+                if (finding.Fixable == wantFixable) lines.Add(finding);
+            if (lines.Count == 0) return;
+
+            text.AppendLine();
+            text.AppendLine("  " + title);
+            foreach (var finding in lines)
+            {
+                text.AppendLine($"    {finding.Kind}  {finding.Symbol}");
+                if (wantFixable) text.AppendLine($"        -> {finding.Hint}");
+                else text.AppendLine($"        {finding.Reason}");
+                if (!string.IsNullOrEmpty(finding.Site)) text.AppendLine($"        at {finding.Site}");
             }
         }
 

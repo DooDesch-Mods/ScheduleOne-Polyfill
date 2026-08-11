@@ -9,8 +9,8 @@ All notable changes to this project are documented here.
   game's generated interop assemblies, pointing at wherever the thing lives now.
 - Your mod files are never touched. Repairs go into MelonLoader's own generated assemblies, and the
   untouched copy stays beside them as `<name>.dll.polyfill-orig`.
-- `polyfill` in the console says what every installed mod is missing and what it was matched to,
-  `polyfillshow <mod>` gives the detail for one.
+- `polyfill` in the console says what every installed mod is missing and what it was matched to, and
+  `polyfillexport` writes all of it to one file you can send on, with no paths in it.
 - `polyfillrestore` undoes every repair on the next launch. It cannot happen sooner, because the
   assemblies are in use while the game runs.
 - `DryRun` works out what is missing and changes nothing, so you can see what it would do first.
