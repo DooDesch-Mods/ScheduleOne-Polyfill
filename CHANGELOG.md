@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.1.3] - 2026-08-11
+
+### Fixed
+- The store pages said your files are never touched and then offered a command to undo things, which made
+  no sense. It patches the game, not your mods, and now the text says so.
+
 ## [0.1.2] - 2026-08-11
 
 ### Changed
