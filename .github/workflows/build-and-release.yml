@@ -1,0 +1,466 @@
+name: Build and Release on Tag
+
+# Push a tag "vX.Y.Z" on the default branch and this builds Release, publishes a GitHub Release, and uploads
+# to Thunderstore + Nexus. Mirrors the Siesta pipeline.
+#
+# The TAG is the only place a version is decided. Polyfill.csproj carries a 0.0.0-dev fallback that is never
+# bumped, and the build gets -p:Version from the tag - a command-line property is a global MSBuild property
+# and a project file cannot overwrite one. Nothing in a pull request ever contains a release number.
+# Rules and reasoning: Workspace/docs/RELEASE-PROCESS.md, section "Versioning".
+#
+# Polyfill ships TWO assemblies and they go to DIFFERENT folders, which is the one way this pipeline
+# differs from the single-DLL mods:
+#   Plugins/Polyfill.Boot.dll   the plugin - does all the work, and must be a PLUGIN because it has to run
+#                               before any mod is read from disk. MelonLoader drops a plugin found in Mods/.
+#   Mods/Polyfill.dll           the console commands. Optional; the repairs happen without it.
+# So the archive carries the folder layout rather than loose DLLs at the root, and `zip -r` keeps it.
+#
+# One-time setup:
+#   - Private build-libs repo  ${owner}/ScheduleOne-Workspace  must contain:
+#       lib/il2cpp/game        (Assembly-CSharp, Il2Cppmscorlib, Il2CppSystem, and the one Unity module the
+#                               console mod references: CoreModule)
+#       lib/il2cpp/melonloader (MelonLoader, Mono.Cecil, 0Harmony, Il2CppInterop.Runtime)
+#   - Secrets: WORKSPACE_TOKEN (SSH deploy key for that repo), THUNDERSTORE_TOKEN, NEXUSMODS_API_KEY.
+#   - Repo/org variable NEXUS_FILE_GROUP_ID = the Nexus mod's file group id (the Nexus upload job is skipped
+#     until this is set, so GitHub + Thunderstore releases work immediately).
+#   - thunderstore/icon.png must be exactly 256x256 (Thunderstore requirement).
+#
+# The packaging step checks that both DLLs are present and in the right folder. A package missing the plugin
+# installs cleanly and then does nothing at all, which is the failure nobody would report as a packaging bug.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version-check.outputs.version }}
+      notes: ${{ steps.changelog.outputs.notes }}
+      notes_bbcode: ${{ steps.changelog.outputs.notes_bbcode }}
+      notes_plain: ${{ steps.changelog.outputs.notes_plain }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout Workspace repository (build libs)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/ScheduleOne-Workspace
+          path: Workspace
+          ssh-key: ${{ secrets.WORKSPACE_TOKEN }}
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            6.0.x
+            8.0.x
+
+      # The tag is the ONLY place a release version is decided; the csproj keeps a 0.0.0-dev fallback it
+      # never bumps. See Workspace/docs/RELEASE-PROCESS.md, "Versioning". Both checks below run before
+      # anything is built, so a bad tag costs seconds rather than a published artefact.
+      - name: Preflight - tag shape and branch
+        id: version-check
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF#refs/tags/}"
+
+          # The `v*` trigger is a glob, not a pattern check - it also matches v1.2, vNext and v1.2.3-rc1.
+          if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::Release tag must be exactly vX.Y.Z, got '$TAG'."
+            exit 1
+          fi
+
+          # A tag on a feature branch would publish a version nobody can reproduce from the default branch.
+          git fetch --no-tags origin "$DEFAULT_BRANCH":"refs/remotes/origin/$DEFAULT_BRANCH"
+          if ! git merge-base --is-ancestor HEAD "refs/remotes/origin/$DEFAULT_BRANCH"; then
+            echo "::error::Tag $TAG is not on $DEFAULT_BRANCH. Merge first, then tag the commit on $DEFAULT_BRANCH."
+            exit 1
+          fi
+
+          echo "version=${TAG#v}" >> $GITHUB_OUTPUT
+
+      - name: Extract release notes from CHANGELOG.md
+        id: changelog
+        run: |
+          # Single source of truth is the hand-maintained CHANGELOG.md. Pull out the section for
+          # this version; it is reused for the GitHub release body and the Nexus file description.
+          VERSION="${{ steps.version-check.outputs.version }}"
+          SECTION=$(awk -v v="$VERSION" 'index($0,"## ["v"]")==1{grab=1;next} index($0,"## [")==1{if(grab)exit} grab{print}' CHANGELOG.md)
+          # Fatal, not a warning. This used to fall back to "See CHANGELOG.md for details." and publish that
+          # sentence as the release notes to GitHub, Thunderstore and Nexus at once.
+          if [ -z "$(printf '%s' "$SECTION" | tr -d '[:space:]')" ]; then
+            echo "::error::CHANGELOG.md has no non-empty '## [$VERSION]' section. Write the section, then re-tag."
+            exit 1
+          fi
+          HEADINGS=$(grep -c "^## \[$VERSION\]" CHANGELOG.md || true)
+          if [ "$HEADINGS" != "1" ]; then
+            echo "::error::CHANGELOG.md has $HEADINGS '## [$VERSION]' headings, expected exactly 1."
+            exit 1
+          fi
+          # Markdown notes - GitHub renders Markdown in release bodies.
+          {
+            echo "notes<<CHANGELOG_EOF"
+            echo "$SECTION"
+            echo "CHANGELOG_EOF"
+          } >> "$GITHUB_OUTPUT"
+          # Nexus file descriptions are BBCode, not Markdown, and anything left unconverted shows up on the
+          # page as literal asterisks or bracket-and-paren pairs. This turns the CHANGELOG section into the
+          # subset Nexus renders: **bold**, [text](url), ATX headings, "- " bullets with one level of
+          # nesting, and hard-wrapped paragraphs joined back into one line. Inline-code backticks are
+          # dropped, because Nexus has no inline code and a font tag around a setting name is not worth it.
+          # POSIX awk only - the runner's awk is mawk: no interval expressions, no gensub, no capture groups.
+          BBCODE=$(printf '%s\n' "$SECTION" | awk '
+            function inline(s,   t, m, p, txt, url) {
+              while (match(s, /\*\*[^*]+\*\*/)) {
+                t = substr(s, RSTART + 2, RLENGTH - 4)
+                s = substr(s, 1, RSTART - 1) "[b]" t "[/b]" substr(s, RSTART + RLENGTH)
+              }
+              while (match(s, /\[[^]]+\]\([^)]+\)/)) {
+                m = substr(s, RSTART, RLENGTH)
+                p = index(m, "](")
+                txt = substr(m, 2, p - 2)
+                url = substr(m, p + 2, length(m) - p - 2)
+                s = substr(s, 1, RSTART - 1) "[url=" url "]" txt "[/url]" substr(s, RSTART + RLENGTH)
+              }
+              return s
+            }
+            function flushitem() { if (item != "") { printf "[*]%s\n", inline(item); item = "" } }
+            function flushpara() { if (para != "") { printf "%s\n", inline(para); para = "" } }
+            function setlevel(want) {
+              flushitem()
+              while (lvl > want) { print "[/list]"; lvl-- }
+              while (lvl < want) { print "[list]"; lvl++ }
+            }
+            BEGIN { lvl = 0; item = ""; para = "" }
+            {
+              raw = $0; gsub(/`/, "", raw); sub(/[ \t]+$/, "", raw)
+              if (raw ~ /^[ \t]*$/) { flushitem(); flushpara(); next }
+              if (raw ~ /^#+ /) { flushitem(); flushpara(); setlevel(0); h = raw; sub(/^#+ +/, "", h); printf "[b]%s[/b]\n", inline(h); next }
+              if (raw ~ /^[ \t]*[-*] /) { flushpara(); indent = match(raw, /[^ \t]/) - 1; setlevel(indent >= 2 ? 2 : 1); item = raw; sub(/^[ \t]*[-*] +/, "", item); next }
+              sub(/^[ \t]+/, "", raw)
+              if (item != "") { item = item " " raw; next }
+              setlevel(0)
+              para = (para == "" ? raw : para " " raw)
+            }
+            END { flushitem(); flushpara(); setlevel(0) }')
+          {
+            echo "notes_bbcode<<CHANGELOG_EOF"
+            echo "$BBCODE"
+            echo "CHANGELOG_EOF"
+          } >> "$GITHUB_OUTPUT"
+          # A THIRD rendering, and it is not a duplicate of the one above. Nexus has two fields with two
+          # dialects: the FILE description takes BBCode, and the mod's Changelogs section takes plain text -
+          # it splits on newlines and prints every line verbatim, so BBCode handed to it appears as
+          # "[b]Changed[/b]" and "[*]..." on the page. One entry per line, no markup, headings kept as their
+          # own line. Same POSIX-awk-only constraint as above: the runner's awk is mawk.
+          PLAIN=$(printf '%s\n' "$SECTION" | awk '
+            function inline(s,   t, m, p, txt, url) {
+              while (match(s, /\*\*[^*]+\*\*/)) {
+                t = substr(s, RSTART + 2, RLENGTH - 4)
+                s = substr(s, 1, RSTART - 1) t substr(s, RSTART + RLENGTH)
+              }
+              while (match(s, /\[[^]]+\]\([^)]+\)/)) {
+                m = substr(s, RSTART, RLENGTH)
+                p = index(m, "](")
+                txt = substr(m, 2, p - 2)
+                url = substr(m, p + 2, length(m) - p - 2)
+                s = substr(s, 1, RSTART - 1) txt " (" url ")" substr(s, RSTART + RLENGTH)
+              }
+              return s
+            }
+            function flush() { if (item != "") { printf "%s%s\n", pad, inline(item); item = ""; pad = "" } }
+            BEGIN { item = ""; pad = "" }
+            {
+              raw = $0; gsub(/`/, "", raw); sub(/[ \t]+$/, "", raw)
+              if (raw ~ /^[ \t]*$/) { flush(); next }
+              if (raw ~ /^#+ /) { flush(); h = raw; sub(/^#+ +/, "", h); printf "%s\n", inline(h); next }
+              if (raw ~ /^[ \t]*[-*] /) {
+                flush()
+                indent = match(raw, /[^ \t]/) - 1
+                pad = (indent >= 2 ? "  " : "")
+                item = raw; sub(/^[ \t]*[-*] +/, "", item)
+                next
+              }
+              sub(/^[ \t]+/, "", raw)
+              if (item != "") { item = item " " raw; next }
+              printf "%s\n", inline(raw)
+            }
+            END { flush() }')
+          {
+            echo "notes_plain<<CHANGELOG_EOF"
+            echo "$PLAIN"
+            echo "CHANGELOG_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build both assemblies (Release, IL2CPP)
+        run: |
+          dotnet build Boot/Polyfill.Boot.csproj --configuration Release /p:Version="${{ steps.version-check.outputs.version }}" /p:WorkspaceLibPath="${{ github.workspace }}/Workspace/lib"
+          dotnet build Report/Polyfill.csproj --configuration Release /p:Version="${{ steps.version-check.outputs.version }}" /p:WorkspaceLibPath="${{ github.workspace }}/Workspace/lib"
+
+      - name: Prepare release directory
+        run: |
+          mkdir -p release/Plugins release/Mods
+          cp Boot/bin/Release/net6.0/Polyfill.Boot.dll release/Plugins/
+          cp Report/bin/Release/net6.0/Polyfill.dll release/Mods/
+          # Both, in the right folder, or the package is broken in a way that looks like a working install.
+          for f in release/Plugins/Polyfill.Boot.dll release/Mods/Polyfill.dll; do
+            [ -s "$f" ] || { echo "::error::$f is missing or empty."; exit 1; }
+          done
+          echo "Plugins/Polyfill.Boot.dll $(du -h release/Plugins/Polyfill.Boot.dll | cut -f1), Mods/Polyfill.dll $(du -h release/Mods/Polyfill.dll | cut -f1)"
+          if [ -d "thunderstore" ]; then
+            cp -r thunderstore/* release/ 2>/dev/null || true
+            if [ -f "release/manifest.json" ]; then
+              sed -i "s/\"version_number\": \".*\"/\"version_number\": \"${{ steps.version-check.outputs.version }}\"/" release/manifest.json
+            fi
+          fi
+          # Ship LICENSE + the maintained CHANGELOG inside the package.
+          [ -f "LICENSE.md" ] && cp LICENSE.md release/ || true
+          [ -f "CHANGELOG.md" ] && cp CHANGELOG.md release/ || true
+          # Recreate README.md as UTF-8 without BOM (Thunderstore renders it on the mod page).
+          if [ -f "thunderstore/README.md" ]; then
+            cat thunderstore/README.md | iconv -f UTF-8 -t UTF-8//IGNORE > release/README.md 2>/dev/null || \
+            sed '1s/^\xEF\xBB\xBF//' thunderstore/README.md > release/README.md || \
+            cp thunderstore/README.md release/README.md
+          fi
+
+      # -r, not -j: the flat "junk paths" zip the single-DLL mods use would drop Plugins/ and Mods/ and put both
+      # assemblies at the archive root, where a mod manager installs the plugin into Mods/ - and MelonLoader
+      # ignores a plugin it finds there. manifest.json, icon.png and README.md still sit at the archive root,
+      # which is what Thunderstore requires.
+      - name: Create release ZIP (Thunderstore + GitHub; manifest/icon at root, assemblies in their folders)
+        run: cd release && zip -r "../Polyfill_${{ steps.version-check.outputs.version }}.zip" . && cd ..
+
+      - name: Upload Release ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Polyfill
+          path: "Polyfill_${{ steps.version-check.outputs.version }}.zip"
+
+      # DEBUG BUILD - GitHub release only, never Thunderstore or Nexus.
+      #
+      # Anyone building against this mod wants the Debug DLL, and building it themselves means cloning this repo
+      # and the private build-libs one first. Shipping it here costs one extra compile and saves every one of
+      # them that detour. It is deliberately NOT on the player channels: it carries developer tooling and
+      # verbose logging, and a player installing it by accident would just make their log noisier and slower.
+      - name: Build both assemblies (Debug, IL2CPP)
+        run: |
+          dotnet build Boot/Polyfill.Boot.csproj --configuration Debug /p:Version="${{ steps.version-check.outputs.version }}" /p:WorkspaceLibPath="${{ github.workspace }}/Workspace/lib"
+          dotnet build Report/Polyfill.csproj --configuration Debug /p:Version="${{ steps.version-check.outputs.version }}" /p:WorkspaceLibPath="${{ github.workspace }}/Workspace/lib"
+
+      - name: Package the Debug build
+        run: |
+          mkdir -p debug/Plugins debug/Mods
+          cp Boot/bin/Debug/net6.0/Polyfill.Boot.dll debug/Plugins/
+          cp Report/bin/Debug/net6.0/Polyfill.dll debug/Mods/
+          [ -f "LICENSE.md" ] && cp LICENSE.md debug/ || true
+          (cd debug && zip -r "../Polyfill_${{ steps.version-check.outputs.version }}_debug.zip" .)
+
+      - name: Upload Debug ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Polyfill-debug
+          path: "Polyfill_${{ steps.version-check.outputs.version }}_debug.zip"
+
+      # Nexus is installed through Vortex, whose Schedule 1 extension deploys relative to the game root and
+      # maps loose non-.md files at the archive root to a bare "mods" path - which lands a FILE named "mods"
+      # in the game folder, replacing the real Mods DIRECTORY and wiping other mods. So Nexus gets its own
+      # archive with the payload in folders and none of the Thunderstore-only files.
+      #
+      # UNVERIFIED for this mod: that extension is known to misroute a UserLibs/ folder into MelonLoader/, and
+      # nobody has tested what it does with plugins/. Until somebody installs this through Vortex and confirms
+      # Polyfill.Boot.dll lands in the game's Plugins folder, the Nexus page tells players to install by hand -
+      # see Workspace/docs/Polyfill/release/UPLOAD.md.
+      - name: Create Nexus/Vortex ZIP (payload in folders so the Schedule 1 Vortex extension installs cleanly)
+        run: |
+          mkdir -p nexus/mods nexus/plugins
+          cp release/Mods/Polyfill.dll nexus/mods/
+          cp release/Plugins/Polyfill.Boot.dll nexus/plugins/
+          for f in README.md CHANGELOG.md LICENSE.md; do
+            [ -f "release/$f" ] && cp "release/$f" nexus/ || true
+          done
+          (cd nexus && zip -r "../Polyfill_${{ steps.version-check.outputs.version }}_nexus.zip" .)
+
+      - name: Upload Nexus ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Polyfill-nexus
+          path: "Polyfill_${{ steps.version-check.outputs.version }}_nexus.zip"
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download built ZIP
+        uses: actions/download-artifact@v4
+        with:
+          name: Polyfill
+
+      - name: Extract DLLs from ZIP
+        run: |
+          unzip -q "Polyfill_${{ needs.build.outputs.version }}.zip" -d release/
+          ls -laR release/
+
+      - name: Download Debug ZIP
+        uses: actions/download-artifact@v4
+        with:
+          name: Polyfill-debug
+
+      # Two assemblies in two folders, so the zip is the installable artifact - a loose DLL is only half of it.
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          generate_release_notes: true
+          files: |
+            Polyfill_${{ needs.build.outputs.version }}.zip
+            Polyfill_${{ needs.build.outputs.version }}_debug.zip
+          body: |
+            ## Changes in ${{ needs.build.outputs.version }}
+
+            ${{ needs.build.outputs.notes }}
+
+            Installing by hand: `Polyfill.Boot.dll` goes into `Plugins/`, `Polyfill.dll` into `Mods/`. The plugin
+            does the work and has to be a plugin - it runs before any mod is read - so a copy of it in `Mods/` is
+            ignored by MelonLoader. The mod only adds the console commands and can be left out.
+
+            Polyfill changes the interop assemblies MelonLoader generates from your own copy of the game, and keeps
+            the untouched original beside each one. `polyfillrestore` in the console undoes all of it on the next
+            launch. Your Mods folder is never written to.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Discord renders a `release` webhook as an empty box - no title, no version, no notes. So the embed is
+      # built here, where the version and the changelog section are already known. Skipped when the secret is
+      # not set, so a fork or a repo without the feed just builds and releases.
+      - name: Announce the release in Discord
+        if: ${{ !cancelled() }}
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
+          VERSION: ${{ needs.build.outputs.version }}
+          NOTES: ${{ needs.build.outputs.notes }}
+          REPO: ${{ github.repository }}
+          NEXUS_MOD_ID: ${{ secrets.NEXUS_MOD_ID }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then echo "DISCORD_RELEASE_WEBHOOK is not set - nothing announced."; exit 0; fi
+
+          SHORT="${REPO#*/}"
+          NAME=$(echo "$SHORT" | sed -E 's/^(ScheduleOne|Palworld|Mimesis)-//')
+          [ -f thunderstore/manifest.json ] && NAME=$(jq -r '.name // empty' thunderstore/manifest.json)
+          [ -z "$NAME" ] && NAME="$SHORT"
+
+          LINKS="[GitHub](https://github.com/$REPO/releases/tag/v$VERSION)"
+          if [ -f thunderstore/manifest.json ]; then
+            LINKS="[Thunderstore](https://thunderstore.io/package/DooDesch/$NAME/) · $LINKS"
+          fi
+
+          # NEXUS_MOD_ID is the global uid, game_id * 2^32 + page_id, and the page id is what the URL wants.
+          # Only Schedule I is mapped, so a repo for another game simply goes without the link.
+          if [ -n "$NEXUS_MOD_ID" ]; then
+            GAME_ID=$(( NEXUS_MOD_ID / 4294967296 ))
+            PAGE_ID=$(( NEXUS_MOD_ID % 4294967296 ))
+            if [ "$GAME_ID" = "7381" ]; then
+              LINKS="[Nexus](https://www.nexusmods.com/schedule1/mods/$PAGE_ID) · $LINKS"
+            fi
+          fi
+
+          case "$SHORT" in
+            ScheduleOne-*) FOOTER="Schedule I · $SHORT" ;;
+            Palworld-*)    FOOTER="Palworld · $SHORT" ;;
+            Mimesis-*)     FOOTER="Mimesis · $SHORT" ;;
+            *)             FOOTER="$SHORT" ;;
+          esac
+
+          # jq builds the JSON so a changelog with quotes, backticks or newlines cannot break the payload.
+          jq -n --arg title "$NAME $VERSION" \
+                --arg url "https://github.com/$REPO/releases/tag/v$VERSION" \
+                --arg desc "$NOTES" \
+                --arg icon "https://raw.githubusercontent.com/$REPO/main/thunderstore/icon.png" \
+                --arg links "$LINKS" \
+                --arg foot "$FOOTER" \
+            '{embeds: [{
+                title: $title,
+                url: $url,
+                description: ($desc | if length > 1400 then .[0:1400] + "\n..." else . end),
+                color: 8256434,
+                thumbnail: {url: $icon},
+                fields: [{name: "Get it", value: $links}],
+                footer: {text: $foot}
+             }]}' > payload.json
+
+          curl -sS -f -X POST -H "Content-Type: application/json" -d @payload.json "$WEBHOOK" \
+            && echo "announced $NAME $VERSION"
+
+  thunderstore:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download built ZIP
+        uses: actions/download-artifact@v4
+        with:
+          name: Polyfill
+
+      - name: Extract ZIP for Thunderstore
+        run: |
+          mkdir -p thunderstore-package
+          unzip -q "Polyfill_${{ needs.build.outputs.version }}.zip" -d thunderstore-package/
+
+      - name: Upload to Thunderstore
+        uses: GreenTF/upload-thunderstore-package@v4.3
+        with:
+          token: ${{ secrets.THUNDERSTORE_TOKEN }}
+          community: schedule-i
+          repo: thunderstore.io
+          namespace: DooDesch
+          name: Polyfill
+          description: Keeps older Schedule I mods working after a game update. Puts the names an update took away back into the game's generated interop assemblies. Your mod files are never touched.
+          version: ${{ needs.build.outputs.version }}
+          path: thunderstore-package
+          deps: |
+            LavaGang-MelonLoader-0.7.3
+          categories: |
+            Mods
+
+  nexus:
+    needs: build
+    runs-on: ubuntu-latest
+    # Skipped until the Nexus mod page exists and both IDs are set as repo/org variables.
+    if: ${{ vars.NEXUS_FILE_GROUP_ID != '' && vars.NEXUS_MOD_ID != '' }}
+    steps:
+      - name: Download Nexus ZIP
+        uses: actions/download-artifact@v4
+        with:
+          name: Polyfill-nexus
+
+      - name: Upload to Nexus Mods
+        uses: Nexus-Mods/upload-action@v1.0.0-beta.10
+        with:
+          api_key: ${{ secrets.NEXUSMODS_API_KEY }}
+          file_id: ${{ vars.NEXUS_FILE_GROUP_ID }}
+          mod_id: ${{ vars.NEXUS_MOD_ID }}
+          filename: "Polyfill_${{ needs.build.outputs.version }}_nexus.zip"
+          version: ${{ needs.build.outputs.version }}
+          display_name: "Polyfill ${{ needs.build.outputs.version }}"
+          description: ${{ needs.build.outputs.notes_bbcode }}
+          changelog: ${{ github.event_name == 'push' && github.run_attempt == 1 && needs.build.outputs.notes_plain || '' }}
+          category: main
+          archive_existing_version: true
+          update_mod_version: true
+          primary_mod_manager_download: true
+          allow_mod_manager_download: true

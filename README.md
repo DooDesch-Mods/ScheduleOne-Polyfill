@@ -1,8 +1,18 @@
-# Polyfill
+# Polyfill - Keep Older Mods Working After a Game Update
 
 > 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/polyfill](https://support.doodesch.de/polyfill).
 
-Keeps older Schedule I mods working after a game update, without the mod author having to do anything.
+> A mod built against an older Schedule I asks for names the update took away, and dies the moment you use
+> the feature. Polyfill puts those names back - not into your mods, into the interop assemblies MelonLoader
+> generates from your own copy of the game - pointing at wherever the thing lives now.
+
+![Version](https://img.shields.io/badge/version-0.1.0-blue)
+![Game](https://img.shields.io/badge/game-Schedule%20I-purple)
+![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3+-green)
+![Status](https://img.shields.io/badge/status-early%20beta-orange)
+
+**Early beta.** It repairs renames, casing changes and FishNet RPC hashes today, and reports everything it
+cannot. Read the report before assuming a mod is fixed.
 
 ## What it does
 
@@ -17,11 +27,24 @@ that wants it, and **the files in your Mods folder are never touched**.
 It only ever adds. Nothing is renamed, changed or removed, so a mod that already works cannot be
 affected by it.
 
+## Requirements
+
+| | |
+|---|---|
+| [MelonLoader](https://github.com/LavaGang/MelonLoader) | 0.7.3+ - the mod loader |
+| Anything else | Nothing |
+
 ## Install
 
-1. [MelonLoader](https://github.com/LavaGang/MelonLoader/releases) 0.7.x
-2. `Polyfill.Boot.dll` into your `Plugins` folder
-3. `Polyfill.dll` into your `Mods` folder (optional - it only adds the console commands)
+Mod manager: install and it places both files for you.
+
+By hand:
+
+1. `Polyfill.Boot.dll` into `Plugins/`
+2. `Polyfill.dll` into `Mods/` (optional - it only adds the console commands)
+
+The plugin does the work and has to be a plugin, because it runs before any mod is read from disk. A copy
+of it in `Mods/` is ignored by MelonLoader.
 
 ## Console
 

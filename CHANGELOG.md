@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here.
 
-## [1.0.0] - 2026-08-11
+## [0.1.0] - 2026-08-11
 
 ### Added
 - Mods built for an older Schedule I keep working: the names an update took away are put back into the
