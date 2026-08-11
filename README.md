@@ -11,8 +11,15 @@
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3+-green)
 ![Status](https://img.shields.io/badge/status-early%20beta-orange)
 
-**Early beta.** It repairs renames, casing changes and FishNet RPC hashes today, and reports everything it
-cannot. Read the report before assuming a mod is fixed.
+> ### ⚠ Early beta
+>
+> It puts back renames, casing changes and FishNet RPC hashes, and reports everything it cannot.
+>
+> **Got an old mod that still will not run?** Type `polyfillunfixed <mod>` in the console and send me what
+> it prints, at [support.doodesch.de/polyfill](https://support.doodesch.de/polyfill).
+>
+> That output names the exact members the mod cannot find, which is what decides whether the next version
+> can reach them. A "doesn't work" without it is a mod I cannot do anything about.
 
 ## What it does
 
