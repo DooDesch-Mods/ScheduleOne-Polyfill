@@ -9,8 +9,16 @@ All notable changes to this project are documented here.
   settings, and writing them killed the mod.
 - More names get matched. A member renamed from `CustomerSlots` to `_customerSlots` is found now, which
   brings back the weather reading and the handover screen for older mods.
-- T.H.M - The Hitman Mod now has a repair for all 6 things it asks for, OverTheCounter Dispensary for 18
+- A type that only changed namespace comes back too. That was the last thing keeping OverTheCounter's
+  contacts app from closing.
+- A method that grew an argument is found again, whether a mod calls it straight or asks Harmony for it
+  by name.
+- T.H.M - The Hitman Mod now has a repair for all 6 things it asks for, OverTheCounter Dispensary for 28
   of 40. It was 5 and 4.
+
+### Fixed
+- Boots that died with no message. A mod asking Harmony for a type by name made the game load every type
+  in every assembly, and one of them takes the process down.
 
 ## [0.1.3] - 2026-08-11
 
