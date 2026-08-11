@@ -1,8 +1,8 @@
 {
   "name": "Polyfill",
-  "version_number": "0.1.2",
+  "version_number": "0.1.3",
   "website_url": "https://github.com/DooDesch-Mods/ScheduleOne-Polyfill",
-  "description": "Your old mods stopped working after a Schedule I update? Polyfill patches the game so a lot of them run again. It never touches the files in your Mods folder, and one console command puts everything back.",
+  "description": "Your old mods stopped working after a Schedule I update? Polyfill patches the game so a lot of them run again. It patches the game, not your mods - your own files are never changed, and one console command takes the patch back out.",
   "dependencies": [
     "LavaGang-MelonLoader-0.7.3"
   ],

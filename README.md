@@ -4,7 +4,7 @@
 
 **Your old mods stopped working after a Schedule I update? Polyfill gets a lot of them running again.**
 
-![Version](https://img.shields.io/badge/version-0.1.2-blue)
+![Version](https://img.shields.io/badge/version-0.1.3-blue)
 ![Game](https://img.shields.io/badge/game-Schedule%20I-purple)
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3+-green)
 ![Status](https://img.shields.io/badge/status-early%20beta-orange)
@@ -16,8 +16,10 @@
 
 The game gets an update. Mods made before it stop working. Polyfill patches the game so they run again.
 
-It never touches the files in your Mods folder. It cannot save every mod - the console tells you which
-ones.
+It patches the game, not your mods. Your own files are never changed, and `polyfillrestore` takes the
+patch back out.
+
+It cannot save every mod. The console tells you which ones.
 
 ## Requirements
 
