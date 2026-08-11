@@ -13,7 +13,7 @@ All notable changes to this project are documented here.
   contacts app from closing.
 - A method that grew an argument is found again, whether a mod calls it straight or asks Harmony for it
   by name.
-- T.H.M - The Hitman Mod now has a repair for all 6 things it asks for, OverTheCounter Dispensary for 28
+- T.H.M - The Hitman Mod now has a repair for all 6 things it asks for, OverTheCounter Dispensary for 29
   of 40. It was 5 and 4.
 
 ### Fixed

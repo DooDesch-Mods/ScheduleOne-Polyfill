@@ -65,6 +65,8 @@ namespace Polyfill.Core
         private const bool Write = true;
         private const bool Read = false;
 
+        private static readonly string[] NoParameters = Array.Empty<string>();
+
         private const string NameSplit = "NPC.cs:63-69 until 0.4.5f2, now BasicInfo.cs:4-7";
         private const string Summon = "NPC.cs:116 until 0.4.5f2, now Interaction.cs:8 - and the game reads it "
                                     + "from there in NPCEnterableBuilding.cs:96";
@@ -155,8 +157,13 @@ namespace Polyfill.Core
 
             // Methods that gained a trailing parameter. The old form is genuinely gone while the name is
             // not, so these are the only rules allowed to add an overload.
-            Defaulted(Camera, "FreeMouse", 0, new object[] { true }, Crosshair),
-            Defaulted(Camera, "LockMouse", 0, new object[] { true }, Crosshair),
+            Defaulted(Camera, "FreeMouse", NoParameters, new object[] { true }, Crosshair),
+            Defaulted(Camera, "LockMouse", NoParameters, new object[] { true }, Crosshair),
+            Defaulted("Il2CppScheduleOne.UI.StorageMenu", "Open",
+                      new[] { "Il2CppScheduleOne.ItemFramework.IItemSlotOwner", "System.String", "System.String" },
+                      new object[] { null },
+                      "Open took a callback in 0.4.6 and the old three-argument form passed none "
+                    + "(StorageMenu.cs:56)"),
 
             new Rule
             {
@@ -487,17 +494,20 @@ namespace Polyfill.Core
         /// carries no default values - IL2CPP resolves them at the call site and Il2CppInterop emits the
         /// parameter bare. So the value has to come from the game's own source, and it is cited in the rule.
         /// </remarks>
-        private static Rule Defaulted(string declaringType, string name, int parameterCount,
+        /// <param name="leading">The parameter types the old form had, by full name. Needed whenever the
+        /// name carries more than one overload of the new arity - StorageMenu has two four-argument
+        /// Opens, and picking by count alone would pick whichever came first.</param>
+        private static Rule Defaulted(string declaringType, string name, string[] leading,
                                       object[] defaults, string because)
             => new()
             {
                 Assembly = "Assembly-CSharp",
                 DeclaringType = declaringType,
                 OldName = name,
-                ParameterCount = parameterCount,
+                ParameterCount = leading.Length,
                 AllowOverload = true,
                 Because = because,
-                Emit = (module, type) => EmitWithDefaults(module, type, name, parameterCount, defaults),
+                Emit = (module, type) => EmitWithDefaults(module, type, name, leading, defaults),
             };
 
         /// <summary>A method with the target's signature under the old name, whose body is one call.</summary>
@@ -526,9 +536,21 @@ namespace Polyfill.Core
 
         /// <summary>The short form of an overload, calling the long one with the values it used to imply.</summary>
         private static MethodDefinition EmitWithDefaults(ModuleDefinition module, TypeDefinition type,
-                                                         string name, int parameterCount, object[] defaults)
+                                                         string name, string[] leading, object[] defaults)
         {
-            var target = Method(type, name, parameterCount + defaults.Length);
+            int parameterCount = leading.Length;
+            MethodDefinition target = null;
+            foreach (var candidate in type.Methods)
+            {
+                if (candidate.Name != name || candidate.Parameters.Count != parameterCount + defaults.Length)
+                    continue;
+                bool matches = true;
+                for (int i = 0; i < parameterCount; i++)
+                    if (candidate.Parameters[i].ParameterType.FullName != leading[i]) { matches = false; break; }
+                if (!matches) continue;
+                if (target != null) return null;              // more than one; choosing would be a guess
+                target = candidate;
+            }
             if (target == null || target.HasGenericParameters) return null;
 
             var method = new MethodDefinition(name,

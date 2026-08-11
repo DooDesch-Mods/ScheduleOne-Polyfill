@@ -26,7 +26,7 @@ It cannot save every mod. The console tells you which ones.
 | | |
 |---|---|
 | T.H.M - The Hitman Mod 5.0.2 | runs |
-| OverTheCounter Dispensary 2.0.10 | runs; the screens 0.4.6 deleted stay gone |
+| OverTheCounter Dispensary 2.0.10 | runs; 29 of 40, the rest are screens 0.4.6 deleted |
 
 ## Requirements
 
