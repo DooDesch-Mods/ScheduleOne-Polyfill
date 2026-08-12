@@ -31,6 +31,17 @@ namespace Polyfill.Boot
             "Il2Cppmscorlib",
         };
 
+        /// <summary>
+        /// Was an interop assembly already loaded when Polyfill got its turn?
+        /// </summary>
+        /// <remarks>
+        /// Writing to a file the runtime has already mapped changes nothing this session and may not even
+        /// succeed, so this is the one condition that stops the whole launch rather than one repair. Kept as
+        /// a field because the check runs at the top of OnPreModsLoaded and the decision that needs it runs
+        /// several steps later.
+        /// </remarks>
+        internal static bool InteropAlreadyLoaded { get; private set; }
+
         /// <summary>M1, taken at the top of OnPreModsLoaded, before anything else runs.</summary>
         internal static void RecordInteropLoadState(MelonLogger.Instance log)
         {
@@ -47,6 +58,8 @@ namespace Polyfill.Boot
                 }
             }
             catch (Exception e) { log.Warning("[m1] could not enumerate loaded assemblies: " + e.Message); return; }
+
+            InteropAlreadyLoaded = loaded.Count > 0;
 
             string dir = Core.InteropIndex.LocateDirectory();
             int files = 0;

@@ -59,7 +59,12 @@ polyfillunfixed <mod>    only what cannot be pointed at anything
 polyfillexport           write one file with everything, ready to send
 polyfillprobe <type>     ask the runtime whether a name resolves
 polyfillrestore          undo every repair, takes effect on the next launch
+polyfillregen            have MelonLoader build the game's generated assemblies again
 ```
+
+After a game update Polyfill notices that MelonLoader rebuilt those assemblies and starts from the new
+ones. `polyfillregen` is for the case where it says it cannot find an untouched copy of something: it
+asks MelonLoader to build the whole set again, which takes a few minutes on the next launch.
 
 The full report is written to `UserData/Polyfill/last-run.txt`, and the untouched copy of anything it
 changed sits next to it as `<name>.dll.polyfill-orig`.

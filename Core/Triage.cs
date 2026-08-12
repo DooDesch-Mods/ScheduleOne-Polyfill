@@ -33,7 +33,8 @@ namespace Polyfill.Core
         /// Deduplicated first: two mods built against the same old version ask for the same missing name, and
         /// the forwarder belongs in the game once, not once per mod.
         /// </remarks>
-        private static void Repair(string interopDirectory, MelonLogger.Instance log)
+        private static void Repair(string interopDirectory, InteropOriginals originals,
+                                   MelonLogger.Instance log)
         {
             if (_forwards.Count == 0 && _members.Count == 0) return;
             if (Boot.Plugin.DryRun)
@@ -54,9 +55,13 @@ namespace Polyfill.Core
                 if (seen.Add("M|" + member.InAssembly + "!" + member.DeclaringType + "::" + member.OldName))
                     uniqueMembers.Add(member);
 
-            var result = InteropAugmentor.Apply(interopDirectory, uniqueTypes, uniqueMembers, log);
+            var result = InteropAugmentor.Apply(interopDirectory, uniqueTypes, uniqueMembers, originals, log);
             foreach (string applied in result.Applied) log.Msg("[inject]   " + applied);
             foreach (string refused in result.Refused) log.Warning("[inject]   refused: " + refused);
+
+            // Written even when nothing was: the stamp is the list of assemblies Polyfill has touched, and
+            // an empty list is the correct answer after a launch that touched none.
+            StampFile.Write(originals.Generator.Digest(), result.Stamped);
         }
 
         internal static void Run(List<ModCandidate> candidates, MelonLogger.Instance log)
@@ -73,11 +78,19 @@ namespace Polyfill.Core
             var reports = new List<ModReport>(candidates.Count);
             int assemblyCount;
 
+            // First, and before the index exists: which file is the untouched original of each assembly.
+            // The analysis has to read that file or a repair applied last launch reads as "nothing was
+            // missing"; the injector has to write from the same one or the two disagree. Under DryRun and
+            // with the window already shut, the decisions are still made and nothing on disk is touched.
+            bool mayAct = !Boot.Plugin.DryRun && !Boot.Diagnostics.InteropAlreadyLoaded;
+            var originals = InteropOriginals.Take(interopDirectory, mayAct, log);
+
             // Scoped, and the scope matters: Cecil's assembly resolver opens every assembly it resolves
             // WITHOUT reading it into memory first, and keeps the handle until it is disposed. Repairing
             // inside this block fails with "the file is being used by another process" - and the process is
             // this one.
-            using (var index = new InteropIndex(interopDirectory, LibraryDirectories(), SearchDirectories()))
+            using (var index = new InteropIndex(interopDirectory, originals, LibraryDirectories(),
+                                               SearchDirectories()))
             {
                 foreach (var candidate in candidates)
                 {
@@ -90,7 +103,7 @@ namespace Polyfill.Core
             Reports = reports;
             Report.Write(reports, interopDirectory, assemblyCount, new List<string>());
             Summarise(reports, log);
-            Repair(interopDirectory, log);
+            Repair(interopDirectory, originals, log);
         }
 
         /// <summary>Installed libraries - checked as well as searched. S1API lives here.</summary>

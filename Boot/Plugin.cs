@@ -104,6 +104,11 @@ namespace Polyfill.Boot
 
             string interop = Core.InteropIndex.LocateDirectory();
             int restored = interop == null ? 0 : Core.InteropAugmentor.Restore(interop, Log);
+
+            // Nothing the stamp records is true after this: the assemblies it describes are gone and the
+            // ones in their place are MelonLoader's own again.
+            Core.StampFile.Clear();
+
             Log.Msg(restored == 0
                 ? "restore was requested but nothing had been changed."
                 : $"{restored} assembly/assemblies restored as requested. Nothing was repaired this launch - "
