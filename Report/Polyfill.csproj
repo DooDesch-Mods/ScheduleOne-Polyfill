@@ -65,6 +65,8 @@
     <Reference Include="UnityEngine.CoreModule"><HintPath>$(GameManagedPath)/UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
     <!-- The spawnable prefab registry lives here, and it only exists at runtime. See PrefabLookup. -->
     <Reference Include="Il2CppFishNet.Runtime"><HintPath>$(GameManagedPath)/Il2CppFishNet.Runtime.dll</HintPath><Private>false</Private></Reference>
+    <!-- Terrain is NOT in CoreModule. See S1MapiTerrainRepaint. -->
+    <Reference Include="UnityEngine.TerrainModule"><HintPath>$(GameManagedPath)/UnityEngine.TerrainModule.dll</HintPath><Private>false</Private></Reference>
   </ItemGroup>
 
   <Target Name="PostBuild" AfterTargets="Build" Condition="'$(OS)' == 'Windows_NT'">

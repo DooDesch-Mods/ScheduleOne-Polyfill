@@ -27,6 +27,7 @@ namespace Polyfill.ModFixes
         {
             new S1MapiPrefabLookup(),
             new S1MapiPrefabs(),
+            new S1MapiInstancedTrees(),
         };
 
         private static MelonPreferences_Entry<string> _disabled;

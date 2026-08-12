@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.4.1] - 2026-08-12
+
+### Fixed
+- Trees no longer stand inside the buildings a mod places. 0.4.6 draws them from a baked texture rather
+  than from the terrain, so clearing the terrain had only been taking their collision away.
+
 ## [0.4.0] - 2026-08-12
 
 ### Added
