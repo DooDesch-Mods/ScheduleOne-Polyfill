@@ -1,0 +1,5 @@
+# polyfill-versiondb 1
+# from=0.4.6f10
+# to=0.4.6f11
+# counts=R:0 -:0 ?:0
+# op|kind|type|from|to|arity|origin|rule|confidence|note

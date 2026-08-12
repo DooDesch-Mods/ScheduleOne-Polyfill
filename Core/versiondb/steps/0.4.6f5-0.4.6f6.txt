@@ -1,0 +1,44 @@
+# polyfill-versiondb 1
+# from=0.4.6f5
+# to=0.4.6f6
+# counts=R:9 -:15 ?:15
+# op|kind|type|from|to|arity|origin|rule|confidence|note
+R|F|ScheduleOne.UI.DialogueChoiceEntry|button|Button|0|derived|name-case|high|
+R|F|ScheduleOne.UI.DialogueChoiceEntry|canvasGroup|CanvasGroup|0|derived|name-case|high|
+R|F|ScheduleOne.UI.DialogueChoiceEntry|gameObject|GameObject|0|derived|name-case|high|
+R|F|ScheduleOne.UI.DialogueChoiceEntry|notPossibleGameObject|NotPossibleGameObject|0|derived|name-case|high|
+R|F|ScheduleOne.UI.DialogueChoiceEntry|notPossibleText|NotPossibleText|0|derived|name-case|high|
+R|P|ScheduleOne.UI.InteractionCanvas|displayScale|DisplayScale|0|derived|name-case|high|
+R|F|ScheduleOne.UI.WorldspaceDialogueRenderer|CurrentOpacity|_currentOpacity|0|derived|name-underscore|high|
+R|F|ScheduleOne.UI.WorldspaceDialogueRenderer|hideCoroutine|_hideCoroutine|0|derived|name-underscore|high|
+R|F|ScheduleOne.UI.WorldspaceDialogueRenderer|localOffset|_localOffset|0|derived|name-underscore|high|
+-|M|ScheduleOne.Building.BuildStart_AirConditioner|GetInputPromptsModuleName||0|derived|removed|high|
+-|M|ScheduleOne.Building.BuildStart_Base|GetInputPromptsModuleName||0|derived|removed|high|
+-|M|ScheduleOne.Building.BuildStart_Grid|GetInputPromptsModuleName||0|derived|removed|high|
+-|M|ScheduleOne.Casino.BlackjackGameController|RpcReader___Observers_TryStartGame_2166136261||2|derived|removed|high|
+-|M|ScheduleOne.Casino.RTBGameController|RpcReader___Observers_TryNextStage_2166136261||2|derived|removed|high|
+-|F|ScheduleOne.Packaging.PackagingTool|finalizeInstance||0|derived|removed|high|
+-|F|ScheduleOne.PlayerTasks.HarvestPlant|hintShown||0|derived|removed|high|
+-|M|ScheduleOne.State.State|LoadModule||1|derived|removed|high|
+-|F|ScheduleOne.UI.CanvasScaler|referenceResolution||0|derived|removed|high|
+-|F|ScheduleOne.UI.DialogueCanvas|continuePopup||0|derived|removed|high|
+-|M|ScheduleOne.UI.Phone.Delivery.DeliveryApp|OnTabChange||1|derived|removed|high|
+-|M|ScheduleOne.UI.Phone.Delivery.DeliveryApp|RefreshContent||1|derived|removed|high|
+-|F|ScheduleOne.UI.Settings.SettingsToggle|toggle||0|derived|removed|high|
+-|P|ScheduleOne.UI.TabItemUI|ContentPanel||0|derived|removed|high|
+-|F|ScheduleOne.UIMapPanel|wasZoomPressedLastFrame||0|derived|removed|high|
+?|F|ScheduleOne.AvatarFramework.Animation.AvatarLookController|_npc||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.Casino.BlackjackGameController|RpcWriter___Observers_TryStartGame_2166136261||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.Casino.RTBGameController|RpcWriter___Observers_TryNextStage_2166136261||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|P|ScheduleOne.PlayerScripts.Player|CurrentAvatarSettings||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.PlayerScripts.Player|RpcLogic___SendAppearance_3281254764||0|derived|ambiguous|high|2->2 of that shape moved at once
+?|M|ScheduleOne.PlayerScripts.Player|RpcReader___Server_SendAppearance_3281254764||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.PlayerScripts.Player|RpcWriter___Server_SendAppearance_3281254764||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.PlayerScripts.Player|SendAppearance||0|derived|ambiguous|high|2->2 of that shape moved at once
+?|F|ScheduleOne.Police.PoliceOfficer|DEACTIVATION_TIME||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|F|ScheduleOne.UI.CharacterCustomization.CharacterCustomizationOption|Selectable||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|F|ScheduleOne.UI.DialogueChoiceEntry|text||0|derived|ambiguous|high|2->3 of that shape moved at once
+?|M|ScheduleOne.UI.Input.InputPromptsManager|GetInlinePromptLabel||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|F|ScheduleOne.UI.InteractionCanvas|DISPLAY_SIZE_MULTIPLIER||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.UI.PauseMenu|PlatformEvents_OnGameLoseFocus||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|F|ScheduleOne.UIMapPanel|zoomTimer||0|derived|ambiguous|high|1->1 of that shape moved at once

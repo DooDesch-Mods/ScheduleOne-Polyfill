@@ -1,0 +1,6 @@
+# polyfill-versiondb 1
+# from=0.4.4f7
+# to=0.4.4f8
+# counts=R:0 -:1 ?:0
+# op|kind|type|from|to|arity|origin|rule|confidence|note
+-|F|ScheduleOne.FX.EnvironmentFX|VolumetricFogColor||0|derived|removed|high|

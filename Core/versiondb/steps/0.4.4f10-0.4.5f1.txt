@@ -1,0 +1,54 @@
+# polyfill-versiondb 1
+# from=0.4.4f10
+# to=0.4.5f1
+# counts=R:4 -:33 ?:12
+# op|kind|type|from|to|arity|origin|rule|confidence|note
+R|M|ScheduleOne.Delivery.DeliveryManager|RpcReader___Server_RecordDeliveryReceipt_Server_4268613646|RpcReader___Server_RecordDeliveryReceipt_Server_2582461062|3|derived|rpc-hash|high|
+R|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|RpcReader___Observers_SetProduct_2622925554|RpcReader___Observers_SetProduct_3964170259|2|derived|rpc-hash|high|
+R|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|RpcReader___Server_SendProduct_2622925554|RpcReader___Server_SendProduct_3964170259|3|derived|rpc-hash|high|
+R|M|ScheduleOne.NPCs.Behaviour.NPCBehaviour|RpcReader___Server_ConsumeProduct_2622925554|RpcReader___Server_ConsumeProduct_3964170259|3|derived|rpc-hash|high|
+-|M|ScheduleOne.Delivery.DeliveryManager|RecordDeliveryReceipt_Server||1|derived|removed|high|
+-|M|ScheduleOne.Delivery.DeliveryManager|RpcLogic___RecordDeliveryReceipt_Server_4268613646||1|derived|removed|high|
+-|M|ScheduleOne.Delivery.DeliveryManager|RpcWriter___Server_RecordDeliveryReceipt_Server_4268613646||1|derived|removed|high|
+-|M|ScheduleOne.Delivery.DeliveryReceipt|.ctor||4|derived|removed|high|
+-|M|ScheduleOne.Employees.Chemist|AnyWorkInProgress||0|derived|removed|high|
+-|M|ScheduleOne.Employees.Cleaner|AnyWorkInProgress||0|derived|removed|high|
+-|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|RpcLogic___SendProduct_2622925554||1|derived|removed|high|
+-|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|RpcLogic___SetProduct_2622925554||1|derived|removed|high|
+-|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|RpcWriter___Observers_SetProduct_2622925554||1|derived|removed|high|
+-|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|RpcWriter___Server_SendProduct_2622925554||1|derived|removed|high|
+-|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|SendProduct||1|derived|removed|high|
+-|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|SetProduct||1|derived|removed|high|
+-|F|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|TestProduct||0|derived|removed|high|
+-|M|ScheduleOne.NPCs.Behaviour.NPCBehaviour|ConsumeProduct||1|derived|removed|high|
+-|M|ScheduleOne.NPCs.Behaviour.NPCBehaviour|RpcLogic___ConsumeProduct_2622925554||1|derived|removed|high|
+-|M|ScheduleOne.NPCs.Behaviour.NPCBehaviour|RpcWriter___Server_ConsumeProduct_2622925554||1|derived|removed|high|
+-|M|ScheduleOne.NPCs.Responses.NPCResponses_Civilian|ResetAttackResponse||0|derived|removed|high|
+-|M|ScheduleOne.NPCs.Responses.NPCResponses_Civilian|ScheduleResetCoroutine||0|derived|removed|high|
+-|F|ScheduleOne.NPCs.Responses.NPCResponses_Civilian|resetCoroutine||0|derived|removed|high|
+-|M|ScheduleOne.Persistence.Datas.DeliveriesData|.ctor||3|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.Player|RpcLogic___SetPlayerCode_3615296227||1|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.Player|RpcReader___Observers_SetPlayerCode_3615296227||2|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.Player|RpcWriter___Observers_SetPlayerCode_3615296227||1|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.Player|SetPlayerCode||1|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.PlayerCrimeData|RpcLogic___set_CurrentPursuitLevel_2979171596||1|derived|removed|high|
+-|M|ScheduleOne.UI.Phone.Delivery.DeliveryApp|GetShop||1|derived|removed|high|
+-|F|ScheduleOne.UI.Phone.Delivery.DeliveryShop|ContentsContainer||0|derived|removed|high|
+-|F|ScheduleOne.UI.Phone.Delivery.DeliveryShop|HeaderArrow||0|derived|removed|high|
+-|F|ScheduleOne.UI.Phone.Delivery.DeliveryShop|HeaderImage||0|derived|removed|high|
+-|F|ScheduleOne.UI.Phone.Delivery.DeliveryShop|HeaderImage_Expanded||0|derived|removed|high|
+-|F|ScheduleOne.UI.Phone.Delivery.DeliveryShop|HeaderImage_Hidden||0|derived|removed|high|
+-|M|ScheduleOne.UI.Phone.Delivery.DeliveryShop|SetIsExpanded||1|derived|removed|high|
+-|F|ScheduleOne.UI.Phone.Delivery.DeliveryStatusDisplay|Rect||0|derived|removed|high|
+?|F|ScheduleOne.Equipping.Equippable_RangedWeapon|AimFOVReduction||0|derived|ambiguous|high|1->4 of that shape moved at once
+?|P|ScheduleOne.Equipping.Equippable_RangedWeapon|aimFov||0|derived|ambiguous|high|1->2 of that shape moved at once
+?|F|ScheduleOne.Equipping.Equippable_RangedWeapon|fovOverridden||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.PlayerScripts.PlayerCrimeData|RpcReader___Server_set_CurrentPursuitLevel_2979171596||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.PlayerScripts.PlayerCrimeData|RpcWriter___Server_set_CurrentPursuitLevel_2979171596||0|derived|ambiguous|high|1->3 of that shape moved at once
+?|F|ScheduleOne.Product.ProductDefinition|EffectsDuration||0|derived|ambiguous|high|1->2 of that shape moved at once
+?|M|ScheduleOne.UI.Phone.Delivery.DeliveryShop|GetOrderTotal||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|F|ScheduleOne.UI.Phone.Delivery.DeliveryShop|HeaderButton||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|P|ScheduleOne.UI.Phone.Delivery.DeliveryShop|IsAvailable||0|derived|ambiguous|high|2->1 of that shape moved at once
+?|P|ScheduleOne.UI.Phone.Delivery.DeliveryShop|IsExpanded||0|derived|ambiguous|high|2->1 of that shape moved at once
+?|M|ScheduleOne.UI.Phone.Delivery.DeliveryShop|OrderPressed||0|derived|ambiguous|high|2->3 of that shape moved at once
+?|M|ScheduleOne.UI.Phone.Delivery.DeliveryShop|SetIsAvailable||0|derived|ambiguous|high|2->3 of that shape moved at once

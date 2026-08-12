@@ -1,0 +1,32 @@
+# polyfill-versiondb 1
+# from=0.4.4f6
+# to=0.4.4f7
+# counts=R:1 -:24 ?:2
+# op|kind|type|from|to|arity|origin|rule|confidence|note
+R|P|ScheduleOne.NPCs.Behaviour.SentryBehaviour|standPoint|_standPoint|0|derived|name-underscore|high|
+-|M|ScheduleOne.Audio.SFXConfiguration|TryGetFootstepSoundGroup||2|derived|removed|high|
+-|M|ScheduleOne.Audio.SFXConfiguration|TryGetImpactTypeData||2|derived|removed|high|
+-|P|ScheduleOne.GameTime.TimeManager|TicksPerMinute||0|derived|removed|high|
+-|F|ScheduleOne.Law.SentryLocation|StandPoints||0|derived|removed|high|
+-|M|ScheduleOne.NPCs.Behaviour.CoweringBehaviour|BehaviourUpdate||0|derived|removed|high|
+-|F|ScheduleOne.NPCs.Behaviour.SentryBehaviour|BODY_SEARCH_CHANCE||0|derived|removed|high|
+-|F|ScheduleOne.NPCs.Behaviour.SentryBehaviour|FLASHLIGHT_ASSET_PATH||0|derived|removed|high|
+-|F|ScheduleOne.NPCs.Behaviour.SentryBehaviour|FLASHLIGHT_MAX_TIME||0|derived|removed|high|
+-|F|ScheduleOne.NPCs.Behaviour.SentryBehaviour|FLASHLIGHT_MIN_TIME||0|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.PlayerMovement|WarpToNavMesh||0|derived|removed|high|
+-|F|ScheduleOne.Tools.OnlineBalanceActivationZone|ActivationDistance||0|derived|removed|high|
+-|M|ScheduleOne.Tools.OnlineBalanceActivationZone|OnTriggerStay||1|derived|removed|high|
+-|M|ScheduleOne.Tools.OnlineBalanceActivationZone|UpdateCollider||0|derived|removed|high|
+-|F|ScheduleOne.Tools.OnlineBalanceActivationZone|collider||0|derived|removed|high|
+-|F|ScheduleOne.Tools.OnlineBalanceActivationZone|exclude||0|derived|removed|high|
+-|F|ScheduleOne.UI.BalanceDisplay|FADE_TIME||0|derived|removed|high|
+-|F|ScheduleOne.UI.BalanceDisplay|Group||0|derived|removed|high|
+-|F|ScheduleOne.UI.BalanceDisplay|RESIDUAL_TIME||0|derived|removed|high|
+-|M|ScheduleOne.UI.BalanceDisplay|Show||0|derived|removed|high|
+-|P|ScheduleOne.UI.BalanceDisplay|active||0|derived|removed|high|
+-|P|ScheduleOne.UI.BalanceDisplay|timeSinceActiveSet||0|derived|removed|high|
+-|F|ScheduleOne.UI.Items.ItemUIManager|CashSlotHintAnim||0|derived|removed|high|
+-|F|ScheduleOne.UI.Items.ItemUIManager|CashSlotHintAnimCanvasGroup||0|derived|removed|high|
+-|P|ScheduleOne.Weather.BasicEnclosure|Size||0|derived|removed|high|
+?|M|ScheduleOne.NPCs.Behaviour.SentryBehaviour|Activate||0|derived|ambiguous|high|2->1 of that shape moved at once
+?|M|ScheduleOne.NPCs.Behaviour.SentryBehaviour|Resume||0|derived|ambiguous|high|2->1 of that shape moved at once

@@ -1,0 +1,16 @@
+# polyfill-versiondb 1
+# from=0.4.4f8
+# to=0.4.4f10
+# counts=R:1 -:8 ?:2
+# op|kind|type|from|to|arity|origin|rule|confidence|note
+R|M|ScheduleOne.NPCs.NPCMovement|RpcReader___Server_ActivateRagdoll_Server_2166136261|RpcReader___Server_ActivateRagdoll_Server_2690242654|3|derived|rpc-hash|high|
+-|M|ScheduleOne.NPCs.NPCMovement|CheckHit||4|derived|removed|high|
+-|M|ScheduleOne.NPCs.NPCMovement|RpcLogic___ActivateRagdoll_Server_2166136261||0|derived|removed|high|
+-|M|ScheduleOne.NPCs.NPCMovement|RpcWriter___Server_ActivateRagdoll_Server_2166136261||0|derived|removed|high|
+-|F|ScheduleOne.NPCs.NPCMovement|SKATEBOARD_RUNOVER_THRESHOLD||0|derived|removed|high|
+-|F|ScheduleOne.NPCs.NPCMovement|VEHICLE_RUNOVER_THRESHOLD||0|derived|removed|high|
+-|M|ScheduleOne.ObjectScripts.LaunderingStation|OnFinishOperation||1|derived|removed|high|
+-|M|ScheduleOne.ObjectScripts.LaunderingStation|OnStartOperation||1|derived|removed|high|
+-|M|ScheduleOne.ObjectScripts.LaunderingStation|UpdateCashCounter||0|derived|removed|high|
+?|F|ScheduleOne.UI.Shop.ShopInterface|dropdownMouseUp||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.Weather.DayNightController|OnTick||0|derived|ambiguous|high|1->1 of that shape moved at once
