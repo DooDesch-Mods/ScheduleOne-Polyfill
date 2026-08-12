@@ -21,8 +21,11 @@ namespace Polyfill.ModFixes
 
         internal static readonly List<Outcome> Results = new();
 
+        // The lookup goes first: it is the one that widens where a name is searched for, and the rename
+        // pass below it should only ever have to deal with what is genuinely called something else now.
         private static readonly List<Fix> All = new()
         {
+            new S1MapiPrefabLookup(),
             new S1MapiPrefabs(),
         };
 

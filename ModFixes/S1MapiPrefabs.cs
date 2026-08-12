@@ -19,11 +19,10 @@ namespace Polyfill.ModFixes
     /// the suffix are taken out. Two candidates is an ambiguity, and an ambiguity is reported, never
     /// resolved - spawning the wrong object puts it in the player's save.
     ///
-    /// What it will not do is substitute something that merely looks close. Measured on 0.4.6f12, the list
-    /// holds no door and no switch of any kind, so `Basic Metal Glass Door`, `Classical Wooden door` and
-    /// `ModularSwitch` have no successor. Cloning a scene door instead would give a door that does not open,
-    /// does not replicate, and blocks the doorway it was meant to fill - worse than the opening that is
-    /// there now. Those are reported and left alone.
+    /// What it will not do is substitute something that merely looks close. A name with no unique match is
+    /// reported and left alone - and most of those turn out not to be renames at all: see
+    /// <see cref="S1MapiPrefabLookup"/>, which runs first and finds them under their own names outside the
+    /// spawnable list. By the time this pass runs, what is left is genuinely called something else now.
     /// </remarks>
     internal sealed class S1MapiPrefabs : Fix
     {

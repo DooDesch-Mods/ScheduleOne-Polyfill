@@ -100,11 +100,63 @@ namespace Polyfill.Report
                 foreach (string name in names)
                     if (SharesAWord(name, wanted)) close.Add(name);
 
-            if (close.Count == 0) { Core.Log.Msg("  nothing on this build shares a word with it."); return; }
+            if (close.Count == 0) Core.Log.Msg("  nothing in that list shares a word with it.");
+            else
+            {
+                Core.Log.Msg("  that list has these, which is what the mod would have to ask for instead:");
+                for (int i = 0; i < close.Count && i < 12; i++) Core.Log.Msg("    " + close[i]);
+                if (close.Count > 12) Core.Log.Msg($"    ... and {close.Count - 12} more");
+            }
 
-            Core.Log.Msg("  the game has these, which is what the mod would have to ask for instead:");
-            for (int i = 0; i < close.Count && i < 12; i++) Core.Log.Msg("    " + close[i]);
-            if (close.Count > 12) Core.Log.Msg($"    ... and {close.Count - 12} more");
+            Elsewhere(wanted);
+        }
+
+        /// <summary>
+        /// Is the object loaded at all, outside the spawnable list?
+        /// </summary>
+        /// <remarks>
+        /// The spawnable list is what FishNet can replicate, and it is a fraction of what is loaded: 108
+        /// entries against tens of thousands of objects. A name missing from it is therefore two different
+        /// findings, and only one of them is fatal. Gone entirely means a mod asking for it can never have
+        /// it. Loaded but not spawnable means the object is right there and the LOOKUP is aimed at the wrong
+        /// list - which is a repair somebody can actually make, in the mod or in a fix.
+        ///
+        /// One sweep, only when a name has already failed, because the sweep is not cheap.
+        /// </remarks>
+        private static void Elsewhere(string wanted)
+        {
+            UnityEngine.Object[] loaded;
+            try { loaded = Resources.FindObjectsOfTypeAll(Il2CppInterop.Runtime.Il2CppType.Of<GameObject>()); }
+            catch (Exception e) { Core.Log.Msg("  (could not sweep loaded objects: " + e.GetType().Name + ")"); return; }
+            if (loaded == null) return;
+
+            string shape = Squashed(wanted);
+            var exact = new List<string>();
+            var shaped = new List<string>();
+
+            foreach (var one in loaded)
+            {
+                string name;
+                try { name = one?.name; } catch { continue; }
+                if (string.IsNullOrEmpty(name)) continue;
+                if (name == wanted) { if (exact.Count < 3) exact.Add(name); continue; }
+                if (Squashed(name) == shape && shaped.Count < 6) shaped.Add(name);
+            }
+
+            if (exact.Count > 0)
+            {
+                Core.Log.Msg($"  BUT it IS loaded, {exact.Count}x, under exactly that name - it is simply not "
+                           + "in the spawnable list. A lookup that searched loaded objects would find it.");
+                return;
+            }
+            if (shaped.Count > 0)
+            {
+                Core.Log.Msg("  it is not loaded under that name either, but these are loaded and differ only "
+                           + "in case or spacing:");
+                foreach (string one in shaped) Core.Log.Msg("    " + one);
+                return;
+            }
+            Core.Log.Msg($"  and nothing loaded anywhere in the game is called '{wanted}'.");
         }
 
         /// <summary>Lower case with every space and separator taken out, so only the letters are compared.</summary>
