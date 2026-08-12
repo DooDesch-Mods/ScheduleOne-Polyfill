@@ -30,6 +30,7 @@ namespace Polyfill.ModFixes
             new S1MapiInstancedTrees(),
             new OverTheCounterNetworkLib(),
             new OverTheCounterDrifterPrefab(),
+            new BiggerTreesScale(),
         };
 
         private static MelonPreferences_Entry<string> _disabled;
