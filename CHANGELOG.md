@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here.
 
+## [0.5.2] - 2026-08-13
+
+### Fixed
+- Doors a mod puts up in a property you already own can be opened again. They locked themselves and waited
+  for a purchase that had already happened, showing no prompt at all.
+- Counters, switches and doors a mod spawns come out visible. Half the copies Polyfill could hand over are
+  switched off, because the game deactivates a building's interior while you are away from it.
+
+### Added
+- Bigger Trees makes the trees bigger again. The game stopped drawing terrain trees in 0.4.6f5 and the
+  mod's setting reached nothing. `TreeScale` in MelonPreferences sets the size, 1 leaves them alone.
+
 ## [0.5.1] - 2026-08-13
 
 ### Added

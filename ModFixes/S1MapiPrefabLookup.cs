@@ -90,15 +90,22 @@ namespace Polyfill.ModFixes
                 _found.Remove(name);                       // it was destroyed since; look again
             }
 
-            var loaded = Loaded(name, out bool template);
+            var loaded = Loaded(name, out bool template, out bool active);
             if (loaded == null) return;
 
-            _found[name] = loaded;
+            // A switched-off answer is not remembered. Which copies are switched on depends on where the
+            // player is standing, so the same question asked from somewhere else can have a better answer,
+            // and caching the bad one would make that impossible for the rest of the session.
+            if (template || active) _found[name] = loaded;
             __result = loaded;
             // Which of the two it was matters when something comes out wrong: a template clones clean, a
             // copy taken out of the map carries whatever has already happened to it.
             _log?.Msg($"[fix] s1mapi-prefab-lookup: '{name}' is loaded but not spawnable - handed over "
                     + (template ? "the prefab template." : "a copy standing in the map; there is no template."));
+            if (!template && !active)
+                _log?.Warning($"[fix] s1mapi-prefab-lookup: every copy of '{name}' is switched off right now, "
+                            + "so what gets cloned is switched off too. Property interiors are deactivated "
+                            + "while you are away from them.");
         }
 
         /// <summary>
@@ -108,16 +115,23 @@ namespace Polyfill.ModFixes
         /// A prefab asset belongs to no scene, so <c>scene.IsValid()</c> separates the original from copies
         /// that are standing in the map. Cloning the original is what the caller meant; cloning a placed one
         /// would carry whatever has happened to it.
+        ///
+        /// Among placed copies, an ACTIVE one wins. <c>Resources.FindObjectsOfTypeAll</c> returns switched-off
+        /// objects too, and a property switches its whole interior off while nobody is near it
+        /// (`ScheduleOne.Property/Property.cs:372-378` calls <c>SetActive(!culled)</c> on every object it
+        /// culls). Cloning one of those hands the caller something invisible, which is a worse answer than
+        /// the identical object two rooms away that happens to be switched on.
         /// </remarks>
-        private static GameObject Loaded(string name, out bool template)
+        private static GameObject Loaded(string name, out bool template, out bool active)
         {
             template = false;
+            active = false;
             Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppReferenceArray<UnityEngine.Object> all;
             try { all = Resources.FindObjectsOfTypeAll(Il2CppType.Of<GameObject>()); }
             catch { return null; }
             if (all == null) return null;
 
-            GameObject placed = null;
+            GameObject placed = null, placedActive = null;
             foreach (var one in all)
             {
                 GameObject candidate = null;
@@ -130,9 +144,14 @@ namespace Polyfill.ModFixes
                 if (candidate == null) continue;
 
                 try { if (!candidate.scene.IsValid()) { template = true; return candidate; } } catch { }
+
                 placed ??= candidate;
+                try { if (placedActive == null && candidate.activeInHierarchy) placedActive = candidate; }
+                catch { }
             }
-            return placed;
+
+            active = placedActive != null;
+            return placedActive ?? placed;
         }
     }
 }

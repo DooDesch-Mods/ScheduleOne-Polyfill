@@ -78,6 +78,11 @@ namespace Polyfill.Report
 
             wanted = wanted.Trim();
 
+#if DEBUG
+            if (wanted.StartsWith("clone ", StringComparison.Ordinal))
+            { Clone(wanted.Substring(6).Trim()); return; }
+#endif
+
             if (wanted == "list")
             {
                 names.Sort(StringComparer.OrdinalIgnoreCase);
@@ -131,7 +136,7 @@ namespace Polyfill.Report
             if (loaded == null) return;
 
             string shape = Squashed(wanted);
-            var exact = new List<string>();
+            var exact = new List<GameObject>();
             var shaped = new List<string>();
 
             foreach (var one in loaded)
@@ -139,7 +144,13 @@ namespace Polyfill.Report
                 string name;
                 try { name = one?.name; } catch { continue; }
                 if (string.IsNullOrEmpty(name)) continue;
-                if (name == wanted) { if (exact.Count < 3) exact.Add(name); continue; }
+                if (name == wanted)
+                {
+                    GameObject asObject = null;
+                    try { asObject = one.TryCast<GameObject>(); } catch { }
+                    if (asObject != null && exact.Count < 8) exact.Add(asObject);
+                    continue;
+                }
                 if (Squashed(name) == shape && shaped.Count < 6) shaped.Add(name);
             }
 
@@ -147,6 +158,7 @@ namespace Polyfill.Report
             {
                 Core.Log.Msg($"  BUT it IS loaded, {exact.Count}x, under exactly that name - it is simply not "
                            + "in the spawnable list. A lookup that searched loaded objects would find it.");
+                foreach (var one in exact) Core.Log.Msg("    " + State(one));
                 return;
             }
             if (shaped.Count > 0)
@@ -157,6 +169,95 @@ namespace Polyfill.Report
                 return;
             }
             Core.Log.Msg($"  and nothing loaded anywhere in the game is called '{wanted}'.");
+        }
+
+#if DEBUG
+        /// <summary>
+        /// Do to a name exactly what a mod does with it, and report what came out.
+        /// </summary>
+        /// <remarks>
+        /// Reproduces the reported failure without needing the mod that reported it: find the loaded object
+        /// under that name, clone it, and read the clone. A cloned PropertyDoorController locks itself to
+        /// ExitOnly in Awake and subscribes to an acquisition that has already happened, so a clone that
+        /// comes out Open is the `s1mapi-cloned-doors` repair having run, and one that comes out ExitOnly is
+        /// the bug.
+        ///
+        /// Debug builds only. It puts an object in the world, which is a thing a report command has no
+        /// business doing on a player's save.
+        /// </remarks>
+        private static void Clone(string wanted)
+        {
+            if (string.IsNullOrEmpty(wanted)) { Core.Log.Warning("name a prefab to clone."); return; }
+
+            GameObject source = null;
+            try
+            {
+                foreach (var one in Resources.FindObjectsOfTypeAll(
+                             Il2CppInterop.Runtime.Il2CppType.Of<GameObject>()))
+                {
+                    if (one == null || one.name != wanted) continue;
+                    var candidate = one.TryCast<GameObject>();
+                    if (candidate == null) continue;
+                    var itsDoor = candidate.GetComponentInChildren<
+                        Il2CppScheduleOne.Building.Doors.PropertyDoorController>(true);
+                    if (itsDoor != null && itsDoor.Property != null) { source = candidate; break; }
+                    source ??= candidate;
+                }
+            }
+            catch (Exception e) { Core.Log.Error("sweep failed: " + e.Message); return; }
+
+            if (source == null) { Core.Log.Warning($"nothing loaded is called '{wanted}'."); return; }
+            Core.Log.Msg("source: " + State(source));
+
+            GameObject clone;
+            try { clone = UnityEngine.Object.Instantiate(source); }
+            catch (Exception e) { Core.Log.Error("clone failed: " + e.Message); return; }
+
+            Core.Log.Msg("clone:  " + State(clone));
+            var door = clone.GetComponentInChildren<
+                Il2CppScheduleOne.Building.Doors.PropertyDoorController>(true);
+            if (door == null) Core.Log.Msg("  no door controller on it, so there is nothing to lock.");
+            else Core.Log.Msg($"  access {door.PlayerAccess} - Open means a player can walk in, ExitOnly "
+                            + "means the door shows no prompt at all from the outside.");
+
+            UnityEngine.Object.Destroy(clone);
+        }
+#endif
+
+        /// <summary>
+        /// What one loaded copy would actually give a caller that cloned it.
+        /// </summary>
+        /// <remarks>
+        /// "It is loaded" was the whole answer until a player reported a building where nothing could be
+        /// interacted with. Two properties of the copy decide whether cloning it produces something usable,
+        /// and neither is visible from the name:
+        ///
+        /// Switched off - a property deactivates its interior while you are away, so the copy that gets
+        /// cloned can be an invisible one.
+        ///
+        /// The property a door is bound to - a PropertyDoorController locks itself to ExitOnly on the way up
+        /// and waits for that property to be acquired, an event that has already fired. The clone waits
+        /// forever, and a door with no access shows no prompt at all rather than a locked one.
+        /// </remarks>
+        private static string State(GameObject one)
+        {
+            var text = new System.Text.StringBuilder();
+            try { text.Append(one.activeInHierarchy ? "switched on " : "SWITCHED OFF "); } catch { }
+            try { text.Append(one.scene.IsValid() ? "in " + one.scene.name : "a prefab template"); } catch { }
+
+            try
+            {
+                var door = one.GetComponentInChildren<Il2CppScheduleOne.Building.Doors.PropertyDoorController>(true);
+                if (door != null)
+                {
+                    var property = door.Property;
+                    text.Append("   door bound to ")
+                        .Append(property == null ? "no property" : property.PropertyName)
+                        .Append(property == null ? "" : (property.IsOwned ? " (owned)" : " (NOT owned)"));
+                }
+            }
+            catch { }
+            return text.ToString();
         }
 
         /// <summary>Lower case with every space and separator taken out, so only the letters are compared.</summary>

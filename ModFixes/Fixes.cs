@@ -26,6 +26,7 @@ namespace Polyfill.ModFixes
         private static readonly List<Fix> All = new()
         {
             new S1MapiPrefabLookup(),
+            new S1MapiClonedDoors(),
             new S1MapiPrefabs(),
             new S1MapiInstancedTrees(),
             new OverTheCounterNetworkLib(),
