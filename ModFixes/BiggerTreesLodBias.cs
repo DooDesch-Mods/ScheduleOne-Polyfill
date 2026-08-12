@@ -113,34 +113,43 @@ namespace Polyfill.ModFixes
             var baked = manager.BackedInstanceObjects;
             if (baked == null || baked.Count == 0) return;
 
-            int moved = 0;
             for (int i = 0; i < baked.Count; i++)
             {
                 var data = baked[i];
                 if (data == null) continue;
 
-                var range = data.MinMaxLodDistance;
-                if (range.x <= 0 && range.y <= 0) continue;         // nothing to scale
+                var mesh = data.Mesh;
+                string name = mesh == null ? "<none>" : mesh.name;
+                bool readable = false;
+                int vertices = -1;
+                try { readable = mesh != null && mesh.isReadable; } catch { }
+                try { vertices = mesh == null ? -1 : mesh.vertexCount; } catch { }
 
-                // Rounded up rather than down: a distance that rounds to the same integer would be a fix
-                // that reports success and changes nothing.
-                var wider = new Vector2Int(Mathf.CeilToInt(range.x * bias), Mathf.CeilToInt(range.y * bias));
-                if (wider.x == range.x && wider.y == range.y) continue;
+                _log?.Msg($"[probe] instanced object {i}: mesh '{name}', {vertices} vertex/vertices, "
+                        + $"readable={readable}, lod={data.MinMaxLodDistance}, instances={data.InstanceCount}");
 
-                data.MinMaxLodDistance = wider;
-                moved++;
+                if (!readable || mesh == null) continue;
+                Scale(mesh, name, 1.5f);
             }
+        }
 
-            if (moved == 0)
+        /// <summary>Multiply every vertex out from the mesh origin. The one lever the instanced path has:
+        /// position and rotation come from a baked texture, and nothing in it carries a size.</summary>
+        private static void Scale(Mesh mesh, string name, float factor)
+        {
+            try
             {
-                _log?.Msg("[fix] biggertrees-instanced-lod: nothing to carry over - the instanced objects "
-                        + "carry no LOD distances on this build.");
-                return;
-            }
+                var vertices = mesh.vertices;
+                if (vertices == null || vertices.Length == 0)
+                { _log?.Warning($"[probe] '{name}' reports readable and has no vertices to read."); return; }
 
-            _log?.Msg($"[fix] biggertrees-instanced-lod: Bigger Trees set a tree LOD bias of {bias:0.##} on "
-                    + $"the terrain, which has not drawn the trees since 0.4.6f5. Carried it over to the "
-                    + $"{moved} instanced object type(s) that do.");
+                for (int i = 0; i < vertices.Length; i++) vertices[i] = vertices[i] * factor;
+                mesh.vertices = vertices;
+                mesh.RecalculateBounds();
+
+                _log?.Msg($"[probe] scaled '{name}' by {factor} ({vertices.Length} vertices).");
+            }
+            catch (Exception e) { _log?.Warning($"[probe] '{name}' could not be scaled: {e.Message}"); }
         }
 
         private static Terrain FindTerrain()
