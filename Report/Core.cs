@@ -25,10 +25,18 @@ namespace Polyfill.Report
             Log = LoggerInstance;
             ConsoleCommands.DeclareForTools();
 
+            // Two readings of one number. The plugin cannot ask Unity that early and the version it used is
+            // the one every decision was made against, so a disagreement is worth a line and not a change of
+            // mind. In practice they agree; a day they do not is a day somebody needs to know.
+            string clash = null;
+            try { clash = Contract.GameVersionSource.Disagreement(UnityEngine.Application.version); } catch { }
+            if (clash != null) LoggerInstance.Warning(clash);
+
             ReportReader.Load();
             if (ReportReader.Mods.Count == 0)
             {
-                LoggerInstance.Warning("no startup report found - is Polyfill.Boot.dll in your Plugins folder?");
+                LoggerInstance.Warning(ReportReader.Problem
+                    ?? "no startup report found - is Polyfill.Boot.dll in your Plugins folder?");
                 return;
             }
 

@@ -32,7 +32,8 @@ namespace Polyfill.Core
     /// </remarks>
     internal static class InteropAugmentor
     {
-        internal const string BackupSuffix = ".polyfill-orig";
+        /// <summary>Spelled in Contract, where the companion mod reads the same name.</summary>
+        internal const string BackupSuffix = Contract.PolyfillPaths.BackupSuffix;
 
         internal sealed class TypeForward
         {
@@ -41,6 +42,10 @@ namespace Polyfill.Core
             internal string Name;            // the OLD simple name
             internal string TargetAssembly;  // where it lives now
             internal string TargetFullName;  // and under what name, which a namespace change makes differ
+
+            /// <summary>Identity of the repair, for deduplicating it across mods and for carrying its
+            /// outcome back to every finding that asked for it.</summary>
+            internal string Key => "T|" + InAssembly + "!" + Namespace + "." + Name;
         }
 
         /// <summary>An old member name, put back on the type that used to carry it.</summary>
@@ -54,6 +59,14 @@ namespace Polyfill.Core
             internal string NewName;
             internal int ParameterCount;
             internal string Rule;            // which heuristic or rule proposed it, for the log
+
+            /// <summary>
+            /// Identity of the repair. The parameter count is part of it, and that is a fix rather than a
+            /// detail: without it <c>Foo(int)</c> and <c>Foo(int, int)</c> are one key, the second is
+            /// dropped as a duplicate, the mod that wanted it stays broken, and its report says "adaptable".
+            /// </summary>
+            internal string Key => "M|" + InAssembly + "!" + DeclaringType + "::" + OldName
+                                 + "/" + ParameterCount;
         }
 
         internal sealed class Result
@@ -63,6 +76,15 @@ namespace Polyfill.Core
             internal readonly List<string> Refused = new();
             /// <summary>What to record in the stamp: one entry per assembly actually written.</summary>
             internal readonly List<StampFile.Entry> Stamped = new();
+
+            /// <summary>Repair key to what happened to it, so the report can say more than what was found.</summary>
+            internal readonly Dictionary<string, string> Outcomes = new(StringComparer.Ordinal);
+
+            internal void Record(string key, string outcome, string detail = null)
+            {
+                if (key == null) return;
+                Outcomes[key] = string.IsNullOrEmpty(detail) ? outcome : outcome + ":" + detail;
+            }
         }
 
         /// <summary>Put every collected repair into the assemblies that need them.</summary>
@@ -79,19 +101,9 @@ namespace Polyfill.Core
 
             foreach (string assembly in assemblies)
             {
-                string live = Path.Combine(interopDirectory, assembly + ".dll");
-                if (!File.Exists(live))
-                {
-                    result.Refused.Add($"{assembly}: not installed");
-                    continue;
-                }
-
-                if (!originals.MayWrite(assembly))
-                {
-                    result.Refused.Add($"{assembly}: {originals.RefusalFor(assembly)}");
-                    continue;
-                }
-
+                // Grouped before anything can go wrong, because a refusal that covers a whole assembly has
+                // to be recorded against every repair it covers - otherwise the report shows those findings
+                // as "nothing to point at", which is not what happened.
                 var typesHere = new List<TypeForward>();
                 foreach (var one in types)
                     if (string.Equals(one.InAssembly, assembly, StringComparison.OrdinalIgnoreCase)) typesHere.Add(one);
@@ -99,15 +111,31 @@ namespace Polyfill.Core
                 foreach (var one in members)
                     if (string.Equals(one.InAssembly, assembly, StringComparison.OrdinalIgnoreCase)) membersHere.Add(one);
 
+                string live = Path.Combine(interopDirectory, assembly + ".dll");
+                if (!File.Exists(live))
+                { RefuseAll(result, typesHere, membersHere, assembly, "not installed"); continue; }
+
+                if (!originals.MayWrite(assembly))
+                { RefuseAll(result, typesHere, membersHere, assembly, originals.RefusalFor(assembly)); continue; }
+
                 try { ApplyTo(live, typesHere, membersHere, originals, result, log); }
                 catch (Exception e)
                 {
                     // The live file is only ever replaced by a completed temp file, so nothing is half-written.
-                    result.Refused.Add($"{assembly}: {e.Message}");
+                    RefuseAll(result, typesHere, membersHere, assembly, e.Message);
                     log.Error($"[inject] {assembly} was left untouched: {e}");
                 }
             }
             return result;
+        }
+
+        /// <summary>One reason, one line, and it lands on every repair that reason covers.</summary>
+        private static void RefuseAll(Result result, List<TypeForward> types, List<MemberForward> members,
+                                      string assembly, string why)
+        {
+            result.Refused.Add($"{assembly}: {why}");
+            foreach (var one in types) result.Record(one.Key, Contract.Outcome.Refused, why);
+            foreach (var one in members) result.Record(one.Key, Contract.Outcome.Refused, why);
         }
 
         private static void ApplyTo(string livePath, List<TypeForward> forwards,
@@ -128,14 +156,15 @@ namespace Polyfill.Core
                 try { File.Copy(original, backup); }
                 catch (Exception e)
                 {
-                    result.Refused.Add($"{assembly}: the untouched copy could not be made ({e.Message})");
+                    RefuseAll(result, forwards, members, assembly,
+                              "the untouched copy could not be made (" + e.Message + ")");
                     return;
                 }
             }
             string source = backup;
             string originalSha = Provenance.Sha256(backup);
 
-            string temporary = livePath + ".polyfill-tmp";
+            string temporary = livePath + Contract.PolyfillPaths.TempSuffix;
             int added = 0;
 
             // Writing resolves references, not just reading them - Cecil walks the whole reference graph on
@@ -160,7 +189,7 @@ namespace Polyfill.Core
                     foreach (var forward in forwards)
                     {
                         if (module.GetType(Full(forward)) != null)
-                        { result.Refused.Add($"{Full(forward)}: the name is taken here"); continue; }
+                        { Refuse(result, forward, "the name is taken here"); continue; }
 
                         // A forwarder is an entry saying "this name lives in ANOTHER assembly". Pointing one at
                         // the assembly it already sits in says the name is somewhere else and somewhere else is
@@ -176,11 +205,13 @@ namespace Polyfill.Core
                                                             forward.TargetFullName, out string why);
                             if (shadow == null)
                             {
-                                result.Refused.Add($"{Full(forward)}: it only changed namespace, and {why}");
+                                Refuse(result, forward, "it only changed namespace, and " + why);
                                 continue;
                             }
                             result.Applied.Add($"{forward.InAssembly}!{Full(forward)} -> a class deriving from "
                                              + forward.TargetFullName);
+                            result.Record(forward.Key, Contract.Outcome.Applied,
+                                          "a class deriving from " + forward.TargetFullName);
                             emittedForwards.Add(forward);
                             added++;
                             continue;
@@ -188,13 +219,15 @@ namespace Polyfill.Core
 
                         var scope = ScopeFor(module, forward.TargetAssembly);
                         if (scope == null)
-                        { result.Refused.Add($"{Full(forward)}: {forward.TargetAssembly} is not installed"); continue; }
+                        { Refuse(result, forward, forward.TargetAssembly + " is not installed"); continue; }
 
                         module.ExportedTypes.Add(new ExportedType(forward.Namespace, forward.Name, module, scope)
                         {
                             Attributes = TypeAttributes.Forwarder,
                         });
                         result.Applied.Add($"{forward.InAssembly}!{Full(forward)} -> {forward.TargetAssembly}");
+                        result.Record(forward.Key, Contract.Outcome.Applied,
+                                      "pointed at " + forward.TargetAssembly);
                         emittedForwards.Add(forward);
                         added++;
                     }
@@ -227,8 +260,8 @@ namespace Polyfill.Core
                 string missing = Verify(temporary, emittedForwards, emittedMembers);
                 if (missing != null)
                 {
-                    result.Refused.Add($"{Path.GetFileName(livePath)}: written image is missing {missing}; "
-                                     + "the original was kept");
+                    RefuseAll(result, emittedForwards, emittedMembers, Path.GetFileName(livePath),
+                              $"the written image is missing {missing}, so the original was kept");
                     log.Error($"[inject] {Path.GetFileName(livePath)}: the written image does not contain "
                             + $"{missing}. Nothing was replaced.");
                     return;
@@ -272,7 +305,7 @@ namespace Polyfill.Core
             string label = $"{member.DeclaringType}::{member.OldName}";
 
             var type = module.GetType(member.DeclaringType);
-            if (type == null) { result.Refused.Add($"{label}: the type is not in this assembly"); return false; }
+            if (type == null) { Refuse(result, member, label, "the type it was on is not in this assembly"); return false; }
 
             // No single successor - a hand-written rule builds the body instead.
             var rule = member.NewName == null
@@ -283,25 +316,26 @@ namespace Polyfill.Core
             if (rule == null || !rule.AllowOverload)
                 foreach (var existing in type.Methods)
                     if (existing.Name == member.OldName)
-                    { result.Refused.Add($"{label}: the name is already taken"); return false; }
+                    { Refuse(result, member, label, "the name is already taken here"); return false; }
 
             if (member.NewName == null)
             {
-                if (rule == null) { result.Refused.Add($"{label}: no rule for this"); return false; }
+                if (rule == null) { Refuse(result, member, label, "nothing here knows what it became"); return false; }
 
                 var built = rule.Emit(module, type);
                 if (built == null)
-                { result.Refused.Add($"{label}: the rule needs members this build does not have"); return false; }
+                { Refuse(result, member, label, "the rule for it needs members this build does not have"); return false; }
 
                 // An overload rule is trusted to add a signature, never to replace one. If the exact shape
                 // is already here the rule has misread the build, and adding it would mean two methods a
                 // call cannot be told apart by.
                 foreach (var existing in type.Methods)
                     if (existing.Name == built.Name && SameShape(existing, built))
-                    { result.Refused.Add($"{label}: that exact signature is already here"); return false; }
+                    { Refuse(result, member, label, "that exact signature is already here"); return false; }
 
                 type.Methods.Add(built);
                 result.Applied.Add($"{member.InAssembly}!{label}  [rule: {rule.Because}]");
+                result.Record(member.Key, Contract.Outcome.Applied, rule.Because);
                 return true;
             }
 
@@ -309,13 +343,13 @@ namespace Polyfill.Core
             foreach (var candidate in type.Methods)
             {
                 if (candidate.Name != member.NewName) continue;
-                if (target != null) { result.Refused.Add($"{label}: {member.NewName} is overloaded here"); return false; }
+                if (target != null) { Refuse(result, member, label, $"{member.NewName} is overloaded here, so which one it became is not decidable"); return false; }
                 target = candidate;
             }
-            if (target == null) { result.Refused.Add($"{label}: {member.NewName} is not on this type"); return false; }
+            if (target == null) { Refuse(result, member, label, $"{member.NewName} is not on this type after all"); return false; }
 
             if (target.HasGenericParameters)
-            { result.Refused.Add($"{label}: {member.NewName} is generic"); return false; }
+            { Refuse(result, member, label, $"{member.NewName} is generic"); return false; }
 
             var forward = new MethodDefinition(member.OldName,
                 MethodAttributes.Public | MethodAttributes.HideBySig
@@ -337,7 +371,28 @@ namespace Polyfill.Core
 
             type.Methods.Add(forward);
             result.Applied.Add($"{member.InAssembly}!{label}() -> {member.NewName}()  [{member.Rule}]");
+            result.Record(member.Key, Contract.Outcome.Applied, $"{member.NewName} [{member.Rule}]");
             return true;
+        }
+
+        /// <summary>
+        /// Say no to one repair, in both places it has to be said.
+        /// </summary>
+        /// <remarks>
+        /// The log line is for whoever is reading a log; the recorded outcome is for the report, where a
+        /// refusal is the most useful line there is. "Polyfill had a candidate and did not trust it" was
+        /// previously visible in neither the report nor anything a player is asked to send.
+        /// </remarks>
+        private static void Refuse(Result result, MemberForward member, string label, string why)
+        {
+            result.Refused.Add($"{label}: {why}");
+            result.Record(member.Key, Contract.Outcome.Refused, why);
+        }
+
+        private static void Refuse(Result result, TypeForward forward, string why)
+        {
+            result.Refused.Add($"{Full(forward)}: {why}");
+            result.Record(forward.Key, Contract.Outcome.Refused, why);
         }
 
         /// <summary>The first repair that is not in the written image, or null when all of them are.</summary>
@@ -439,7 +494,7 @@ namespace Polyfill.Core
         /// window as the repair - before any of it is loaded.
         /// </remarks>
         internal static string PendingMarker(string userDataDirectory)
-            => Path.Combine(userDataDirectory ?? ".", "Polyfill", "restore-pending");
+            => Contract.PolyfillPaths.RestorePending(userDataDirectory);
 
         /// <summary>Put every augmented assembly back the way MelonLoader generated it.</summary>
         internal static int Restore(string interopDirectory, MelonLogger.Instance log)

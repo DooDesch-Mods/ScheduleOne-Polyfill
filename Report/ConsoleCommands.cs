@@ -1,5 +1,6 @@
 using System;
 using HarmonyLib;
+using Polyfill.Contract;
 using UnityEngine;
 
 namespace Polyfill.Report
@@ -17,30 +18,35 @@ namespace Polyfill.Report
     /// </remarks>
     internal static class ConsoleCommands
     {
-        /// <summary>What the plugin names its untouched copies. Spelled out again rather than shared:
-        /// this mod and the plugin deliberately have no types in common, because the plugin runs where
-        /// this one cannot exist.</summary>
-        private const string BackupSuffix = ".polyfill-orig";
-
-        private static readonly string[][] Listing =
+        /// <summary>
+        /// What runs for each word. The keys must be exactly the table's names.
+        /// </summary>
+        /// <remarks>
+        /// A dictionary rather than a switch so that "every command in the table has a handler, and no
+        /// handler exists for a word nobody can type" is a thing a test can assert. The table itself is in
+        /// Contract, next to the version arithmetic, because the plugin has to know which words are ours
+        /// too - and because it used to be written out three times, of which the middle one decided whether
+        /// the game or Polyfill got the word.
+        /// </remarks>
+        private static readonly Dictionary<string, Action<string>> Handlers = new(StringComparer.Ordinal)
         {
-            new[] { "polyfill",        "what Polyfill found in your mods at startup", "polyfill" },
-            new[] { "polyfilllist",    "every mod, with its verdict", "polyfilllist" },
-            new[] { "polyfillshow",    "everything one mod asks for that is missing", "polyfillshow hitman" },
-            new[] { "polyfillunfixed", "only what cannot be pointed at anything", "polyfillunfixed hitman" },
-            new[] { "polyfillexport",  "write one file with everything, ready to send", "polyfillexport" },
-            new[] { "polyfillprobe",   "can the runtime resolve this type by name?", "polyfillprobe Il2CppScheduleOne.Weather.WeatherConditions" },
-            new[] { "polyfillprefab",  "does the game still have this prefab, and what is near it", "polyfillprefab Basic Metal Glass Door" },
-            new[] { "polyfillfixes",   "the per-mod fixes, and switch one off", "polyfillfixes off s1mapi-prefabs" },
-            new[] { "polyfillrestore", "undo every repair, restart to take effect", "polyfillrestore" },
-            new[] { "polyfillregen",   "have MelonLoader rebuild the game's generated assemblies", "polyfillregen" },
-            new[] { "polyfillhelp",    "list the polyfill commands", "polyfillhelp" },
+            ["polyfill"] = _ => Summary(),
+            ["polyfilllist"] = _ => List(),
+            ["polyfillshow"] = argument => Show(argument, onlyUnfixable: false),
+            ["polyfillunfixed"] = argument => Show(argument, onlyUnfixable: true),
+            ["polyfillexport"] = _ => Export(),
+            ["polyfillprobe"] = Probe,
+            ["polyfillprefab"] = PrefabLookup.Explain,
+            ["polyfillfixes"] = ListFixes,
+            ["polyfillrestore"] = _ => Restore(),
+            ["polyfillregen"] = _ => Regenerate(),
+            ["polyfillhelp"] = _ => Help(),
         };
 
         internal static void DeclareForTools()
         {
 #if HASH_API
-            foreach (string[] one in Listing) Hash.Api.HashCommands.Add(one[0], one[1], one[2]);
+            foreach (var one in CommandTable.All) Hash.Api.HashCommands.Add(one.Name, one.Help, one.Example);
 #endif
         }
 
@@ -65,11 +71,7 @@ namespace Polyfill.Report
         {
             if (parts.Length == 0) return false;
             string command = parts[0].ToLowerInvariant();
-            if (command != "polyfill" && command != "polyfilllist" && command != "polyfillshow"
-                && command != "polyfillunfixed" && command != "polyfillhelp" && command != "polyfillprobe"
-                && command != "polyfillrestore" && command != "polyfillexport" && command != "polyfillprefab"
-                && command != "polyfillfixes" && command != "polyfillregen")
-                return false;                                   // not ours - let the game have it
+            if (!CommandTable.Owns(command)) return false;      // not ours - let the game have it
 
             string signature = string.Join(" ", parts);
             int frame = Time.frameCount;
@@ -80,20 +82,7 @@ namespace Polyfill.Report
             {
                 ReportReader.Load();                            // always fresh: the file is the truth
                 string argument = parts.Length > 1 ? string.Join(" ", parts, 1, parts.Length - 1) : null;
-                switch (command)
-                {
-                    case "polyfill": Summary(); break;
-                    case "polyfilllist": List(); break;
-                    case "polyfillshow": Show(argument, onlyUnfixable: false); break;
-                    case "polyfillunfixed": Show(argument, onlyUnfixable: true); break;
-                    case "polyfillexport": Export(); break;
-                    case "polyfillprobe": Probe(argument); break;
-                    case "polyfillprefab": PrefabLookup.Explain(argument); break;
-                    case "polyfillfixes": ListFixes(argument); break;
-                    case "polyfillrestore": Restore(); break;
-                    case "polyfillregen": Regenerate(); break;
-                    case "polyfillhelp": Help(); break;
-                }
+                if (Handlers.TryGetValue(command, out var run)) run(argument);
             }
             catch (Exception e) { Core.Log.Error(e.ToString()); }
             return true;
@@ -157,7 +146,7 @@ namespace Polyfill.Report
             {
                 Core.Log.Msg($"{mod.Display} {mod.Version} - {mod.Verdict} "
                            + $"({mod.TypeRefs} type refs, {mod.MemberRefs} member refs, "
-                           + $"{mod.HarmonyChecked} Harmony targets checked)");
+                           + $"{mod.HarmonyTargetsChecked} Harmony targets checked)");
 
                 int shown = 0, skipped = 0;
                 foreach (var finding in mod.Findings)
@@ -362,13 +351,25 @@ namespace Polyfill.Report
                               + $"   [{mod.Verdict}]");
                 text.AppendLine($"  file {Path.GetFileName(mod.Path)}"
                               + $"   {mod.TypeRefs} type refs, {mod.MemberRefs} member refs, "
-                              + $"{mod.HarmonyChecked} Harmony target{(mod.HarmonyChecked == 1 ? "" : "s")} checked");
+                              + $"{mod.HarmonyTargetsChecked} Harmony target{(mod.HarmonyTargetsChecked == 1 ? "" : "s")} checked");
 
-                Section(text, mod, "MATCHED - Polyfill points these at something", wantFixable: true);
-                Section(text, mod, "MISSING - nothing to point at", wantFixable: false);
+                Section(text, mod, "REPAIRED - Polyfill put these back",
+                        f => f.Outcome == Outcome.Applied);
+
+                // The section that did not exist, and the most useful one there is for a mod author:
+                // Polyfill had a candidate and did not trust it. That decision reached the log and nothing
+                // else, so the one file anybody is asked to send never mentioned it.
+                Section(text, mod, "REFUSED - there was a candidate and Polyfill did not trust it",
+                        f => f.Outcome == Outcome.Refused);
+
+                Section(text, mod, "MATCHED - a candidate, not yet applied",
+                        f => f.Fixable && f.Outcome != Outcome.Applied && f.Outcome != Outcome.Refused);
+
+                Section(text, mod, "MISSING - nothing to point at",
+                        f => !f.Fixable && f.Outcome != Outcome.Refused);
             }
 
-            string path = Path.Combine(Path.GetDirectoryName(ReportReader.Path), "polyfill-report.txt");
+            string path = PolyfillPaths.Report(MelonLoader.Utils.MelonEnvironment.UserDataDirectory);
             try
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(path));
@@ -381,11 +382,12 @@ namespace Polyfill.Report
                        + "once and holds no file paths.");
         }
 
-        private static void Section(System.Text.StringBuilder text, ModLine mod, string title, bool wantFixable)
+        private static void Section(System.Text.StringBuilder text, ModReport mod, string title,
+                                    Func<Finding, bool> wanted)
         {
-            var lines = new List<FindingLine>();
+            var lines = new List<Finding>();
             foreach (var finding in mod.Findings)
-                if (finding.Fixable == wantFixable) lines.Add(finding);
+                if (wanted(finding)) lines.Add(finding);
             if (lines.Count == 0) return;
 
             text.AppendLine();
@@ -393,11 +395,26 @@ namespace Polyfill.Report
             foreach (var finding in lines)
             {
                 text.AppendLine($"    {finding.Kind}  {finding.Symbol}");
-                if (wantFixable) text.AppendLine($"        -> {finding.Hint}");
+
+                // What was put back says everything the candidate said, so printing both is the same
+                // sentence twice - and for a hand-written rule that sentence is three lines long.
+                if (finding.Outcome == Outcome.Applied)
+                    text.AppendLine($"        -> {Detail(finding)}");
+                else if (finding.Outcome == Outcome.Refused)
+                {
+                    if (!string.IsNullOrEmpty(finding.Hint)) text.AppendLine($"        candidate  {finding.Hint}");
+                    text.AppendLine($"        refused    {finding.OutcomeDetail}");
+                }
+                else if (!string.IsNullOrEmpty(finding.Hint)) text.AppendLine($"        -> {finding.Hint}");
                 else text.AppendLine($"        {finding.Reason}");
                 if (!string.IsNullOrEmpty(finding.Site)) text.AppendLine($"        at {finding.Site}");
             }
         }
+
+        private static string Detail(Finding finding)
+            => !string.IsNullOrEmpty(finding.OutcomeDetail) ? finding.OutcomeDetail
+             : !string.IsNullOrEmpty(finding.Hint) ? finding.Hint
+             : finding.Reason;
 
         /// <summary>
         /// Put the game's generated assemblies back exactly as MelonLoader wrote them.
@@ -417,15 +434,15 @@ namespace Polyfill.Report
             string directory = ReportReader.InteropDirectory;
             int backups = 0;
             if (!string.IsNullOrEmpty(directory) && Directory.Exists(directory))
-                backups = Directory.GetFiles(directory, "*" + BackupSuffix).Length;
+                backups = Directory.GetFiles(directory, "*" + PolyfillPaths.BackupSuffix).Length;
 
             if (backups == 0)
             { Core.Log.Msg("nothing to restore - no assembly has been changed."); return; }
 
             try
             {
-                string marker = Path.Combine(
-                    MelonLoader.Utils.MelonEnvironment.UserDataDirectory ?? ".", "Polyfill", "restore-pending");
+                string marker = PolyfillPaths.RestorePending(
+                    MelonLoader.Utils.MelonEnvironment.UserDataDirectory);
                 Directory.CreateDirectory(Path.GetDirectoryName(marker));
                 File.WriteAllText(marker, "requested from the console\n");
             }
@@ -470,11 +487,16 @@ namespace Polyfill.Report
 
         private static void Help()
         {
-            foreach (string[] one in Listing) Core.Log.Msg($"{one[0],-16} {one[1]}");
+            foreach (var one in CommandTable.All) Core.Log.Msg($"{one.Name,-16} {one.Help}");
         }
 
         private static void Missing()
         {
+            // Two different failures used to read the same: nothing was written, and something was written
+            // that this build will not read. The second one names both files and is fixed in one step.
+            if (!string.IsNullOrEmpty(ReportReader.Problem))
+            { Core.Log.Warning(ReportReader.Problem); return; }
+
             Core.Log.Warning("no report was written this run. Polyfill.Boot.dll belongs in Plugins/, "
                            + "not Mods/ - check the startup log for a line from it.");
         }

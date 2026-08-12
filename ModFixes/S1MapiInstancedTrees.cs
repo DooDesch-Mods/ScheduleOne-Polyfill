@@ -41,6 +41,9 @@ namespace Polyfill.ModFixes
         internal override string GameVersions => "0.4.6*";
         internal override string What => "trees cleared for a building stop being drawn, not only walked through";
 
+        internal override string StandsDownBecause
+            => "Trees a mod cleared for its building may be drawn again. The renderer that draws them arrived in 0.4.6f5 and nobody has checked whether it still works this way.";
+
         private static MelonLogger.Instance _log;
 
         /// <summary>Where the map is. A decode that puts trees outside this is a decode we do not have.</summary>

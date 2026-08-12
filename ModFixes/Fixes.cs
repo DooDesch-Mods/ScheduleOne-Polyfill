@@ -44,8 +44,34 @@ namespace Polyfill.ModFixes
                 Results.Add(outcome);
 
                 if (outcome.Mod == null) { outcome.State = "not installed"; continue; }
+
+                if (fix.RangeProblem != null)
+                {
+                    outcome.State = "broken: " + fix.RangeProblem;
+                    log.Error($"[fix] {fix.Id}: {fix.RangeProblem}. It will not run. This is a bug in "
+                            + "Polyfill, not in your setup.");
+                    continue;
+                }
+
                 if (IsOff(fix.Id)) { outcome.State = "off"; continue; }
-                if (!fix.AppliesTo(outcome.Mod, game)) { outcome.State = "wrong version"; continue; }
+
+                if (!fix.AppliesTo(outcome.Mod, game))
+                {
+                    outcome.State = "wrong version";
+
+                    // A fix that no longer applies BECAUSE THE GAME MOVED ON is not the same as one for a
+                    // mod you do not have, and it is the more useful of the two: after an update, the fixes
+                    // that fell out of their window are the work list. Silence here is how a mod quietly
+                    // stops being repaired and nobody finds out for a month.
+                    if (fix.GameIsNewerThanKnown(game))
+                    {
+                        outcome.State = "needs checking on " + game;
+                        log.Warning($"[fix] {fix.Id} was written for {fix.ForGame.Describe()} and this game is "
+                                  + $"{game}, so it did not run. {fix.StandsDownBecause ?? fix.What} "
+                                  + $"({fix.Mod} {outcome.Mod} is installed.)");
+                    }
+                    continue;
+                }
 
                 bool did;
                 try { did = fix.Apply(log); }

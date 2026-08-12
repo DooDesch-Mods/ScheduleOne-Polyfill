@@ -1,0 +1,78 @@
+# Every push and every pull request. The release workflow only ever runs on a tag, so until this existed
+# nothing was checked before a version went to GitHub, Nexus and Thunderstore at once.
+#
+# The suite runs FIRST and the build second, on purpose: a red suite should cost seconds, not an upload.
+# It needs no game, no Unity and no IL2CPP - everything it checks is either pure logic or a text file in
+# this repo - so it is the same run on a laptop and here.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # The build libraries live in the private Workspace repo, and so does the test project. A pull
+      # request from a fork has no secret and therefore no Workspace; the steps below are skipped rather
+      # than failed, because a contributor cannot fix a secret they cannot have.
+      - name: Checkout Workspace repository (build libs and tests)
+        id: workspace
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/ScheduleOne-Workspace
+          path: Workspace
+          ssh-key: ${{ secrets.WORKSPACE_TOKEN }}
+
+      - name: Say so when the Workspace is not available
+        if: steps.workspace.outcome != 'success'
+        run: |
+          echo "::warning::No access to the Workspace repository, so the suite and the build were skipped."
+          echo "This is expected for a pull request from a fork."
+
+      - name: Set up .NET
+        if: steps.workspace.outcome == 'success'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            6.0.x
+            8.0.x
+
+      - name: Run the headless suite
+        if: steps.workspace.outcome == 'success'
+        working-directory: Workspace/Tests/Polyfill.Tests
+        run: dotnet run --configuration Release
+
+      - name: Build both assemblies
+        if: steps.workspace.outcome == 'success'
+        run: |
+          dotnet build Boot/Polyfill.Boot.csproj --configuration Release \
+            -p:WorkspaceLibPath="${{ github.workspace }}/Workspace/lib"
+          dotnet build Report/Polyfill.csproj --configuration Release \
+            -p:WorkspaceLibPath="${{ github.workspace }}/Workspace/lib"
+
+      # The plugin's reference list is checked by the suite. This catches the other half: a console command
+      # string, or a call into Unity, smuggled into the assembly that runs before interop exists. Two passes
+      # because a string literal is UTF-16 in the #US heap and a plain grep walks past it.
+      - name: The plugin carries no console surface
+        if: steps.workspace.outcome == 'success'
+        run: |
+          DLL=Boot/bin/Release/net6.0/Polyfill.Boot.dll
+          tr -d '\000' < "$DLL" > /tmp/boot-flat.bin
+          FAILED=0
+          for NEEDLE in UnityEngine.Application SubmitCommand polyfillprobe polyfillexport polyfillprefab; do
+            if grep -qa -- "$NEEDLE" "$DLL" || grep -qa -- "$NEEDLE" /tmp/boot-flat.bin; then
+              echo "::error::Polyfill.Boot.dll contains '$NEEDLE'. The plugin runs before the game exists."
+              FAILED=1
+            fi
+          done
+          [ "$FAILED" = 0 ] || exit 1
+          echo "The plugin is free of the game's surface."

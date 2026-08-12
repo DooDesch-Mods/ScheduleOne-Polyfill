@@ -37,10 +37,17 @@
     <Compile Include="../ModFixes/**/*.cs" LinkBase="ModFixes" />
   </ItemGroup>
 
+  <!-- Everything the plugin and this mod have to agree on: the report format, the file names, the command
+       table, the version arithmetic. Compiled into both rather than referenced from one, because the two
+       deliberately share no assembly - the plugin runs where this mod cannot exist. The block below must
+       stay identical to the one in Polyfill.Boot.csproj; a test compares them. -->
+  <ItemGroup>
+    <Compile Include="../Contract/**/*.cs" LinkBase="Contract" />
+  </ItemGroup>
+
   <!-- One file out of Core/, and only because `polyfillregen` has to name the same config file the plugin
-       reads. Naming it in two places is how the backup suffix ended up spelled out twice. Linked rather
-       than referenced: the two assemblies still share no types, which is what lets the plugin live where
-       this one cannot. Nothing else from Core/ compiles here - it needs Cecil, this project has no Cecil. -->
+       reads. Linked rather than referenced, same as Contract/. Nothing else from Core/ compiles here - it
+       needs Cecil, this project has no Cecil. -->
   <ItemGroup>
     <Compile Include="../Core/GeneratorIdentity.cs" Link="Core/GeneratorIdentity.cs" />
   </ItemGroup>

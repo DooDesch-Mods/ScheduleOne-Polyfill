@@ -32,6 +32,9 @@ namespace Polyfill.ModFixes
         internal override string GameVersions => "0.4.6*";
         internal override string What => "prefab names that the game renamed now point at the new name";
 
+        internal override string StandsDownBecause
+            => "Prefabs the game renamed are no longer followed, so a mod placing furniture may find nothing.";
+
         internal override bool Apply(MelonLogger.Instance log)
         {
             var live = Report.PrefabLookup.Names();

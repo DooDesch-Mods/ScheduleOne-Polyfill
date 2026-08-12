@@ -204,10 +204,33 @@ jobs:
             echo "CHANGELOG_EOF"
           } >> "$GITHUB_OUTPUT"
 
+      # Before the build, so a red suite costs seconds rather than an upload to three stores. It needs no
+      # game and no Unity; everything it checks is pure logic or a text file in one of the two repos.
+      - name: Run the headless suite
+        working-directory: Workspace/Tests/Polyfill.Tests
+        run: dotnet run --configuration Release
+
       - name: Build both assemblies (Release, IL2CPP)
         run: |
           dotnet build Boot/Polyfill.Boot.csproj --configuration Release /p:Version="${{ steps.version-check.outputs.version }}" /p:WorkspaceLibPath="${{ github.workspace }}/Workspace/lib"
           dotnet build Report/Polyfill.csproj --configuration Release /p:Version="${{ steps.version-check.outputs.version }}" /p:WorkspaceLibPath="${{ github.workspace }}/Workspace/lib"
+
+      # Release only, and the failure it prevents is the quiet one: a database built for an older game than
+      # the workspace has data for means every rename past that point is simply missing, the report says
+      # nothing is wrong, and the first person to notice is a player whose mod stopped working.
+      - name: The shipped version database is current
+        run: |
+          set -euo pipefail
+          NEWEST=$(ls -1d Workspace/gamesnapshots/*/ \
+                   | sed 's#.*/\([^/]*\)/$#\1#' \
+                   | grep -E '^[0-9]+\.[0-9]+\.[0-9]+(f[0-9]+)?$' | sort -V | tail -1)
+          BUILT=$(sed -n 's/.*"game": *"\([^"]*\)".*/\1/p' Core/polyfill-aliases.json | head -1)
+          if [ "$NEWEST" != "$BUILT" ]; then
+            echo "::error::polyfill-aliases.json was built for $BUILT, the workspace has game data up to $NEWEST."
+            echo "::error::Run Workspace/tools/gamediff/versiondb.ps1, commit the result, and re-tag."
+            exit 1
+          fi
+          echo "The version database is current for $BUILT."
 
       - name: Prepare release directory
         run: |

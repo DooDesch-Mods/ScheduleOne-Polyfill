@@ -52,6 +52,17 @@
     <Compile Include="../Dynamic/**/*.cs" LinkBase="Dynamic" />
   </ItemGroup>
 
+  <!-- Everything the plugin and the companion mod have to agree on: the report format, the file names, the
+       command table, the version arithmetic. Compiled into both rather than referenced from one, because
+       the two deliberately share no assembly - the plugin runs where the mod cannot exist.
+
+       A folder of its own, and NOT under Core/, precisely so both projects have to name it. Core/ is already
+       globbed above; a shared file dropped in there would be picked up here invisibly and the mod's copy
+       would quietly drift. A test compares the two blocks. -->
+  <ItemGroup>
+    <Compile Include="../Contract/**/*.cs" LinkBase="Contract" />
+  </ItemGroup>
+
   <!-- The game's rename history, chained from 0.4.4 to the version it was built for. Embedded rather than
        shipped beside the DLL: it is not a setting, a player has no reason to see it, and one file that
        cannot go missing is one support question that cannot happen.

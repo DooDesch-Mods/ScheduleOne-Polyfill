@@ -1,6 +1,7 @@
 using MelonLoader;
 using Mono.Cecil;
 using Polyfill.Boot;
+using Polyfill.Contract;
 
 namespace Polyfill.Core
 {
@@ -33,27 +34,29 @@ namespace Polyfill.Core
         /// Deduplicated first: two mods built against the same old version ask for the same missing name, and
         /// the forwarder belongs in the game once, not once per mod.
         /// </remarks>
-        private static void Repair(string interopDirectory, InteropOriginals originals,
-                                   MelonLogger.Instance log)
+        private static Dictionary<string, string> Repair(string interopDirectory, InteropOriginals originals,
+                                                        MelonLogger.Instance log)
         {
-            if (_forwards.Count == 0 && _members.Count == 0) return;
+            var nothing = new Dictionary<string, string>(StringComparer.Ordinal);
+            if (_forwards.Count == 0 && _members.Count == 0) return nothing;
             if (Boot.Plugin.DryRun)
             {
                 log.Msg($"[inject] DryRun: {_forwards.Count + _members.Count} repair(s) found and none applied. "
                       + "Turn DryRun off in MelonPreferences to let them through.");
-                return;
+                return nothing;
             }
 
+            // Keyed by the repair's own identity, which includes the parameter count. Without it Foo(int)
+            // and Foo(int, int) are one key: the second is dropped as a duplicate, the mod that wanted it
+            // stays broken, and its report says "adaptable" because a candidate was found for the name.
             var seen = new HashSet<string>(StringComparer.Ordinal);
             var uniqueTypes = new List<InteropAugmentor.TypeForward>();
             foreach (var forward in _forwards)
-                if (seen.Add("T|" + forward.InAssembly + "!" + forward.Namespace + "." + forward.Name))
-                    uniqueTypes.Add(forward);
+                if (seen.Add(forward.Key)) uniqueTypes.Add(forward);
 
             var uniqueMembers = new List<InteropAugmentor.MemberForward>();
             foreach (var member in _members)
-                if (seen.Add("M|" + member.InAssembly + "!" + member.DeclaringType + "::" + member.OldName))
-                    uniqueMembers.Add(member);
+                if (seen.Add(member.Key)) uniqueMembers.Add(member);
 
             var result = InteropAugmentor.Apply(interopDirectory, uniqueTypes, uniqueMembers, originals, log);
             foreach (string applied in result.Applied) log.Msg("[inject]   " + applied);
@@ -62,6 +65,30 @@ namespace Polyfill.Core
             // Written even when nothing was: the stamp is the list of assemblies Polyfill has touched, and
             // an empty list is the correct answer after a launch that touched none.
             StampFile.Write(originals.Generator.Digest(), result.Stamped);
+            return result.Outcomes;
+        }
+
+        /// <summary>
+        /// Carry what the injector decided back onto the findings it decided about.
+        /// </summary>
+        /// <remarks>
+        /// The report used to be written BEFORE the repair ran, so it could only say what was found. A
+        /// refused repair reached the log and nothing else - which made "Polyfill had a candidate and did
+        /// not trust it" invisible in the one file a player is ever asked to send.
+        /// </remarks>
+        private static void RecordOutcomes(List<ModReport> reports, Dictionary<string, string> outcomes)
+        {
+            if (outcomes.Count == 0) return;
+            foreach (var report in reports)
+                foreach (var finding in report.Findings)
+                {
+                    if (finding.RepairKey == null) continue;
+                    if (!outcomes.TryGetValue(finding.RepairKey, out string outcome)) continue;
+
+                    int colon = outcome.IndexOf(':');
+                    finding.Outcome = colon < 0 ? outcome : outcome.Substring(0, colon);
+                    finding.OutcomeDetail = colon < 0 ? "" : outcome.Substring(colon + 1);
+                }
         }
 
         internal static void Run(List<ModCandidate> candidates, MelonLogger.Instance log)
@@ -101,9 +128,13 @@ namespace Polyfill.Core
             }
 
             Reports = reports;
+
+            // Repair first, THEN write. The report is the answer to "what did Polyfill do about my mod",
+            // and written the other way round it could only ever answer "what did it find".
+            var outcomes = Repair(interopDirectory, originals, log);
+            RecordOutcomes(reports, outcomes);
             Report.Write(reports, interopDirectory, assemblyCount, new List<string>());
             Summarise(reports, log);
-            Repair(interopDirectory, originals, log);
         }
 
         /// <summary>Installed libraries - checked as well as searched. S1API lives here.</summary>
@@ -187,21 +218,26 @@ namespace Polyfill.Core
                            + $"{reference.Name}, so which one it became is not decidable here";
                 }
 
+                string repairKey = null;
                 if (elsewhere.Count == 1)
-                    _forwards.Add(new InteropAugmentor.TypeForward
+                {
+                    var forward = new InteropAugmentor.TypeForward
                     {
                         InAssembly = scope,
                         Namespace = reference.Namespace,
                         Name = reference.Name,
                         TargetAssembly = elsewhere[0].Module.Assembly.Name.Name,
                         TargetFullName = elsewhere[0].FullName,
-                    });
+                    };
+                    _forwards.Add(forward);
+                    repairKey = forward.Key;
+                }
 
                 report.Findings.Add(new Finding
                 {
                     Kind = (index.Kind(scope) == "game" ? "" : "library-") + "type",
                     Scope = scope, Symbol = reference.FullName,
-                    Reason = reason, Hint = hint,
+                    Reason = reason, Hint = hint, RepairKey = repairKey,
                 });
             }
             return missing;
@@ -257,8 +293,9 @@ namespace Polyfill.Core
 
             // One candidate, on the game, and a method: that is a repair we can make without inferring
             // anything. Anything else is reported and left alone.
+            string repairKey = null;
             if (hits.Count == 1 && kindPrefix.Length == 0 && hits[0].Member is MethodDefinition)
-                _members.Add(new InteropAugmentor.MemberForward
+                repairKey = Collect(new InteropAugmentor.MemberForward
                 {
                     InAssembly = scope,
                     DeclaringType = declaring.FullName,
@@ -279,7 +316,7 @@ namespace Polyfill.Core
                 if (historical != null && Has(declaring, historical))
                 {
                     hint = historical + "  [version history]";
-                    _members.Add(new InteropAugmentor.MemberForward
+                    repairKey = Collect(new InteropAugmentor.MemberForward
                     {
                         InAssembly = scope,
                         DeclaringType = declaring.FullName,
@@ -297,7 +334,7 @@ namespace Polyfill.Core
                     if (rule != null)
                     {
                         hint = "hand-written rule: " + rule.Because;
-                        _members.Add(new InteropAugmentor.MemberForward
+                        repairKey = Collect(new InteropAugmentor.MemberForward
                         {
                             InAssembly = scope,
                             DeclaringType = declaring.FullName,
@@ -319,7 +356,7 @@ namespace Polyfill.Core
             {
                 Kind = kindPrefix + "member", Scope = scope,
                 Symbol = declaring.FullName + "::" + wanted.Name + Signature(wanted),
-                Reason = reason, Hint = hint,
+                Reason = reason, Hint = hint, RepairKey = repairKey,
             });
         }
 
@@ -343,6 +380,13 @@ namespace Polyfill.Core
                 Symbol = declaring.FullName + "::" + wanted.Name,
                 Reason = reason, Hint = hint,
             });
+        }
+
+        /// <summary>Remember a repair, and hand back the key the report uses to find out what became of it.</summary>
+        private static string Collect(InteropAugmentor.MemberForward member)
+        {
+            _members.Add(member);
+            return member.Key;
         }
 
         /// <summary>Unwrap arrays, by-ref and generic instances down to the type that carries the scope.</summary>

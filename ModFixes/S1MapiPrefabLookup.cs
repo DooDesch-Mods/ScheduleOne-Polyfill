@@ -48,6 +48,9 @@ namespace Polyfill.ModFixes
         internal override string GameVersions => "0.4.6*";
         internal override string What => "prefabs the game loads but does not replicate can be found again";
 
+        internal override string StandsDownBecause
+            => "Doors, switches and counters a mod spawns by name may come out empty again.";
+
         private static MelonLogger.Instance _log;
         private static readonly Dictionary<string, GameObject> _found = new(StringComparer.Ordinal);
 
