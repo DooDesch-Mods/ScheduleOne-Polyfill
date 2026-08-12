@@ -112,6 +112,11 @@ namespace Polyfill.Core
             bool mayAct = !Boot.Plugin.DryRun && !Boot.Diagnostics.InteropAlreadyLoaded;
             var originals = InteropOriginals.Take(interopDirectory, mayAct, log);
 
+            // Said once, and not as a warning: nothing is wrong on a build nobody has read yet. Everything
+            // that can be checked against the player's own game still runs.
+            string horizon = Bridges.Registry.PastTheHorizon(GameVersionSource.Current);
+            if (horizon != null) log.Msg("[bridge] " + horizon);
+
             // Scoped, and the scope matters: Cecil's assembly resolver opens every assembly it resolves
             // WITHOUT reading it into memory first, and keeps the handle until it is disposed. Repairing
             // inside this block fails with "the file is being used by another process" - and the process is
@@ -291,26 +296,43 @@ namespace Polyfill.Core
             string hint = hits.Count == 1 ? hits[0].NewName + "  [" + hits[0].Rule + "]" : "";
             int parameters = wanted.Parameters?.Count ?? 0;
 
-            // One candidate, on the game, and a method: that is a repair we can make without inferring
-            // anything. Anything else is reported and left alone.
+            // AUTHORITY RUNS DOWNHILL, and the order below is the whole of it.
+            //
+            // A bridge is the only source where a person compared the BODIES of both builds. The history
+            // compares metadata shapes between two adjacent releases. A name rule compares spelling. So the
+            // hand-written answer is asked first, the game's own history second, and English last.
+            //
+            // It used to be the other way round: the bridge was consulted only when nothing else had spoken
+            // AND the spelling had produced no candidates at all. Two members that merely LOOKED alike were
+            // therefore enough to silence the one source that actually knew, and the mod stayed broken while
+            // the report said a candidate existed.
             string repairKey = null;
-            if (hits.Count == 1 && kindPrefix.Length == 0 && hits[0].Member is MethodDefinition)
+            var authored = kindPrefix.Length == 0
+                ? Bridges.Registry.Find(scope, declaring.FullName, wanted.Name, parameters)
+                : null;
+
+            if (authored != null)
+            {
+                hint = "hand-written rule: " + authored.Because;
                 repairKey = Collect(new InteropAugmentor.MemberForward
                 {
                     InAssembly = scope,
                     DeclaringType = declaring.FullName,
                     OldName = wanted.Name,
-                    NewName = hits[0].NewName,
+                    NewName = null,
                     ParameterCount = parameters,
-                    Rule = hits[0].Rule,
+                    Rule = "curated",
                 });
+            }
             else if (kindPrefix.Length == 0)
             {
-                // The spelling says nothing, or says too many things. The game's own history might still
-                // know: a member that vanished between two adjacent builds and one of the same shape that
-                // appeared on the same type is the same member, and those steps are chained from 0.4.4 to
-                // here. This is where MAX_HEALTH -> MaxHealth and AssignedNPC_ID -> NPCId come from, both
-                // of which no rule on the installed game could have found.
+                // The game's own history: a member that vanished between two adjacent builds and one of the
+                // same shape that appeared on the same type is the same member, and those steps are chained
+                // from 0.4.4 to here. This is where MAX_HEALTH -> MaxHealth and AssignedNPC_ID -> NPCId come
+                // from, neither of which any rule on the installed game could have found.
+                //
+                // Confirmed against the LIVE type before it is believed: the history says what a build
+                // CALLED something, only the installed game says whether it is there.
                 string historical = AliasDb.Successor(declaring.FullName, wanted.Name, parameters,
                                                       Report.GameVersion());
                 if (historical != null && Has(declaring, historical))
@@ -326,26 +348,22 @@ namespace Polyfill.Core
                         Rule = "version history",
                     });
                 }
-                else if (hits.Count == 0)
+                else if (hits.Count == 1 && hits[0].Member is MethodDefinition)
                 {
-                    // Nothing on the type to point at and no history either, but somebody may have read
-                    // the game and written down what this became.
-                    var rule = CuratedRules.Find(scope, declaring.FullName, wanted.Name, parameters);
-                    if (rule != null)
+                    // One candidate on this type, reached by spelling alone. No inference, but the weakest
+                    // of the three: it is a fact about English, not about the game.
+                    repairKey = Collect(new InteropAugmentor.MemberForward
                     {
-                        hint = "hand-written rule: " + rule.Because;
-                        repairKey = Collect(new InteropAugmentor.MemberForward
-                        {
-                            InAssembly = scope,
-                            DeclaringType = declaring.FullName,
-                            OldName = wanted.Name,
-                            NewName = null,
-                            ParameterCount = parameters,
-                            Rule = "curated",
-                        });
-                    }
+                        InAssembly = scope,
+                        DeclaringType = declaring.FullName,
+                        OldName = wanted.Name,
+                        NewName = hits[0].NewName,
+                        ParameterCount = parameters,
+                        Rule = hits[0].Rule,
+                    });
                 }
             }
+
             string reason = nameExists
                 ? "the method still exists but its parameters changed"
                 : hits.Count > 1

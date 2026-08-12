@@ -63,12 +63,23 @@
     <Compile Include="../Contract/**/*.cs" LinkBase="Contract" />
   </ItemGroup>
 
-  <!-- The game's rename history, chained from 0.4.4 to the version it was built for. Embedded rather than
-       shipped beside the DLL: it is not a setting, a player has no reason to see it, and one file that
-       cannot go missing is one support question that cannot happen.
-       Rebuild with Workspace/tools/gamediff/versiondb.ps1 after a game update. -->
+  <!-- The hand-written repairs, one folder per step of the game. A new game version adds a folder here and
+       one line in Bridges/Registry.cs; nothing already in here is edited. -->
   <ItemGroup>
-    <EmbeddedResource Include="../Core/polyfill-aliases.json" LogicalName="polyfill-aliases.json" />
+    <Compile Include="../Bridges/**/*.cs" LinkBase="Bridges" />
+  </ItemGroup>
+
+  <!-- The game's rename history: one file per released step, and adding a game version adds a file here
+       rather than rewriting one. Embedded rather than shipped beside the DLL - it is not a setting, a
+       player has no reason to see it, and one file that cannot go missing is one support question that
+       cannot happen. A player CAN still drop the same files into UserData/Polyfill/versiondb to bridge a
+       game version before there is a release for it; see AliasDb.
+
+       No LogicalName: a glob cannot carry one, and the loader identifies a file by its first line instead.
+       Rebuild with `sourceapi steps` after a game update. -->
+  <ItemGroup>
+    <EmbeddedResource Include="../Core/versiondb/steps/*.txt" />
+    <EmbeddedResource Include="../Core/versiondb/overrides/*.txt" />
   </ItemGroup>
 
   <ItemGroup>

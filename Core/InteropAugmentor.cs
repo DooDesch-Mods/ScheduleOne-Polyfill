@@ -309,7 +309,7 @@ namespace Polyfill.Core
 
             // No single successor - a hand-written rule builds the body instead.
             var rule = member.NewName == null
-                ? CuratedRules.Find(member.InAssembly, member.DeclaringType,
+                ? Bridges.Registry.Find(member.InAssembly, member.DeclaringType,
                                     member.OldName, member.ParameterCount)
                 : null;
 
@@ -334,8 +334,14 @@ namespace Polyfill.Core
                     { Refuse(result, member, label, "that exact signature is already here"); return false; }
 
                 type.Methods.Add(built);
-                result.Applied.Add($"{member.InAssembly}!{label}  [rule: {rule.Because}]");
-                result.Record(member.Key, Contract.Outcome.Applied, rule.Because);
+
+                // It fits this build - the emitter just proved that by finding everything it needed. Whether
+                // anybody has READ this build is a different question, and the answer belongs in the report
+                // rather than in a decision: refusing here would invent a failure on a game that works.
+                bool verified = rule.Verified(Contract.GameVersionSource.Current);
+                string why = verified ? rule.Because : rule.Because + " (not verified on this build)";
+                result.Applied.Add($"{member.InAssembly}!{label}  [rule: {why}]");
+                result.Record(member.Key, Contract.Outcome.Applied, why);
                 return true;
             }
 

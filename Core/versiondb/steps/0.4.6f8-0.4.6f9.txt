@@ -1,0 +1,10 @@
+# polyfill-versiondb 1
+# from=0.4.6f8
+# to=0.4.6f9
+# counts=R:0 -:5 ?:0
+# op|kind|type|from|to|arity|origin|rule|confidence|note
+-|M|ScheduleOne.AvatarFramework.Avatar|ApplyShapeKeys||3|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Avatar|LoadNakedSettings||2|derived|removed|high|
+-|M|ScheduleOne.Dialogue.DialogueController|Unqueue||0|derived|removed|high|
+-|F|ScheduleOne.Dialogue.DialogueController|dialogueQueued||0|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCustomization.CharacterCustomizationOption|BuyTrigger||0|derived|removed|high|

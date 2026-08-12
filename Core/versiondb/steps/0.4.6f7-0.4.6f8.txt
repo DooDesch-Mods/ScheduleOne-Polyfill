@@ -1,0 +1,9 @@
+# polyfill-versiondb 1
+# from=0.4.6f7
+# to=0.4.6f8
+# counts=R:0 -:4 ?:0
+# op|kind|type|from|to|arity|origin|rule|confidence|note
+-|F|ScheduleOne.UI.GraffitiMenu|_selectedStrokeSizeIndex||0|derived|removed|high|
+-|P|ScheduleOne.UI.Input.EmbeddedInputPromptUI|IsActive||0|derived|removed|high|
+-|F|ScheduleOne.UI.Input.EmbeddedInputPromptUI|_actionReference||0|derived|removed|high|
+-|M|ScheduleOne.UI.Input.InputPromptsManager|GetBindingDataFromActionReference||1|derived|removed|high|

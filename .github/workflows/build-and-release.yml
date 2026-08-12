@@ -224,13 +224,13 @@ jobs:
           NEWEST=$(ls -1d Workspace/gamesnapshots/*/ \
                    | sed 's#.*/\([^/]*\)/$#\1#' \
                    | grep -E '^[0-9]+\.[0-9]+\.[0-9]+(f[0-9]+)?$' | sort -V | tail -1)
-          BUILT=$(sed -n 's/.*"game": *"\([^"]*\)".*/\1/p' Core/polyfill-aliases.json | head -1)
+          BUILT=$(grep -h '^# to=' Core/versiondb/steps/*.txt | sed 's/^# to=//' | sort -V | tail -1)
           if [ "$NEWEST" != "$BUILT" ]; then
-            echo "::error::polyfill-aliases.json was built for $BUILT, the workspace has game data up to $NEWEST."
-            echo "::error::Run Workspace/tools/gamediff/versiondb.ps1, commit the result, and re-tag."
+            echo "::error::The version history ends at $BUILT, the workspace has game data up to $NEWEST."
+            echo "::error::Run Workspace/tools/gamediff/versiondb.ps1, commit the new step, and re-tag."
             exit 1
           fi
-          echo "The version database is current for $BUILT."
+          echo "The version history is current for $BUILT."
 
       - name: Prepare release directory
         run: |

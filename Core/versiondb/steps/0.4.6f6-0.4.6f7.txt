@@ -1,0 +1,14 @@
+# polyfill-versiondb 1
+# from=0.4.6f6
+# to=0.4.6f7
+# counts=R:4 -:4 ?:1
+# op|kind|type|from|to|arity|origin|rule|confidence|note
+R|F|ScheduleOne.PlayerScripts.PlayerInventory|INVENTORY_SLOT_COUNT|InventorySlotCount|0|derived|name-screaming-snake|high|
+R|F|ScheduleOne.PlayerScripts.PlayerInventory|ManagementSlotEnabled|_managementSlotEnabled|0|derived|name-underscore|high|
+R|F|ScheduleOne.PlayerScripts.PlayerInventory|currentEquipTime|CurrentEquipTime|0|derived|name-case|high|
+R|P|ScheduleOne.PlayerScripts.PlayerInventory|equippable|Equippable|0|derived|name-case|high|
+-|F|ScheduleOne.PlayerScripts.PlayerInventory|DISCARD_TIME||0|derived|removed|high|
+-|F|ScheduleOne.PlayerScripts.PlayerInventory|LABEL_DISPLAY_TIME||0|derived|removed|high|
+-|F|ScheduleOne.PlayerScripts.PlayerInventory|LABEL_FADE_TIME||0|derived|removed|high|
+-|P|ScheduleOne.PlayerScripts.PlayerInventory|TOTAL_SLOT_COUNT||0|derived|removed|high|
+?|F|ScheduleOne.PlayerScripts.PlayerInventory|currentDiscardTime||0|derived|ambiguous|high|2->1 of that shape moved at once
