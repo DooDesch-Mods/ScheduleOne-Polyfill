@@ -2,6 +2,25 @@
 
 All notable changes to this project are documented here.
 
+## [0.2.0] - 2026-08-12
+
+### Added
+- Mods that build their own NPC run again: 0.4.6 moved the NPC's name, ID, mugshot and inventory
+  settings, and writing them killed the mod.
+- More names get matched. A member renamed from `CustomerSlots` to `_customerSlots` is found now, which
+  brings back the weather reading and the handover screen for older mods.
+- Two more kinds of break are repaired: a type that only changed namespace, and a method that grew an
+  argument. That is OverTheCounter's contacts app and its storage screen.
+- T.H.M - The Hitman Mod now has a repair for all 6 things it asks for, OverTheCounter Dispensary for 29
+  of 40. It was 5 and 4.
+
+- `polyfillprefab <name>` says whether the game still has a prefab a mod spawns by name, and what is
+  spelled close to it. Renamed prefabs used to fail in the Unity log where nobody looks.
+
+### Fixed
+- Boots that died with no message. A mod asking Harmony for a type by name made the game load every type
+  in every assembly, and one of them takes the process down.
+
 ## [0.1.3] - 2026-08-11
 
 ### Fixed

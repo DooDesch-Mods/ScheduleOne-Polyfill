@@ -181,6 +181,7 @@ namespace Polyfill.Core
                         Namespace = reference.Namespace,
                         Name = reference.Name,
                         TargetAssembly = elsewhere[0].Module.Assembly.Name.Name,
+                        TargetFullName = elsewhere[0].FullName,
                     });
 
                 report.Findings.Add(new Finding

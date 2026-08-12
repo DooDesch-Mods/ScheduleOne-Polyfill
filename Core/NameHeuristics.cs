@@ -126,10 +126,20 @@ namespace Polyfill.Core
             // FishNet weaver output: SyncAccessor_debt -> SyncAccessor__debt, syncVar___debt -> syncVar____debt
             if (StripWeaverUnderscores(wanted) == StripWeaverUnderscores(have)) { rule = "syncvar-accessor"; return true; }
 
+            // CustomerSlots -> _customerSlots. A member that went from public to private takes the underscore
+            // and the lower case in one move, and neither rule above sees that once an accessor prefix sits in
+            // front of it: get_CustomerSlots and get__customerSlots differ in the MIDDLE, so trimming the ends
+            // finds nothing and the case comparison is thrown by the underscore.
+            if (string.Equals(Normalize(wanted), Normalize(have), StringComparison.OrdinalIgnoreCase)
+                && Normalize(wanted).Length > 0) { rule = "underscore+casing"; return true; }
+
             return false;
         }
 
         private static string Trim(string s, char c) => s.Trim(c);
+
+        /// <summary>Every difference an underscore can make, taken out at once: runs collapsed, ends trimmed.</summary>
+        private static string Normalize(string name) => Trim(StripWeaverUnderscores(name), '_');
 
         private static string BackingFieldOf(string name)
         {

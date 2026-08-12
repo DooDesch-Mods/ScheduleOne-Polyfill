@@ -30,6 +30,7 @@ namespace Polyfill.Report
             new[] { "polyfillunfixed", "only what cannot be pointed at anything", "polyfillunfixed hitman" },
             new[] { "polyfillexport",  "write one file with everything, ready to send", "polyfillexport" },
             new[] { "polyfillprobe",   "can the runtime resolve this type by name?", "polyfillprobe Il2CppScheduleOne.Weather.WeatherConditions" },
+            new[] { "polyfillprefab",  "does the game still have this prefab, and what is near it", "polyfillprefab Basic Metal Glass Door" },
             new[] { "polyfillrestore", "undo every repair, restart to take effect", "polyfillrestore" },
             new[] { "polyfillhelp",    "list the polyfill commands", "polyfillhelp" },
         };
@@ -64,7 +65,7 @@ namespace Polyfill.Report
             string command = parts[0].ToLowerInvariant();
             if (command != "polyfill" && command != "polyfilllist" && command != "polyfillshow"
                 && command != "polyfillunfixed" && command != "polyfillhelp" && command != "polyfillprobe"
-                && command != "polyfillrestore" && command != "polyfillexport")
+                && command != "polyfillrestore" && command != "polyfillexport" && command != "polyfillprefab")
                 return false;                                   // not ours - let the game have it
 
             string signature = string.Join(" ", parts);
@@ -84,6 +85,7 @@ namespace Polyfill.Report
                     case "polyfillunfixed": Show(argument, onlyUnfixable: true); break;
                     case "polyfillexport": Export(); break;
                     case "polyfillprobe": Probe(argument); break;
+                    case "polyfillprefab": PrefabLookup.Explain(argument); break;
                     case "polyfillrestore": Restore(); break;
                     case "polyfillhelp": Help(); break;
                 }

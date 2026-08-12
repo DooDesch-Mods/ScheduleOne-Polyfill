@@ -49,6 +49,7 @@
        will grow: index, triage, and later the injector. -->
   <ItemGroup>
     <Compile Include="../Core/**/*.cs" LinkBase="Core" />
+    <Compile Include="../Dynamic/**/*.cs" LinkBase="Dynamic" />
   </ItemGroup>
 
   <ItemGroup>

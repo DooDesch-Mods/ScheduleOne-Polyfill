@@ -40,6 +40,7 @@ namespace Polyfill.Core
             internal string Namespace;       // the OLD namespace
             internal string Name;            // the OLD simple name
             internal string TargetAssembly;  // where it lives now
+            internal string TargetFullName;  // and under what name, which a namespace change makes differ
         }
 
         /// <summary>An old member name, put back on the type that used to carry it.</summary>
@@ -119,6 +120,14 @@ namespace Polyfill.Core
             //
             // The resolver is disposed BEFORE the live file is replaced, not after: it opens what it resolves
             // and holds the handle, and one of the things it can resolve is the file about to be overwritten.
+            // What the verification is allowed to demand back out of the written image is what was actually
+            // put in, never what was planned. A repair can be refused for good reasons - the name is taken,
+            // the target is not on this build, a forwarder would point at its own assembly - and checking
+            // against the plan turns any one of those into a failed verification, which throws away every
+            // other repair with it. Refusing one repair must cost exactly that one repair.
+            var emittedForwards = new List<TypeForward>();
+            var emittedMembers = new List<MemberForward>();
+
             try
             {
                 using (var resolver = new DefaultAssemblyResolver())
@@ -129,6 +138,30 @@ namespace Polyfill.Core
                         if (module.GetType(Full(forward)) != null)
                         { result.Refused.Add($"{Full(forward)}: the name is taken here"); continue; }
 
+                        // A forwarder is an entry saying "this name lives in ANOTHER assembly". Pointing one at
+                        // the assembly it already sits in says the name is somewhere else and somewhere else is
+                        // here, and the type loader has nowhere to go from there. Measured: the name stays
+                        // unresolvable, and the process dies when a mod's compiled call reaches it rather than
+                        // when reflection asks politely.
+                        //
+                        // A type that only changed namespace gets a class instead, deriving from where it
+                        // lives now. See ShadowTypes.
+                        if (string.Equals(forward.TargetAssembly, forward.InAssembly, StringComparison.OrdinalIgnoreCase))
+                        {
+                            var shadow = ShadowTypes.TryAdd(module, forward.Namespace, forward.Name,
+                                                            forward.TargetFullName, out string why);
+                            if (shadow == null)
+                            {
+                                result.Refused.Add($"{Full(forward)}: it only changed namespace, and {why}");
+                                continue;
+                            }
+                            result.Applied.Add($"{forward.InAssembly}!{Full(forward)} -> a class deriving from "
+                                             + forward.TargetFullName);
+                            emittedForwards.Add(forward);
+                            added++;
+                            continue;
+                        }
+
                         var scope = ScopeFor(module, forward.TargetAssembly);
                         if (scope == null)
                         { result.Refused.Add($"{Full(forward)}: {forward.TargetAssembly} is not installed"); continue; }
@@ -138,11 +171,12 @@ namespace Polyfill.Core
                             Attributes = TypeAttributes.Forwarder,
                         });
                         result.Applied.Add($"{forward.InAssembly}!{Full(forward)} -> {forward.TargetAssembly}");
+                        emittedForwards.Add(forward);
                         added++;
                     }
 
                     foreach (var member in members)
-                        if (AddMemberForward(module, member, result)) added++;
+                        if (AddMemberForward(module, member, result)) { emittedMembers.Add(member); added++; }
 
                     if (added == 0) return;
                     module.Write(temporary);
@@ -153,7 +187,7 @@ namespace Polyfill.Core
                 // this reported two repairs applied and wrote one, and nothing noticed until a runtime
                 // probe came up empty an hour later. A repair that cannot be found in the output is a bug
                 // in here, and the game gets the original instead.
-                string missing = Verify(temporary, forwards, members);
+                string missing = Verify(temporary, emittedForwards, emittedMembers);
                 if (missing != null)
                 {
                     result.Refused.Add($"{Path.GetFileName(livePath)}: written image is missing {missing}; "
@@ -197,20 +231,31 @@ namespace Polyfill.Core
             var type = module.GetType(member.DeclaringType);
             if (type == null) { result.Refused.Add($"{label}: the type is not in this assembly"); return false; }
 
-            foreach (var existing in type.Methods)
-                if (existing.Name == member.OldName)
-                { result.Refused.Add($"{label}: the name is already taken"); return false; }
-
             // No single successor - a hand-written rule builds the body instead.
+            var rule = member.NewName == null
+                ? CuratedRules.Find(member.InAssembly, member.DeclaringType,
+                                    member.OldName, member.ParameterCount)
+                : null;
+
+            if (rule == null || !rule.AllowOverload)
+                foreach (var existing in type.Methods)
+                    if (existing.Name == member.OldName)
+                    { result.Refused.Add($"{label}: the name is already taken"); return false; }
+
             if (member.NewName == null)
             {
-                var rule = CuratedRules.Find(member.InAssembly, member.DeclaringType,
-                                             member.OldName, member.ParameterCount);
                 if (rule == null) { result.Refused.Add($"{label}: no rule for this"); return false; }
 
                 var built = rule.Emit(module, type);
                 if (built == null)
                 { result.Refused.Add($"{label}: the rule needs members this build does not have"); return false; }
+
+                // An overload rule is trusted to add a signature, never to replace one. If the exact shape
+                // is already here the rule has misread the build, and adding it would mean two methods a
+                // call cannot be told apart by.
+                foreach (var existing in type.Methods)
+                    if (existing.Name == built.Name && SameShape(existing, built))
+                    { result.Refused.Add($"{label}: that exact signature is already here"); return false; }
 
                 type.Methods.Add(built);
                 result.Applied.Add($"{member.InAssembly}!{label}  [rule: {rule.Because}]");
@@ -259,10 +304,14 @@ namespace Polyfill.Core
 
             foreach (var forward in forwards)
             {
-                bool found = false;
-                foreach (var exported in module.ExportedTypes)
-                    if (exported.Namespace == forward.Namespace && exported.Name == forward.Name)
-                    { found = true; break; }
+                // Either kind of repair counts: a forwarder row for a type that left the assembly, a class
+                // of its own for one that only changed namespace. What is being checked is that the name
+                // resolves, not which of the two ways got it there.
+                bool found = module.GetType(Full(forward)) != null;
+                if (!found)
+                    foreach (var exported in module.ExportedTypes)
+                        if (exported.Namespace == forward.Namespace && exported.Name == forward.Name)
+                        { found = true; break; }
                 if (!found) return Full(forward);
             }
 
@@ -272,10 +321,23 @@ namespace Polyfill.Core
                 bool found = false;
                 if (type != null)
                     foreach (var method in type.Methods)
-                        if (method.Name == member.OldName) { found = true; break; }
+                        // By name AND arity: where a repair is an overload the name was there before it, so
+                        // matching on the name alone would pass whether or not anything was written.
+                        if (method.Name == member.OldName && method.Parameters.Count == member.ParameterCount)
+                        { found = true; break; }
                 if (!found) return $"{member.DeclaringType}::{member.OldName}";
             }
             return null;
+        }
+
+        /// <summary>Same parameter types in the same order - what makes two methods indistinguishable.</summary>
+        private static bool SameShape(MethodDefinition a, MethodDefinition b)
+        {
+            if (a.Parameters.Count != b.Parameters.Count) return false;
+            for (int i = 0; i < a.Parameters.Count; i++)
+                if (a.Parameters[i].ParameterType.FullName != b.Parameters[i].ParameterType.FullName)
+                    return false;
+            return true;
         }
 
         private static ModuleDefinition ReadWithResolver(string path, string interop,
@@ -286,6 +348,15 @@ namespace Polyfill.Core
             {
                 string core = Path.GetDirectoryName(typeof(object).Assembly.Location);
                 if (!string.IsNullOrEmpty(core)) resolver.AddSearchDirectory(core);
+            }
+            catch { }
+            try
+            {
+                // Where MelonLoader keeps Il2CppInterop. Every interop type derives from Il2CppObjectBase, so
+                // without this the base chain stops at the assembly boundary and anything that has to walk it
+                // - Pointer, for one - silently finds nothing.
+                string loader = Path.GetDirectoryName(typeof(MelonLoader.MelonPlugin).Assembly.Location);
+                if (!string.IsNullOrEmpty(loader)) resolver.AddSearchDirectory(loader);
             }
             catch { }
 
