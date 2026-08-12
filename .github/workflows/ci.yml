@@ -62,13 +62,17 @@ jobs:
       # The plugin's reference list is checked by the suite. This catches the other half: a console command
       # string, or a call into Unity, smuggled into the assembly that runs before interop exists. Two passes
       # because a string literal is UTF-16 in the #US heap and a plain grep walks past it.
-      - name: The plugin carries no console surface
+      # The command WORDS are deliberately not on this list. They live in Contract/, which is compiled
+      # into both assemblies on purpose, and a string is not a reference: naming a command costs
+      # nothing at load. What this catches is a name that only exists as TEXT and no reference list
+      # can see - a type resolved by string, a patch target.
+      - name: The plugin names nothing from the running game
         if: steps.workspace.outcome == 'success'
         run: |
           DLL=Boot/bin/Release/net6.0/Polyfill.Boot.dll
           tr -d '\000' < "$DLL" > /tmp/boot-flat.bin
           FAILED=0
-          for NEEDLE in UnityEngine.Application SubmitCommand polyfillprobe polyfillexport polyfillprefab; do
+          for NEEDLE in UnityEngine.Application Il2CppInterop.Runtime Il2CppSystem SubmitCommand; do
             if grep -qa -- "$NEEDLE" "$DLL" || grep -qa -- "$NEEDLE" /tmp/boot-flat.bin; then
               echo "::error::Polyfill.Boot.dll contains '$NEEDLE'. The plugin runs before the game exists."
               FAILED=1
