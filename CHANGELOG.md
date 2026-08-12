@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.4.3] - 2026-08-12
+
+### Fixed
+- OverTheCounter's co-op sync is no longer switched off by a version number. It demanded exactly the
+  SteamNetworkLib it was built with, and the newer one carries everything it calls.
+
 ## [0.4.2] - 2026-08-12
 
 ### Fixed
