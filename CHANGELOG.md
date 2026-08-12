@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here.
 
+## [0.4.4] - 2026-08-12
+
+### Fixed
+- After a Schedule I update Polyfill starts from the game's new files. It used to keep writing its copy of
+  the old ones back over them, which broke mods that had been fine.
+
+### Added
+- `polyfillregen` has MelonLoader build the game's generated files again, for when Polyfill reports that it
+  has no untouched copy of one left.
+
 ## [0.4.3] - 2026-08-12
 
 ### Fixed

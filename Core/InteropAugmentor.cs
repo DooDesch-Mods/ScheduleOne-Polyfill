@@ -61,11 +61,14 @@ namespace Polyfill.Core
             internal int Written;
             internal readonly List<string> Applied = new();
             internal readonly List<string> Refused = new();
+            /// <summary>What to record in the stamp: one entry per assembly actually written.</summary>
+            internal readonly List<StampFile.Entry> Stamped = new();
         }
 
         /// <summary>Put every collected repair into the assemblies that need them.</summary>
         internal static Result Apply(string interopDirectory, List<TypeForward> types,
-                                     List<MemberForward> members, MelonLogger.Instance log)
+                                     List<MemberForward> members, InteropOriginals originals,
+                                     MelonLogger.Instance log)
         {
             var result = new Result();
             if (types.Count == 0 && members.Count == 0) return result;
@@ -83,6 +86,12 @@ namespace Polyfill.Core
                     continue;
                 }
 
+                if (!originals.MayWrite(assembly))
+                {
+                    result.Refused.Add($"{assembly}: {originals.RefusalFor(assembly)}");
+                    continue;
+                }
+
                 var typesHere = new List<TypeForward>();
                 foreach (var one in types)
                     if (string.Equals(one.InAssembly, assembly, StringComparison.OrdinalIgnoreCase)) typesHere.Add(one);
@@ -90,7 +99,7 @@ namespace Polyfill.Core
                 foreach (var one in members)
                     if (string.Equals(one.InAssembly, assembly, StringComparison.OrdinalIgnoreCase)) membersHere.Add(one);
 
-                try { ApplyTo(live, typesHere, membersHere, result, log); }
+                try { ApplyTo(live, typesHere, membersHere, originals, result, log); }
                 catch (Exception e)
                 {
                     // The live file is only ever replaced by a completed temp file, so nothing is half-written.
@@ -102,14 +111,29 @@ namespace Polyfill.Core
         }
 
         private static void ApplyTo(string livePath, List<TypeForward> forwards,
-                                    List<MemberForward> members, Result result, MelonLogger.Instance log)
+                                    List<MemberForward> members, InteropOriginals originals,
+                                    Result result, MelonLogger.Instance log)
         {
             string interop = Path.GetDirectoryName(livePath);
+            string assembly = Path.GetFileNameWithoutExtension(livePath);
             string backup = livePath + BackupSuffix;
-            // The first run copies the untouched assembly aside; every run after reads from that copy, so
-            // injections never stack on top of each other.
-            if (!File.Exists(backup)) File.Copy(livePath, backup);
+
+            // The untouched assembly is copied aside once and every run after reads from that copy, so
+            // injections never stack on top of each other. WHICH file is untouched is not a question this
+            // can answer on its own - a kept copy outlives the generation it came from - so it is settled
+            // in InteropOriginals, before the analysis, and both halves read the same answer.
+            string original = originals.SourceFor(assembly);
+            if (!File.Exists(backup))
+            {
+                try { File.Copy(original, backup); }
+                catch (Exception e)
+                {
+                    result.Refused.Add($"{assembly}: the untouched copy could not be made ({e.Message})");
+                    return;
+                }
+            }
             string source = backup;
+            string originalSha = Provenance.Sha256(backup);
 
             string temporary = livePath + ".polyfill-tmp";
             int added = 0;
@@ -179,6 +203,19 @@ namespace Polyfill.Core
                         if (AddMemberForward(module, member, result)) { emittedMembers.Add(member); added++; }
 
                     if (added == 0) return;
+
+                    // The note that says what this was built from, written last so it describes a finished
+                    // image. Everything the next launch decides hangs off it: without it, MelonLoader's own
+                    // output and ours look the same, and a copy kept of the previous game version reads as
+                    // a backup.
+                    Provenance.Add(module, new Provenance.Mark
+                    {
+                        Source = originalSha,
+                        By = DooDesch.ModVersion.Current,
+                        Generator = originals.Generator.Digest(),
+                        At = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+                    });
+
                     module.Write(temporary);
                 }
 
@@ -199,6 +236,12 @@ namespace Polyfill.Core
 
                 File.Copy(temporary, livePath, true);
                 result.Written++;
+                result.Stamped.Add(new StampFile.Entry
+                {
+                    Assembly = assembly,
+                    OriginalSha = originalSha,
+                    Repairs = added,
+                });
                 log.Msg($"[inject] {Path.GetFileName(livePath)}: {added} repair(s) added.");
             }
             finally
@@ -327,6 +370,11 @@ namespace Polyfill.Core
                         { found = true; break; }
                 if (!found) return $"{member.DeclaringType}::{member.OldName}";
             }
+
+            // Checked like a repair, because everything the next launch decides depends on it: an image
+            // without the note is indistinguishable from MelonLoader's own, and the copy kept beside it
+            // would then be read as an original forever.
+            if (Provenance.Read(module) == null) return Provenance.MarkerType;
             return null;
         }
 

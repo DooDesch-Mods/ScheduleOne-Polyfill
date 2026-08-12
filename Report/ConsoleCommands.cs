@@ -33,6 +33,7 @@ namespace Polyfill.Report
             new[] { "polyfillprefab",  "does the game still have this prefab, and what is near it", "polyfillprefab Basic Metal Glass Door" },
             new[] { "polyfillfixes",   "the per-mod fixes, and switch one off", "polyfillfixes off s1mapi-prefabs" },
             new[] { "polyfillrestore", "undo every repair, restart to take effect", "polyfillrestore" },
+            new[] { "polyfillregen",   "have MelonLoader rebuild the game's generated assemblies", "polyfillregen" },
             new[] { "polyfillhelp",    "list the polyfill commands", "polyfillhelp" },
         };
 
@@ -67,7 +68,7 @@ namespace Polyfill.Report
             if (command != "polyfill" && command != "polyfilllist" && command != "polyfillshow"
                 && command != "polyfillunfixed" && command != "polyfillhelp" && command != "polyfillprobe"
                 && command != "polyfillrestore" && command != "polyfillexport" && command != "polyfillprefab"
-                && command != "polyfillfixes")
+                && command != "polyfillfixes" && command != "polyfillregen")
                 return false;                                   // not ours - let the game have it
 
             string signature = string.Join(" ", parts);
@@ -90,6 +91,7 @@ namespace Polyfill.Report
                     case "polyfillprefab": PrefabLookup.Explain(argument); break;
                     case "polyfillfixes": ListFixes(argument); break;
                     case "polyfillrestore": Restore(); break;
+                    case "polyfillregen": Regenerate(); break;
                     case "polyfillhelp": Help(); break;
                 }
             }
@@ -432,6 +434,38 @@ namespace Polyfill.Report
             Core.Log.Msg($"{backups} assembly/assemblies will be restored on the next launch - they are in "
                        + "use right now. Switch Polyfill off in MelonPreferences too, or the launch after "
                        + "that repairs them again.");
+        }
+
+        /// <summary>
+        /// Ask MelonLoader to build the game's generated assemblies again.
+        /// </summary>
+        /// <remarks>
+        /// The way out of the two dead ends Polyfill can find itself in and cannot fix on its own: an
+        /// assembly it repaired whose untouched copy is gone, and one whose copy no longer matches what it
+        /// was built from. In both, Polyfill refuses to touch that assembly for good reasons, and refusing
+        /// forever is not a state to leave a player in.
+        ///
+        /// The generator keeps what it built from in a config file and rebuilds when that no longer matches.
+        /// Deleting the file is the supported way to say "build it again" - MelonLoader read it at startup
+        /// and does not read it twice, so this is safe while the game runs and takes effect on the next
+        /// launch. Nothing of the player's is deleted: the assemblies themselves are a cache.
+        /// </remarks>
+        private static void Regenerate()
+        {
+            // Qualified from the root: inside this namespace, `Core` is this mod's own logger holder.
+            string config = global::Polyfill.Core.GeneratorIdentity.ConfigPath();
+            if (string.IsNullOrEmpty(config) || !File.Exists(config))
+            {
+                Core.Log.Msg("MelonLoader's generator config is not where it was, so this cannot ask for a "
+                           + "rebuild. Deleting MelonLoader/Il2CppAssemblies does the same thing by hand.");
+                return;
+            }
+
+            try { File.Delete(config); }
+            catch (Exception e) { Core.Log.Error("could not ask for a rebuild: " + e.Message); return; }
+
+            Core.Log.Msg("MelonLoader will build the game's generated assemblies again on the next launch, "
+                       + "which takes a few minutes. Polyfill starts from those.");
         }
 
         private static void Help()

@@ -37,6 +37,14 @@
     <Compile Include="../ModFixes/**/*.cs" LinkBase="ModFixes" />
   </ItemGroup>
 
+  <!-- One file out of Core/, and only because `polyfillregen` has to name the same config file the plugin
+       reads. Naming it in two places is how the backup suffix ended up spelled out twice. Linked rather
+       than referenced: the two assemblies still share no types, which is what lets the plugin live where
+       this one cannot. Nothing else from Core/ compiles here - it needs Cecil, this project has no Cecil. -->
+  <ItemGroup>
+    <Compile Include="../Core/GeneratorIdentity.cs" Link="Core/GeneratorIdentity.cs" />
+  </ItemGroup>
+
   <Import Project="$(MSBuildThisFileDirectory)../../Workspace/build/Deploy.props" Condition="Exists('$(MSBuildThisFileDirectory)../../Workspace/build/Deploy.props')" />
   <Import Project="$(MSBuildThisFileDirectory)../Workspace/build/Deploy.props" Condition="Exists('$(MSBuildThisFileDirectory)../Workspace/build/Deploy.props')" />
   <Import Project="$(MSBuildThisFileDirectory)../../Workspace/build/Hardening.props" Condition="Exists('$(MSBuildThisFileDirectory)../../Workspace/build/Hardening.props')" />

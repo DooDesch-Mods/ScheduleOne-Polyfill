@@ -51,7 +51,8 @@ namespace Polyfill.Core
         /// throws at JIT rather than returning null. Between S1API 3.0.0 and 3.1.8 alone, 224 public
         /// declarations were removed.
         /// </param>
-        internal InteropIndex(string interopDirectory, IEnumerable<string> libraryDirectories,
+        internal InteropIndex(string interopDirectory, InteropOriginals originals,
+                              IEnumerable<string> libraryDirectories,
                               IEnumerable<string> searchOnlyDirectories)
         {
             Directory = interopDirectory;
@@ -62,12 +63,18 @@ namespace Polyfill.Core
                 foreach (string file in System.IO.Directory.GetFiles(interopDirectory, "*.dll"))
                 {
                     string name = Path.GetFileNameWithoutExtension(file);
-                    // Analysis always reads what MELONLOADER generated, never what we wrote over it. The
-                    // findings must be the same on every launch: read the augmented file instead and a
-                    // repair applied last time looks resolved, so it is not collected, so the next write
-                    // rebuilds from the pristine original WITHOUT it - and silently undoes itself.
-                    string pristine = file + InteropAugmentor.BackupSuffix;
-                    _pathByAssembly[name] = File.Exists(pristine) ? pristine : file;
+                    // Analysis always reads the UNTOUCHED assembly, never what we wrote over it. The findings
+                    // must be the same on every launch: read the augmented file instead and a repair applied
+                    // last time looks resolved, so it is not collected, so the next write rebuilds from the
+                    // original WITHOUT it - and silently undoes itself.
+                    //
+                    // Which file that is cannot be answered by asking whether a kept copy exists, because a
+                    // kept copy outlives the generation it came from. InteropOriginals settles it once, and
+                    // the injector asks the same object, so the two cannot disagree.
+                    //
+                    // Null is a caller that wants the file as it stands rather than as it was shipped - the
+                    // runtime name lookup, which is asking what the game has NOW, repairs included.
+                    _pathByAssembly[name] = originals?.SourceFor(name) ?? file;
                     _game.Add(name);
                 }
             }

@@ -258,7 +258,11 @@ namespace Polyfill.Dynamic
             if (string.IsNullOrEmpty(_interop)) return null;
             try
             {
-                using var index = new Core.InteropIndex(_interop, Array.Empty<string>(), Array.Empty<string>());
+                // No originals: this answers "what type names does the game have right now", and by this
+                // point that includes anything Polyfill put back. Reading the untouched copies here would
+                // hide the repairs from the very lookup they were made for.
+                using var index = new Core.InteropIndex(_interop, null,
+                                                        Array.Empty<string>(), Array.Empty<string>());
                 var map = new Dictionary<string, List<string>>(StringComparer.Ordinal);
                 foreach (string simple in index.SimpleNames())
                     foreach (var type in index.BySimpleName(simple))
