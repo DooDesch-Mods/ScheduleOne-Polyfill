@@ -7,8 +7,14 @@ All notable changes to this project are documented here.
 ### Fixed
 - After a Schedule I update Polyfill starts from the game's new files. It used to keep writing its copy of
   the old ones back over them, which broke mods that had been fine.
+- Repairs keep working when the game reaches 0.5.0 or 1.0. Version numbers were compared in a way that read
+  0.5.0 as older than 0.4.6f5, which would have switched the rename history off.
+- A repair a person wrote by hand is used before one guessed from spelling. Two similar-looking names could
+  stop the better answer from being used at all.
 
 ### Added
+- The report says what Polyfill DID, not only what it found. `polyfillexport` gains a REFUSED section for
+  every repair it had a candidate for and did not trust.
 - `polyfillregen` has MelonLoader build the game's generated files again, for when Polyfill reports that it
   has no untouched copy of one left.
 
