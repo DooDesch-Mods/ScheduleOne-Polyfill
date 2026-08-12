@@ -219,6 +219,14 @@ namespace Polyfill.Core
             }
         }
 
+        /// <summary>Is that name on the live type at all? The history says what a build called something,
+        /// this says whether THIS build has it - and only both together are a repair.</summary>
+        private static bool Has(TypeDefinition type, string name)
+        {
+            foreach (var method in type.Methods) if (method.Name == name) return true;
+            return false;
+        }
+
         private static void CheckMethod(MethodReference wanted, TypeDefinition declaring, string scope,
                                         string kindPrefix, ModReport report)
         {
@@ -246,23 +254,46 @@ namespace Polyfill.Core
                     ParameterCount = parameters,
                     Rule = hits[0].Rule,
                 });
-            else if (hits.Count == 0 && kindPrefix.Length == 0)
+            else if (kindPrefix.Length == 0)
             {
-                // Nothing on the type to point at, but somebody may have read the game and written down
-                // what this became.
-                var rule = CuratedRules.Find(scope, declaring.FullName, wanted.Name, parameters);
-                if (rule != null)
+                // The spelling says nothing, or says too many things. The game's own history might still
+                // know: a member that vanished between two adjacent builds and one of the same shape that
+                // appeared on the same type is the same member, and those steps are chained from 0.4.4 to
+                // here. This is where MAX_HEALTH -> MaxHealth and AssignedNPC_ID -> NPCId come from, both
+                // of which no rule on the installed game could have found.
+                string historical = AliasDb.Successor(declaring.FullName, wanted.Name, parameters,
+                                                      Report.GameVersion());
+                if (historical != null && Has(declaring, historical))
                 {
-                    hint = "hand-written rule: " + rule.Because;
+                    hint = historical + "  [version history]";
                     _members.Add(new InteropAugmentor.MemberForward
                     {
                         InAssembly = scope,
                         DeclaringType = declaring.FullName,
                         OldName = wanted.Name,
-                        NewName = null,
+                        NewName = historical,
                         ParameterCount = parameters,
-                        Rule = "curated",
+                        Rule = "version history",
                     });
+                }
+                else if (hits.Count == 0)
+                {
+                    // Nothing on the type to point at and no history either, but somebody may have read
+                    // the game and written down what this became.
+                    var rule = CuratedRules.Find(scope, declaring.FullName, wanted.Name, parameters);
+                    if (rule != null)
+                    {
+                        hint = "hand-written rule: " + rule.Because;
+                        _members.Add(new InteropAugmentor.MemberForward
+                        {
+                            InAssembly = scope,
+                            DeclaringType = declaring.FullName,
+                            OldName = wanted.Name,
+                            NewName = null,
+                            ParameterCount = parameters,
+                            Rule = "curated",
+                        });
+                    }
                 }
             }
             string reason = nameExists
