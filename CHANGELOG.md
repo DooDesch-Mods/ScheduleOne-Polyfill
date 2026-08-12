@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here.
 
+## [0.5.1] - 2026-08-13
+
+### Added
+- Bigger Trees does something again. It sets its value on the terrain, and the terrain stopped drawing trees
+  in 0.4.6f5; the setting now reaches the renderer that does.
+- OverTheCounter's drifters stop throwing an error every tick. The mod asks for a character the game no
+  longer has and fell back to an employee, which crashes without a workplace.
+
 ## [0.5.0] - 2026-08-12
 
 ### Fixed
