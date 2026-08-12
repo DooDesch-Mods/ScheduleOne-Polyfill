@@ -25,11 +25,20 @@ namespace Polyfill.ModFixes
     /// template is preferred over an instance already placed in the world, so what gets cloned is the
     /// original rather than whatever state some copy is in.
     ///
-    /// What this cannot promise is replication. FishNet will only spawn a prefab it has registered, so an
-    /// object found this way appears for whoever ran the code and may not travel to other players. That is
-    /// a judgement - a door that is there for the host beats a doorway that is empty for everyone - and it
-    /// is the kind of judgement a fix is allowed to make and a rule is not. `polyfillfixes off
-    /// s1mapi-prefab-lookup` takes it back.
+    /// Two things it cannot promise, both worth stating rather than discovering.
+    ///
+    /// It does not promise replication. FishNet only spawns a prefab it has registered, so an object found
+    /// this way appears for whoever ran the code and may not travel to other players.
+    ///
+    /// It does not promise a clean copy. Measured on 0.4.6f12, none of these is loaded as a prefab
+    /// template - every one of them exists only as an instance already standing in the world, so that is
+    /// what gets handed over and cloned. A door carries its PropertyDoorController, which points at the
+    /// property it was copied from. It looks right and may behave like its original.
+    ///
+    /// Both are judgements: a door that is there beats a doorway that is empty, and a caller that gets
+    /// something beats one that gets null. That is the kind of judgement a fix is allowed to make and a
+    /// rule is not, which is why it says in the log which of the two it handed over, and why
+    /// `polyfillfixes off s1mapi-prefab-lookup` takes it back.
     /// </remarks>
     internal sealed class S1MapiPrefabLookup : Fix
     {
@@ -78,12 +87,15 @@ namespace Polyfill.ModFixes
                 _found.Remove(name);                       // it was destroyed since; look again
             }
 
-            var loaded = Loaded(name);
+            var loaded = Loaded(name, out bool template);
             if (loaded == null) return;
 
             _found[name] = loaded;
             __result = loaded;
-            _log?.Msg($"[fix] s1mapi-prefab-lookup: '{name}' is loaded but not spawnable - handed it over.");
+            // Which of the two it was matters when something comes out wrong: a template clones clean, a
+            // copy taken out of the map carries whatever has already happened to it.
+            _log?.Msg($"[fix] s1mapi-prefab-lookup: '{name}' is loaded but not spawnable - handed over "
+                    + (template ? "the prefab template." : "a copy standing in the map; there is no template."));
         }
 
         /// <summary>
@@ -94,8 +106,9 @@ namespace Polyfill.ModFixes
         /// that are standing in the map. Cloning the original is what the caller meant; cloning a placed one
         /// would carry whatever has happened to it.
         /// </remarks>
-        private static GameObject Loaded(string name)
+        private static GameObject Loaded(string name, out bool template)
         {
+            template = false;
             Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppReferenceArray<UnityEngine.Object> all;
             try { all = Resources.FindObjectsOfTypeAll(Il2CppType.Of<GameObject>()); }
             catch { return null; }
@@ -113,7 +126,7 @@ namespace Polyfill.ModFixes
                 catch { continue; }
                 if (candidate == null) continue;
 
-                try { if (!candidate.scene.IsValid()) return candidate; } catch { }
+                try { if (!candidate.scene.IsValid()) { template = true; return candidate; } } catch { }
                 placed ??= candidate;
             }
             return placed;
