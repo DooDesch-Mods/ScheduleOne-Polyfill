@@ -9,12 +9,13 @@ All notable changes to this project are documented here.
   settings, and writing them killed the mod.
 - More names get matched. A member renamed from `CustomerSlots` to `_customerSlots` is found now, which
   brings back the weather reading and the handover screen for older mods.
-- A type that only changed namespace comes back too. That was the last thing keeping OverTheCounter's
-  contacts app from closing.
-- A method that grew an argument is found again, whether a mod calls it straight or asks Harmony for it
-  by name.
+- Two more kinds of break are repaired: a type that only changed namespace, and a method that grew an
+  argument. That is OverTheCounter's contacts app and its storage screen.
 - T.H.M - The Hitman Mod now has a repair for all 6 things it asks for, OverTheCounter Dispensary for 29
   of 40. It was 5 and 4.
+
+- `polyfillprefab <name>` says whether the game still has a prefab a mod spawns by name, and what is
+  spelled close to it. Renamed prefabs used to fail in the Unity log where nobody looks.
 
 ### Fixed
 - Boots that died with no message. A mod asking Harmony for a type by name made the game load every type
