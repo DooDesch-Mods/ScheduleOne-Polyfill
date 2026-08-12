@@ -31,6 +31,12 @@
     <Compile Remove="../Workspace/**/*.cs" />
   </ItemGroup>
 
+  <!-- The per-mod fixes. They live outside Report/ because they are a layer of their own, and inside this
+       project because they need the running game. -->
+  <ItemGroup>
+    <Compile Include="../ModFixes/**/*.cs" LinkBase="ModFixes" />
+  </ItemGroup>
+
   <Import Project="$(MSBuildThisFileDirectory)../../Workspace/build/Deploy.props" Condition="Exists('$(MSBuildThisFileDirectory)../../Workspace/build/Deploy.props')" />
   <Import Project="$(MSBuildThisFileDirectory)../Workspace/build/Deploy.props" Condition="Exists('$(MSBuildThisFileDirectory)../Workspace/build/Deploy.props')" />
   <Import Project="$(MSBuildThisFileDirectory)../../Workspace/build/Hardening.props" Condition="Exists('$(MSBuildThisFileDirectory)../../Workspace/build/Hardening.props')" />

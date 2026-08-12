@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here.
 
+## [0.3.0] - 2026-08-12
+
+### Added
+- Per-mod fixes: one small module per mod, for breakage that has no name in the metadata to repair.
+  `polyfillfixes` lists them and switches one off.
+- Mods built on S1MAPI get their doors, switches and counters back. 0.4.6 stopped listing those as
+  network-spawnable and the lookup only ever searched that list, so they came out empty.
+  - The game keeps no loose copy of those, so what gets cloned is one already standing in the world.
+    It looks right and may behave like the one it came from. `polyfillfixes off s1mapi-prefab-lookup`.
+- The same mods also follow prefabs the game renamed, such as the `_Built` suffix 0.4.6 put on placeable
+  furniture.
+
 ## [0.2.0] - 2026-08-12
 
 ### Added

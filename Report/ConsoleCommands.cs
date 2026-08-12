@@ -31,6 +31,7 @@ namespace Polyfill.Report
             new[] { "polyfillexport",  "write one file with everything, ready to send", "polyfillexport" },
             new[] { "polyfillprobe",   "can the runtime resolve this type by name?", "polyfillprobe Il2CppScheduleOne.Weather.WeatherConditions" },
             new[] { "polyfillprefab",  "does the game still have this prefab, and what is near it", "polyfillprefab Basic Metal Glass Door" },
+            new[] { "polyfillfixes",   "the per-mod fixes, and switch one off", "polyfillfixes off s1mapi-prefabs" },
             new[] { "polyfillrestore", "undo every repair, restart to take effect", "polyfillrestore" },
             new[] { "polyfillhelp",    "list the polyfill commands", "polyfillhelp" },
         };
@@ -65,7 +66,8 @@ namespace Polyfill.Report
             string command = parts[0].ToLowerInvariant();
             if (command != "polyfill" && command != "polyfilllist" && command != "polyfillshow"
                 && command != "polyfillunfixed" && command != "polyfillhelp" && command != "polyfillprobe"
-                && command != "polyfillrestore" && command != "polyfillexport" && command != "polyfillprefab")
+                && command != "polyfillrestore" && command != "polyfillexport" && command != "polyfillprefab"
+                && command != "polyfillfixes")
                 return false;                                   // not ours - let the game have it
 
             string signature = string.Join(" ", parts);
@@ -86,6 +88,7 @@ namespace Polyfill.Report
                     case "polyfillexport": Export(); break;
                     case "polyfillprobe": Probe(argument); break;
                     case "polyfillprefab": PrefabLookup.Explain(argument); break;
+                    case "polyfillfixes": ListFixes(argument); break;
                     case "polyfillrestore": Restore(); break;
                     case "polyfillhelp": Help(); break;
                 }
@@ -186,6 +189,41 @@ namespace Polyfill.Report
         /// resolver and follows forwarders by its own rules. Only the runtime's own type loader settles it,
         /// and only from inside the running game.
         /// </remarks>
+        /// <summary>
+        /// What the per-mod fixes did, and the switch for one of them.
+        /// </summary>
+        /// <remarks>
+        /// These fixes run without being asked, because a player does not know their mod is broken - that
+        /// is the whole problem. What they get instead is this: every fix by name, what it was for, and
+        /// whether it ran. Switching one off takes effect on the next launch, since by the time anyone can
+        /// type the fix has already happened.
+        /// </remarks>
+        private static void ListFixes(string argument)
+        {
+            var parts = (argument ?? "").Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 2 && (parts[0] == "off" || parts[0] == "on"))
+            {
+                if (!ModFixes.Fixes.Known(parts[1]))
+                { Core.Log.Warning($"there is no fix called '{parts[1]}'. Type `polyfillfixes`."); return; }
+
+                ModFixes.Fixes.Set(parts[1], parts[0] == "on");
+                Core.Log.Msg($"{parts[1]} is {(parts[0] == "on" ? "on" : "off")} from the next launch.");
+                return;
+            }
+
+            if (ModFixes.Fixes.Results.Count == 0)
+            { Core.Log.Msg("the per-mod fixes have not run yet - load a save first."); return; }
+
+            Core.Log.Msg("per-mod fixes:");
+            foreach (var outcome in ModFixes.Fixes.Results)
+            {
+                Core.Log.Msg($"  {outcome.Fix.Id}  [{outcome.State}]");
+                Core.Log.Msg($"    for {outcome.Fix.Mod} {outcome.Fix.ModVersions} on game "
+                           + $"{outcome.Fix.GameVersions}: {outcome.Fix.What}");
+            }
+            Core.Log.Msg("switch one off with `polyfillfixes off <id>`.");
+        }
+
         private static void Probe(string name)
         {
             if (string.IsNullOrWhiteSpace(name))
