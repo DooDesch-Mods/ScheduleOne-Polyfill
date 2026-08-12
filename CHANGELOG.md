@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here.
 
-## [0.4.4] - 2026-08-12
+## [0.5.0] - 2026-08-12
 
 ### Fixed
 - After a Schedule I update Polyfill starts from the game's new files. It used to keep writing its copy of

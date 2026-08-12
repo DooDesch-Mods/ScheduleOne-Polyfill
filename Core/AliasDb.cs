@@ -173,34 +173,25 @@ namespace Polyfill.Core
         }
 
         /// <summary>
-        /// Is <paramref name="have"/> at least <paramref name="wanted"/>? Compared as numbers, because
-        /// 0.4.6f11 is newer than 0.4.6f9 and a string comparison says the opposite.
+        /// Is <paramref name="have"/> at least <paramref name="wanted"/>?
         /// </summary>
+        /// <remarks>
+        /// Unparsable on either side does not block. That is not politeness, it is that this is not the real
+        /// gate: a rename is only ever used when <c>Triage</c> has confirmed the new name is on the LIVE
+        /// type, so a row let through by mistake cannot fire. Being unable to read a version must not cost a
+        /// player their repairs.
+        ///
+        /// The arithmetic itself is in GameVersion, and the reason it moved there is worth keeping: the
+        /// version packing this used to do said 0.5.0 was OLDER than 0.4.6f5, which would have taken the
+        /// whole database out silently on the day the game dropped the f suffix.
+        /// </remarks>
         internal static bool SameOrNewer(string have, string wanted)
         {
             if (string.IsNullOrEmpty(wanted)) return true;
-            long a = Rank(have), b = Rank(wanted);
-            return a == 0 || b == 0 || a >= b;          // unparsable either side: do not block on it
-        }
-
-        private static long Rank(string version)
-        {
-            if (string.IsNullOrEmpty(version)) return 0;
-            long value = 0;
-            int number = 0;
-            bool any = false;
-            int parts = 0;
-
-            foreach (char c in version)
-            {
-                if (c >= '0' && c <= '9') { number = number * 100 + (c - '0'); any = true; continue; }
-                if (!any) continue;
-                value = value * 1000 + Math.Min(number, 999);
-                number = 0; any = false; parts++;
-                if (parts > 3) return value;
-            }
-            if (any) value = value * 1000 + Math.Min(number, 999);
-            return value;
+            var mine = Contract.GameVersion.Parse(have);
+            var theirs = Contract.GameVersion.Parse(wanted);
+            if (!mine.IsKnown || !theirs.IsKnown) return true;
+            return mine >= theirs;
         }
     }
 }

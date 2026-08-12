@@ -1,4 +1,5 @@
 using Mono.Cecil;
+using Polyfill.Contract;
 
 namespace Polyfill.Core
 {
