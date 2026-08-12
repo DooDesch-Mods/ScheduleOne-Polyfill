@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here.
 
+## [0.3.0] - 2026-08-12
+
+### Added
+- Per-mod fixes: one small module per mod, for breakage that has no name in the metadata to repair.
+  `polyfillfixes` lists them and switches one off.
+- Mods built on S1MAPI find prefabs the game renamed, and are told which ones it no longer has at all.
+  On 0.4.6 that is 30 of 69, every door among them.
+
 ## [0.2.0] - 2026-08-12
 
 ### Added

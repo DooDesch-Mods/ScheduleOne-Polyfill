@@ -71,11 +71,20 @@ namespace Polyfill.Report
             if (string.IsNullOrWhiteSpace(wanted))
             {
                 Core.Log.Msg($"{names.Count} spawnable prefab(s) registered. "
-                           + "Name one to check it: `polyfillprefab Basic Metal Glass Door`");
+                           + "Name one to check it: `polyfillprefab Basic Metal Glass Door`, "
+                           + "or `polyfillprefab list` for all of them.");
                 return;
             }
 
             wanted = wanted.Trim();
+
+            if (wanted == "list")
+            {
+                names.Sort(StringComparer.OrdinalIgnoreCase);
+                Core.Log.Msg($"the {names.Count} prefabs a mod can spawn by name:");
+                foreach (string name in names) Core.Log.Msg("  " + name);
+                return;
+            }
             foreach (string name in names)
                 if (name == wanted) { Core.Log.Msg($"'{wanted}' is registered - the game still has it."); return; }
 

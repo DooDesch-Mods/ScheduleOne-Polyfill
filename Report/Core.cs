@@ -40,5 +40,25 @@ namespace Polyfill.Report
                 : $"{blocked} of {ReportReader.Mods.Count} mod(s) ask for something this game version does not "
                   + "have. Type `polyfill` in the console.");
         }
+
+        private bool _fixesRun;
+
+        /// <summary>
+        /// Run the per-mod fixes on the first frame where the game can answer them.
+        /// </summary>
+        /// <remarks>
+        /// These fixes read live state - the spawnable prefab list, for one - which does not exist until the
+        /// scene and its NetworkManager are up. So the trigger is not a lifecycle event but the state
+        /// itself: the first frame it is there, they run, once. Nothing here polls after that.
+        /// </remarks>
+        public override void OnUpdate()
+        {
+            if (_fixesRun) return;
+            var live = PrefabLookup.Names();
+            if (live == null || live.Count == 0) return;
+
+            _fixesRun = true;
+            ModFixes.Fixes.Run(LoggerInstance);
+        }
     }
 }
