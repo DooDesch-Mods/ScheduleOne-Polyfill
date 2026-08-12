@@ -10,7 +10,8 @@ namespace Polyfill.Contract
     /// exists, is documented, and silently does nothing because the game got the word instead.
     ///
     /// Now the table decides all three. Data only - the handlers live with the code that runs them, and a
-    /// test asserts the two key sets are equal, which is the part a compiler cannot check.
+    /// test asserts the two key sets are equal, which is the part a compiler cannot check. Data only, which
+    /// is also what keeps this file free of everything the plugin may not name.
     /// </remarks>
     internal static class CommandTable
     {
