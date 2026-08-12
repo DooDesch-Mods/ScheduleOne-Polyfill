@@ -218,19 +218,25 @@ jobs:
       # Release only, and the failure it prevents is the quiet one: a database built for an older game than
       # the workspace has data for means every rename past that point is simply missing, the report says
       # nothing is wrong, and the first person to notice is a player whose mod stopped working.
-      - name: The shipped version database is current
+      # Release only. The failure it prevents is the quiet one: a history that stops BEFORE the game
+      # data in the workspace means every rename past that point is simply missing, the report says
+      # nothing is wrong, and the first person to notice is a player whose mod stopped working.
+      #
+      # Being AHEAD is normal and not an error: the history comes from the decompiled-source archive,
+      # which publishes a version long before anybody takes an API snapshot of it here.
+      - name: The shipped version history is not behind the game data
         run: |
           set -euo pipefail
-          NEWEST=$(ls -1d Workspace/gamesnapshots/*/ \
-                   | sed 's#.*/\([^/]*\)/$#\1#' \
+          NEWEST=$(for d in Workspace/gamesnapshots/*/; do basename "$d"; done \
                    | grep -E '^[0-9]+\.[0-9]+\.[0-9]+(f[0-9]+)?$' | sort -V | tail -1)
           BUILT=$(grep -h '^# to=' Core/versiondb/steps/*.txt | sed 's/^# to=//' | sort -V | tail -1)
-          if [ "$NEWEST" != "$BUILT" ]; then
-            echo "::error::The version history ends at $BUILT, the workspace has game data up to $NEWEST."
+          OLDEST=$( { echo "$NEWEST"; echo "$BUILT"; } | sort -V | head -1)
+          if [ "$BUILT" != "$NEWEST" ] && [ "$OLDEST" = "$BUILT" ]; then
+            echo "::error::The version history ends at $BUILT and the workspace has game data up to $NEWEST."
             echo "::error::Run Workspace/tools/gamediff/versiondb.ps1, commit the new step, and re-tag."
             exit 1
           fi
-          echo "The version history is current for $BUILT."
+          echo "The version history ends at $BUILT; the newest game data here is $NEWEST."
 
       - name: Prepare release directory
         run: |
