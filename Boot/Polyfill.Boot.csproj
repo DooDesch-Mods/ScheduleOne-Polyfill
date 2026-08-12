@@ -63,6 +63,12 @@
     <Compile Include="../Contract/**/*.cs" LinkBase="Contract" />
   </ItemGroup>
 
+  <!-- The hand-written repairs, one folder per step of the game. A new game version adds a folder here and
+       one line in Bridges/Registry.cs; nothing already in here is edited. -->
+  <ItemGroup>
+    <Compile Include="../Bridges/**/*.cs" LinkBase="Bridges" />
+  </ItemGroup>
+
   <!-- The game's rename history: one file per released step, and adding a game version adds a file here
        rather than rewriting one. Embedded rather than shipped beside the DLL - it is not a setting, a
        player has no reason to see it, and one file that cannot go missing is one support question that

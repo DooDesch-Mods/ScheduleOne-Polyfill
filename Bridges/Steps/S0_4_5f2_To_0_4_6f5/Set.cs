@@ -1,7 +1,8 @@
 using Mono.Cecil;
 using Mono.Cecil.Cil;
+using Polyfill.Core;
 
-namespace Polyfill.Core
+namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
 {
     /// <summary>
     /// Repairs that a rule cannot derive and a person had to read the game to write.
@@ -20,36 +21,21 @@ namespace Polyfill.Core
     /// different pieces of code mean the same thing. No amount of diffing produces that, and a wrong one is
     /// worse than a missing one, because it runs.
     /// </remarks>
-    internal static class CuratedRules
+    internal sealed class Set : BridgeSet
     {
+        internal override string Step => "0.4.5f2 -> 0.4.6f5";
+
+        /// <summary>0.4.6f5 is the build these names went away in; below it the real members are still
+        /// there and none of this is needed.</summary>
+        internal override string From => "0.4.6f5";
+
+        /// <summary>Read against 0.4.6f12. Newer than that they still run, and say they were not checked.</summary>
+        internal override string VerifiedTo => "0.4.6f12";
+
+        internal override IEnumerable<Bridge> Declare() => All;
+
         /// <summary>The label every stack entry Polyfill pushes is filed under, so it can be found again.</summary>
         internal const string StackLabel = "Polyfill";
-
-        internal sealed class Rule
-        {
-            internal string Assembly;
-            internal string DeclaringType;
-            internal string OldName;
-            internal int ParameterCount;
-            internal string Because;
-            internal Func<ModuleDefinition, TypeDefinition, MethodDefinition> Emit;
-
-            /// <summary>
-            /// The name is still on the type and the OLD signature is what went missing.
-            /// </summary>
-            /// <remarks>
-            /// Normally a name that already exists is left alone, because putting a second member under a
-            /// name current mods bind to is the one thing this must never do. An overload is the exception
-            /// and only ever by hand: <c>FreeMouse()</c> gained a parameter, so the no-argument form a mod
-            /// calls is genuinely absent while the name is not. Nothing existing changes - a compiled call
-            /// names its full signature, so it keeps resolving to exactly the method it resolved to before.
-            ///
-            /// The cost is real and worth naming: <c>AccessTools.Method(type, name)</c> with no parameter
-            /// list becomes ambiguous on that one type and name. That is why this is opt-in per rule rather
-            /// than something a heuristic can reach.
-            /// </remarks>
-            internal bool AllowOverload;
-        }
 
         private const string Npc = "Il2CppScheduleOne.NPCs.NPC";
         private const string Inv = "Il2CppScheduleOne.NPCs.NPCInventory";
@@ -91,9 +77,9 @@ namespace Polyfill.Core
         private const string Crosshair = "the crosshair became a parameter; true is what the call did before it "
                                        + "existed (PlayerCamera.cs:483-490)";
 
-        private static readonly List<Rule> All = new()
+        private static readonly List<Bridge> All = new()
         {
-            new Rule
+            new Bridge
             {
                 Assembly = "Assembly-CSharp",
                 DeclaringType = "Il2CppScheduleOne.NPCs.NPCMovement",
@@ -103,7 +89,7 @@ namespace Polyfill.Core
                         + "SpeedController.ActiveSpeedControl.speed * SpeedController.SpeedMultiplier",
                 Emit = EmitMovementSpeedScaleGetter,
             },
-            new Rule
+            new Bridge
             {
                 Assembly = "Assembly-CSharp",
                 DeclaringType = "Il2CppScheduleOne.NPCs.NPCMovement",
@@ -113,7 +99,7 @@ namespace Polyfill.Core
                         + "now a priority-0 entry on the speed stack, which everything the game does outranks",
                 Emit = EmitMovementSpeedScaleSetter,
             },
-            new Rule
+            new Bridge
             {
                 Assembly = "Assembly-CSharp",
                 DeclaringType = "Il2CppScheduleOne.NPCs.NPC",
@@ -165,7 +151,7 @@ namespace Polyfill.Core
                       "Open took a callback in 0.4.6 and the old three-argument form passed none "
                     + "(StorageMenu.cs:56)"),
 
-            new Rule
+            new Bridge
             {
                 Assembly = "Assembly-CSharp",
                 DeclaringType = Clipboard,
@@ -176,7 +162,7 @@ namespace Polyfill.Core
                         + "(ManagementClipboard.cs:103-113)",
                 Emit = EmitClipboardClose,
             },
-            new Rule
+            new Bridge
             {
                 Assembly = "Assembly-CSharp",
                 DeclaringType = Customer,
@@ -191,7 +177,7 @@ namespace Polyfill.Core
             // ExitAction changed namespace without leaving Assembly-CSharp, so ShadowTypes puts the old name
             // back as a subclass. These two are what a mod does with it: hand it to App.Exit, and wrap that
             // method in the delegate the game's exit list takes.
-            new Rule
+            new Bridge
             {
                 Assembly = "Assembly-CSharp",
                 DeclaringType = "Il2CppScheduleOne.UI.App`1",
@@ -202,7 +188,7 @@ namespace Polyfill.Core
                         + "the mod knows and hands it to the one method there is",
                 Emit = EmitAppExit,
             },
-            new Rule
+            new Bridge
             {
                 Assembly = "Assembly-CSharp",
                 DeclaringType = "Il2CppScheduleOne.GameInput/ExitDelegate",
@@ -214,7 +200,7 @@ namespace Polyfill.Core
                 Emit = EmitExitDelegateConversion,
             },
 
-            new Rule
+            new Bridge
             {
                 Assembly = "Assembly-CSharp",
                 DeclaringType = Supplier,
@@ -224,7 +210,7 @@ namespace Polyfill.Core
                 Emit = (module, type) => EmitFromController(module, type, "get_meetingGreeting",
                     "GreetingOverrides", "Greeting", MeetingGreetingLine),
             },
-            new Rule
+            new Bridge
             {
                 Assembly = "Assembly-CSharp",
                 DeclaringType = Supplier,
@@ -244,16 +230,6 @@ namespace Polyfill.Core
             "Supplier.cs:186-199 until 0.4.5f2 kept the greeting and the choice in fields; 0.4.6 builds "
           + "the same two objects as locals in Start() and hands them to the DialogueController, so they "
           + "are still there and only the way to them is gone";
-
-        internal static Rule Find(string assembly, string declaringType, string oldName, int parameterCount)
-        {
-            foreach (var rule in All)
-                if (rule.OldName == oldName && rule.DeclaringType == declaringType
-                    && rule.ParameterCount == parameterCount
-                    && string.Equals(rule.Assembly, assembly, StringComparison.OrdinalIgnoreCase))
-                    return rule;
-            return null;
-        }
 
         /// <summary>
         /// <c>NPCMovement.MovementSpeedScale</c> - the normalized walk-to-run position, 0.4.5f2 and earlier.
@@ -413,11 +389,11 @@ namespace Polyfill.Core
         /// A member that is still there and is reached differently: the old accessor is put back and walks
         /// <paramref name="hops"/> to wherever the value lives now.
         /// </summary>
-        private static Rule Moved(string declaringType, string oldName, bool write,
+        private static Bridge Moved(string declaringType, string oldName, bool write,
                                   string[] hops, string target, string because)
         {
             string accessor = (write ? "set_" : "get_") + oldName;
-            return new Rule
+            return new Bridge
             {
                 Assembly = "Assembly-CSharp",
                 DeclaringType = declaringType,
@@ -502,7 +478,7 @@ namespace Polyfill.Core
         /// each one was read out of both versions of the method that USES the value, so the claim is not
         /// "these names look alike" but "these two lines compute the same thing".
         /// </remarks>
-        private static Rule NowCalled(string declaringType, string oldName, int parameterCount,
+        private static Bridge NowCalled(string declaringType, string oldName, int parameterCount,
                                     string newName, string because)
             => new()
             {
@@ -525,7 +501,7 @@ namespace Polyfill.Core
         /// <param name="leading">The parameter types the old form had, by full name. Needed whenever the
         /// name carries more than one overload of the new arity - StorageMenu has two four-argument
         /// Opens, and picking by count alone would pick whichever came first.</param>
-        private static Rule Defaulted(string declaringType, string name, string[] leading,
+        private static Bridge Defaulted(string declaringType, string name, string[] leading,
                                       object[] defaults, string because)
             => new()
             {

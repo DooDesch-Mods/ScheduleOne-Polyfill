@@ -112,6 +112,11 @@ namespace Polyfill.Core
             bool mayAct = !Boot.Plugin.DryRun && !Boot.Diagnostics.InteropAlreadyLoaded;
             var originals = InteropOriginals.Take(interopDirectory, mayAct, log);
 
+            // Said once, and not as a warning: nothing is wrong on a build nobody has read yet. Everything
+            // that can be checked against the player's own game still runs.
+            string horizon = Bridges.Registry.PastTheHorizon(GameVersionSource.Current);
+            if (horizon != null) log.Msg("[bridge] " + horizon);
+
             // Scoped, and the scope matters: Cecil's assembly resolver opens every assembly it resolves
             // WITHOUT reading it into memory first, and keeps the handle until it is disposed. Repairing
             // inside this block fails with "the file is being used by another process" - and the process is
@@ -330,7 +335,7 @@ namespace Polyfill.Core
                 {
                     // Nothing on the type to point at and no history either, but somebody may have read
                     // the game and written down what this became.
-                    var rule = CuratedRules.Find(scope, declaring.FullName, wanted.Name, parameters);
+                    var rule = Bridges.Registry.Find(scope, declaring.FullName, wanted.Name, parameters);
                     if (rule != null)
                     {
                         hint = "hand-written rule: " + rule.Because;
