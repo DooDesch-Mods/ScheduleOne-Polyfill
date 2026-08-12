@@ -213,9 +213,37 @@ namespace Polyfill.Core
                         + "goes the wrong way for a delegate - so this wraps it rather than casting it",
                 Emit = EmitExitDelegateConversion,
             },
+
+            new Rule
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = Supplier,
+                OldName = "get_meetingGreeting",
+                ParameterCount = 0,
+                Because = MeetingWhy,
+                Emit = (module, type) => EmitFromController(module, type, "get_meetingGreeting",
+                    "GreetingOverrides", "Greeting", MeetingGreetingLine),
+            },
+            new Rule
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = Supplier,
+                OldName = "get_meetingChoice",
+                ParameterCount = 0,
+                Because = MeetingWhy,
+                Emit = (module, type) => EmitFromController(module, type, "get_meetingChoice",
+                    "Choices", "ChoiceText", (module2, method, il, giveUp) => il.Emit(OpCodes.Ldstr, "Yes")),
+            },
         };
 
         private const string ExitActionOld = "Il2CppScheduleOne.DevUtilities.ExitAction";
+        private const string Supplier = "Il2CppScheduleOne.Economy.Supplier";
+        private const string Controller = "Il2CppScheduleOne.Dialogue.DialogueController";
+
+        private const string MeetingWhy =
+            "Supplier.cs:186-199 until 0.4.5f2 kept the greeting and the choice in fields; 0.4.6 builds "
+          + "the same two objects as locals in Start() and hands them to the DialogueController, so they "
+          + "are still there and only the way to them is gone";
 
         internal static Rule Find(string assembly, string declaringType, string oldName, int parameterCount)
         {
@@ -845,6 +873,204 @@ namespace Polyfill.Core
         {
             foreach (var method in type.Methods)
                 if (method.Name == name) return method;
+            return null;
+        }
+
+        /// <summary>
+        /// A member the game stopped keeping, found again in the list it was handed to.
+        /// </summary>
+        /// <remarks>
+        /// Until 0.4.5f2 the Supplier held its meeting greeting and its meeting choice in fields, and a mod
+        /// reached them there. 0.4.6 builds the identical two objects as locals in <c>Start()</c> and gives
+        /// them to the DialogueController; nothing else changed about them. They are still in the game, and
+        /// only the way in was removed.
+        ///
+        /// So the way in is rebuilt as a search of that list. What is searched FOR is not a guess: the
+        /// greeting is matched on the line the game itself looks up to build it - the same
+        /// <c>Database.GetLine(Generic, "supplier_meeting_greeting")</c> call, emitted here - and the
+        /// choice on the text the game gives it. Index would have been shorter and would have been a guess;
+        /// for a Supplier the game happens to add exactly one of each today, and "happens to" is the part
+        /// that stops being true one update later.
+        ///
+        /// Every step is null-guarded, and a miss returns null, which is what the callers already handle -
+        /// a mod holding a null greeting simply does not touch it.
+        /// </remarks>
+        private static MethodDefinition EmitFromController(
+            ModuleDefinition module, TypeDefinition owner, string accessor,
+            string listProperty, string itemProperty,
+            Action<ModuleDefinition, MethodDefinition, ILProcessor, Instruction> pushWanted)
+        {
+            var getHandler = GetterUp(owner, "DialogueHandler");
+            var handler = getHandler?.ReturnType?.Resolve();
+            var controller = module.GetType(Controller);
+            var getList = Getter(controller, listProperty);
+            var getComponent = GenericGetComponent(module, handler, controller);
+            if (getHandler == null || getList == null || getComponent == null) return null;
+
+            if (getList.ReturnType is not GenericInstanceType list) return null;
+            var listDefinition = list.Resolve();
+            var getCount = Getter(listDefinition, "Count");
+            var getItem = Method(listDefinition, "get_Item", 1);
+            var item = list.GenericArguments[0].Resolve();
+            var getText = Getter(item, itemProperty);
+            if (getCount == null || getItem == null || getText == null) return null;
+
+            var method = new MethodDefinition(accessor, MethodAttributes.Public | MethodAttributes.HideBySig,
+                                              module.ImportReference(item));
+            var wanted = new VariableDefinition(module.TypeSystem.String);
+            var entries = new VariableDefinition(module.ImportReference(list));
+            var index = new VariableDefinition(module.TypeSystem.Int32);
+            var current = new VariableDefinition(module.ImportReference(item));
+            method.Body.Variables.Add(wanted);
+            method.Body.Variables.Add(entries);
+            method.Body.Variables.Add(index);
+            method.Body.Variables.Add(current);
+            method.Body.InitLocals = true;
+
+            var il = method.Body.GetILProcessor();
+            var giveUp = il.Create(OpCodes.Pop);          // every guard branches here with one value left
+            var next = il.Create(OpCodes.Ldloc, index);
+            var test = il.Create(OpCodes.Ldloc, index);
+            var body = il.Create(OpCodes.Ldloc, entries);
+
+            pushWanted(module, method, il, giveUp);
+            il.Emit(OpCodes.Dup);
+            il.Emit(OpCodes.Brfalse, giveUp);
+            il.Emit(OpCodes.Stloc, wanted);
+
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, module.ImportReference(getHandler));
+            il.Emit(OpCodes.Dup);
+            il.Emit(OpCodes.Brfalse, giveUp);
+            il.Emit(OpCodes.Callvirt, getComponent);
+            il.Emit(OpCodes.Dup);
+            il.Emit(OpCodes.Brfalse, giveUp);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(getList));
+            il.Emit(OpCodes.Dup);
+            il.Emit(OpCodes.Brfalse, giveUp);
+            il.Emit(OpCodes.Stloc, entries);
+
+            il.Emit(OpCodes.Ldc_I4_0);
+            il.Emit(OpCodes.Stloc, index);
+            il.Emit(OpCodes.Br, test);
+
+            il.Append(body);                                        // ldloc entries
+            il.Emit(OpCodes.Ldloc, index);
+            il.Emit(OpCodes.Callvirt, ShadowTypes.On(list, getItem));
+            il.Emit(OpCodes.Stloc, current);
+            il.Emit(OpCodes.Ldloc, current);
+            il.Emit(OpCodes.Brfalse, next);
+            il.Emit(OpCodes.Ldloc, current);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(getText));
+            il.Emit(OpCodes.Ldloc, wanted);
+            il.Emit(OpCodes.Call, StringEquality(module));
+            il.Emit(OpCodes.Brfalse, next);
+            il.Emit(OpCodes.Ldloc, current);
+            il.Emit(OpCodes.Ret);
+
+            il.Append(next);                                        // ldloc index
+            il.Emit(OpCodes.Ldc_I4_1);
+            il.Emit(OpCodes.Add);
+            il.Emit(OpCodes.Stloc, index);
+
+            il.Append(test);                                        // ldloc index
+            il.Emit(OpCodes.Ldloc, entries);
+            il.Emit(OpCodes.Callvirt, ShadowTypes.On(list, getCount));
+            il.Emit(OpCodes.Blt, body);
+
+            il.Emit(OpCodes.Ldnull);
+            il.Emit(OpCodes.Ret);
+
+            il.Append(giveUp);                                      // pop
+            il.Emit(OpCodes.Ldnull);
+            il.Emit(OpCodes.Ret);
+            return method;
+        }
+
+        /// <summary>
+        /// <c>DialogueHandler.Database.GetLine(Generic, "supplier_meeting_greeting")</c>, which is the line
+        /// the game itself builds the greeting from.
+        /// </summary>
+        private static void MeetingGreetingLine(ModuleDefinition module, MethodDefinition method,
+                                                ILProcessor il, Instruction giveUp)
+        {
+            var getHandler = GetterUp(method.DeclaringType, "DialogueHandler");
+            var getDatabase = Getter(getHandler?.ReturnType?.Resolve(), "Database");
+            var getLine = Method(getDatabase?.ReturnType?.Resolve(), "GetLine", 2);
+            if (getHandler == null || getDatabase == null || getLine == null)
+            { il.Emit(OpCodes.Ldnull); return; }
+
+            // The module number is read out of THIS build's enum rather than written down, because a value
+            // that moved would silently look up the wrong table.
+            var module_ = getLine.Parameters[0].ParameterType.Resolve();
+            int generic = 0;
+            bool found = false;
+            foreach (var field in module_?.Fields ?? new Mono.Collections.Generic.Collection<FieldDefinition>())
+                if (field.Name == "Generic" && field.HasConstant)
+                { generic = Convert.ToInt32(field.Constant); found = true; break; }
+            if (!found) { il.Emit(OpCodes.Ldnull); return; }
+
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, module.ImportReference(getHandler));
+            il.Emit(OpCodes.Dup);
+            il.Emit(OpCodes.Brfalse, giveUp);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(getDatabase));
+            il.Emit(OpCodes.Dup);
+            il.Emit(OpCodes.Brfalse, giveUp);
+            il.Emit(OpCodes.Ldc_I4, generic);
+            il.Emit(OpCodes.Ldstr, "supplier_meeting_greeting");
+            il.Emit(OpCodes.Callvirt, module.ImportReference(getLine));
+        }
+
+        /// <summary><c>GetComponent&lt;T&gt;()</c> on the component the handler is.</summary>
+        /// <remarks>
+        /// The generic form and not the one taking a Type: an interop cast of the Component that returns
+        /// hands back a wrapper of the DECLARED type, and casting that down gives null. The generic call is
+        /// what a compiler would emit and what Il2CppInterop builds the right wrapper for.
+        /// </remarks>
+        private static MethodReference GenericGetComponent(ModuleDefinition module, TypeDefinition from,
+                                                           TypeDefinition wanted)
+        {
+            if (from == null || wanted == null) return null;
+            for (var current = from; current != null; )
+            {
+                foreach (var candidate in current.Methods)
+                {
+                    if (candidate.Name != "GetComponent" || candidate.Parameters.Count != 0) continue;
+                    if (candidate.GenericParameters.Count != 1) continue;
+                    var instance = new GenericInstanceMethod(module.ImportReference(candidate));
+                    instance.GenericArguments.Add(module.ImportReference(wanted));
+                    return instance;
+                }
+                TypeDefinition next = null;
+                try { next = current.BaseType?.Resolve(); } catch { }
+                if (next == current) return null;
+                current = next;
+            }
+            return null;
+        }
+
+        private static MethodReference StringEquality(ModuleDefinition module)
+        {
+            var text = module.TypeSystem.String.Resolve();
+            foreach (var candidate in text.Methods)
+                if (candidate.Name == "op_Equality" && candidate.Parameters.Count == 2)
+                    return module.ImportReference(candidate);
+            return null;
+        }
+
+        /// <summary>A getter on this type or anything it derives from.</summary>
+        private static MethodDefinition GetterUp(TypeDefinition type, string member)
+        {
+            for (var current = type; current != null; )
+            {
+                var found = Getter(current, member);
+                if (found != null) return found;
+                TypeDefinition next = null;
+                try { next = current.BaseType?.Resolve(); } catch { }
+                if (next == current) return null;
+                current = next;
+            }
             return null;
         }
 
