@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here.
 
+## [0.4.0] - 2026-08-12
+
+### Added
+- Renames the game made in any build since 0.4.4 are followed on their own. Polyfill carries the game's
+  own history, chained over 14 versions, and asks it when the installed game cannot answer.
+- That includes a FishNet RPC whose hash moved with its signature, which nothing on the installed game
+  can work out by looking.
+
 ## [0.3.0] - 2026-08-12
 
 ### Added

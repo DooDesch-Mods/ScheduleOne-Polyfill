@@ -52,6 +52,14 @@
     <Compile Include="../Dynamic/**/*.cs" LinkBase="Dynamic" />
   </ItemGroup>
 
+  <!-- The game's rename history, chained from 0.4.4 to the version it was built for. Embedded rather than
+       shipped beside the DLL: it is not a setting, a player has no reason to see it, and one file that
+       cannot go missing is one support question that cannot happen.
+       Rebuild with Workspace/tools/gamediff/versiondb.ps1 after a game update. -->
+  <ItemGroup>
+    <EmbeddedResource Include="../Core/polyfill-aliases.json" LogicalName="polyfill-aliases.json" />
+  </ItemGroup>
+
   <ItemGroup>
     <Reference Include="MelonLoader">
       <HintPath>$(MelonLoaderPath)/MelonLoader.dll</HintPath>

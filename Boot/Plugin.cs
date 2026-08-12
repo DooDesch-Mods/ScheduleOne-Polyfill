@@ -67,6 +67,7 @@ namespace Polyfill.Boot
             {
                 Diagnostics.RecordInteropLoadState(LoggerInstance);
                 if (RestoreIfAsked()) return;
+                Core.AliasDb.Load(LoggerInstance);
                 ModScan.Run(LoggerInstance);
 
                 // Layer 2. Off under DryRun like everything else: it answers the same questions the same way,
