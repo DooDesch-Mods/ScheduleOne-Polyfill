@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.4.2] - 2026-08-12
+
+### Fixed
+- The supplier's meeting greeting and its reply work again. 0.4.6 stopped keeping either in a field, and
+  a mod reaching for them was throwing six times a minute.
+
 ## [0.4.1] - 2026-08-12
 
 ### Fixed
