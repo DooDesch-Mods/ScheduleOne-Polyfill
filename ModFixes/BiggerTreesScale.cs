@@ -50,74 +50,107 @@ namespace Polyfill.ModFixes
 
         private const string TerrainPath = "Hyland Point/Main Terrain";
 
-        /// <summary>The mod applies after five seconds and retries for another forty.</summary>
+        /// <summary>How long to give the mod once a map is up. It applies after five seconds and retries
+        /// for another forty.</summary>
         private const int WaitSeconds = 75;
 
         private static MelonLogger.Instance _log;
         private static MelonPreferences_Entry<float> _factor;
 
+        /// <summary>
+        /// Decide here what can be decided here, and only arm the rest.
+        /// </summary>
+        /// <remarks>
+        /// Returning true makes Fixes print <see cref="What"/> and record the fix as applied, so a size of 1
+        /// has to be answered now rather than 75 seconds later - otherwise the boot line promises bigger
+        /// trees to somebody who asked for none.
+        ///
+        /// The renderer is NOT probed here. Fixes run on the first frame FishNet's registry answers, which
+        /// is in the main menu; the map, its terrain and its InstancingManager do not exist yet.
+        /// </remarks>
         internal override bool Apply(MelonLogger.Instance log)
         {
             _log = log;
             ReadPreference();
+
+            float factor = _factor?.Value ?? 2f;
+            if (factor <= 1.0001f)
+            {
+                log.Msg($"[fix] biggertrees-instance-scale: the size is set to {factor:0.##}, so the trees "
+                      + "are left as they are. `TreeScale` in MelonPreferences changes it.");
+                return false;
+            }
+
             MelonCoroutines.Start(Mirror());
             return true;
         }
 
         /// <summary>
-        /// Wait until the mod has put its number on the terrain, then size the trees.
+        /// Once a map is up, wait for the mod to put its number on the terrain, then size the trees.
         /// </summary>
         /// <remarks>
         /// The terrain value is the trigger and not the factor: it says the mod ran, which is what decides
         /// whether the player asked for bigger trees at all.
+        ///
+        /// TWO WAITS, NOT ONE. This starts in the main menu, where there is no terrain and a player may sit
+        /// for as long as they like, so the countdown only begins once a terrain exists - and it begins
+        /// again for the next one, because loading a second save in the same session builds a new map that
+        /// nothing else would resize.
         /// </remarks>
         private static IEnumerator Mirror()
         {
-            for (int second = 0; second < WaitSeconds; second++)
+            int done = 0, waitingFor = 0, waited = 0;
+
+            while (true)
             {
                 yield return new WaitForSecondsRealtime(1f);
-                if (!ModHasApplied()) continue;
 
-                Resize(_factor?.Value ?? 2f);
-                yield break;
+                var terrain = FindTerrain();
+                if (terrain == null) continue;
+
+                int id = terrain.GetInstanceID();
+                if (id == done) continue;
+                if (id != waitingFor) { waitingFor = id; waited = 0; }
+
+                if (ModHasApplied(terrain))
+                {
+                    done = id;
+                    if (!Resize(_factor?.Value ?? 2f))
+                        Fixes.Record("biggertrees-instance-scale", "did nothing");
+                    continue;
+                }
+
+                if (++waited < WaitSeconds) continue;
+
+                done = id;
+                Fixes.Record("biggertrees-instance-scale", "did nothing");
+                _log?.Msg("[fix] biggertrees-instance-scale: the terrain's tree LOD bias never moved off 1, "
+                        + "so Bigger Trees did not apply and nothing was resized.");
             }
-
-            _log?.Msg("[fix] biggertrees-instance-scale: the terrain's tree LOD bias never moved off 1, so "
-                    + "Bigger Trees did not apply and nothing was resized.");
         }
 
-        private static bool ModHasApplied()
+        private static bool ModHasApplied(Terrain terrain)
         {
-            try
-            {
-                var terrain = FindTerrain();
-                return terrain != null && terrain.treeLODBiasMultiplier > 1.0001f;
-            }
+            try { return terrain.treeLODBiasMultiplier > 1.0001f; }
             catch { return false; }
         }
 
-        private static void Resize(float factor)
+        /// <summary>Multiply every tree's size. False when nothing was changed.</summary>
+        private static bool Resize(float factor)
         {
-            if (factor <= 1.0001f)
-            {
-                _log?.Msg($"[fix] biggertrees-instance-scale: the size is set to {factor:0.##}, so the trees "
-                        + "were left as they are. Change TreeScale in MelonPreferences.");
-                return;
-            }
-
             InstancingManager manager = null;
             try { manager = UnityEngine.Object.FindObjectOfType<InstancingManager>(); }
-            catch (Exception e) { _log?.Warning("[fix] biggertrees-instance-scale: " + e.Message); return; }
+            catch (Exception e) { _log?.Warning("[fix] biggertrees-instance-scale: " + e.Message); return false; }
 
             if (manager == null)
             {
                 _log?.Warning("[fix] biggertrees-instance-scale: this build has no instanced renderer, so "
                             + "the mod's own setting works as it always did.");
-                return;
+                return false;
             }
 
             var baked = manager.BackedInstanceObjects;
-            if (baked == null || baked.Count == 0) return;
+            if (baked == null || baked.Count == 0) return false;
 
             int resized = 0, trees = 0;
             for (int i = 0; i < baked.Count; i++)
@@ -131,11 +164,12 @@ namespace Polyfill.ModFixes
             if (resized == 0)
             {
                 _log?.Warning("[fix] biggertrees-instance-scale: nothing carried a size to change.");
-                return;
+                return false;
             }
 
             _log?.Msg($"[fix] biggertrees-instance-scale: {trees} tree(s) resized to {factor:0.##}x across "
                     + $"{resized} level(s) of detail. `TreeScale` in MelonPreferences changes it.");
+            return true;
         }
 
         /// <summary>
@@ -224,9 +258,7 @@ namespace Polyfill.ModFixes
                                ?? MelonPreferences.CreateCategory("Polyfill");
                 _factor = category.GetEntry<float>("TreeScale")
                           ?? category.CreateEntry("TreeScale", 2f, "How much bigger the trees get",
-                              "Only with the Bigger Trees mod installed. 1 leaves them alone. The mod's own "
-                              + "number is a level-of-detail setting rather than a size, so this is yours "
-                              + "to pick.");
+                              "Only with the Bigger Trees mod installed. 1 leaves them alone.");
             }
             catch { }
         }

@@ -90,6 +90,21 @@ namespace Polyfill.ModFixes
         }
 
         /// <summary>
+        /// Correct what a fix reported, once work it could only start has finished.
+        /// </summary>
+        /// <remarks>
+        /// A fix that arms a coroutine or a patch cannot know at Apply time whether it will change anything,
+        /// and "applied" is read by the player in `polyfillfixes` and by whoever gets the export. Leaving it
+        /// at "applied" when the deferred half turned out to have nothing to do is the same lie as reporting
+        /// a repair that did not happen.
+        /// </remarks>
+        internal static void Record(string id, string state)
+        {
+            foreach (var outcome in Results)
+                if (string.Equals(outcome.Fix.Id, id, StringComparison.OrdinalIgnoreCase)) outcome.State = state;
+        }
+
+        /// <summary>
         /// What version of that mod is installed, or null when it is not.
         /// </summary>
         /// <remarks>
