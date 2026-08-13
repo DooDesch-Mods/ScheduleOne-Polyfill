@@ -395,14 +395,44 @@ namespace Polyfill.Core
             var shadow = ShadowTypes.Shadowing(module, target.ReturnType);
             var returns = shadow ?? target.ReturnType;
 
+            if (ShadowTypes.BuriesAShadow(target.ReturnType))
+            { Refuse(result, member, label, "it hands back a renamed type wrapped in a list or an array, "
+                                          + "which cannot stand in for the old one"); return false; }
+
             var forward = new MethodDefinition(member.OldName,
                 MethodAttributes.Public | MethodAttributes.HideBySig
                     | (target.IsStatic ? MethodAttributes.Static : 0),
                 returns);
 
+            // THE SAME MISMATCH EXISTS ON THE WAY IN, and it is easy to miss because it needs no conversion
+            // to work. A caller holding the old name passes it, so it asks for Method(OldName); a forward
+            // declared with the target's parameter type is Method(NewName), and the loader finds neither for
+            // the other. Handing the shadow straight on to the target is then plain inheritance.
             foreach (var parameter in target.Parameters)
+            {
+                if (ShadowTypes.BuriesAShadow(parameter.ParameterType))
+                {
+                    Refuse(result, member, label,
+                           $"it takes a renamed type wrapped in {parameter.ParameterType.Name}, which "
+                         + "cannot stand in for the old one");
+                    return false;
+                }
+
+                var asShadow = ShadowTypes.Shadowing(module, parameter.ParameterType);
+                if (asShadow != null && parameter.ParameterType.IsByReference)
+                {
+                    // OldName& is not a NewName&: the callee could store a plain NewName through it and the
+                    // caller would read something that is not what it asked for. There is no honest adapter
+                    // for that, so it is refused rather than approximated.
+                    Refuse(result, member, label,
+                           $"it takes {parameter.ParameterType.Name} by reference, and a renamed type "
+                         + "cannot be passed by reference under both names");
+                    return false;
+                }
                 forward.Parameters.Add(new ParameterDefinition(parameter.Name, parameter.Attributes,
-                                                               parameter.ParameterType));
+                                                               (TypeReference)asShadow
+                                                                   ?? parameter.ParameterType));
+            }
 
             var il = forward.Body.GetILProcessor();
             if (!target.IsStatic) il.Emit(OpCodes.Ldarg_0);
