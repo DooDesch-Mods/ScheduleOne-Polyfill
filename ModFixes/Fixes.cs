@@ -32,6 +32,7 @@ namespace Polyfill.ModFixes
             new OverTheCounterNetworkLib(),
             new OverTheCounterDrifterPrefab(),
             new OverTheCounterButtonCodes(),
+            new OverTheCounterClipboard(),
             new ThmButtonCodes(),
             new BiggerTreesScale(),
         };
