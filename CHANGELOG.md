@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.6.2] - 2026-08-13
+
+### Fixed
+- OverTheCounter's route picker closes again without choosing. Right-click, which is what the mod's own
+  community repatch picked after 0.4.6 removed the Escape and Back buttons.
+
 ## [0.6.1] - 2026-08-13
 
 ### Fixed

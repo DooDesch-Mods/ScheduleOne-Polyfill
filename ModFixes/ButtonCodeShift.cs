@@ -54,6 +54,32 @@ namespace Polyfill.ModFixes
         /// <summary>A value no button has, so a check against a deleted button is false rather than wrong.</summary>
         private const int Nowhere = -1;
 
+        /// <summary>
+        /// Where a DELETED button should go instead, when somebody has decided that on the record.
+        /// </summary>
+        /// <remarks>
+        /// A button the game removed has no successor, and inventing one is exactly the guess this project
+        /// refuses. The exception is a decision that already exists in the open: OverTheCounter's own
+        /// community repatch replaced its two ways of closing the route picker,
+        /// <code>
+        /// - if (GetButtonDown(Escape) || GetButtonDown(Back))
+        /// + if (GetButtonDown(SecondaryClick))
+        /// </code>
+        /// so right-click is not Polyfill's idea about what the author meant - it is the author's. Without
+        /// it the picker has no way to close without choosing, which is worse than either.
+        ///
+        /// Keyed by mod, because it is a judgement about one mod's UI and not a fact about the game.
+        /// </remarks>
+        private static readonly Dictionary<string, Dictionary<string, string>> Instead
+            = new(StringComparer.OrdinalIgnoreCase)
+            {
+                ["otc-button-codes"] = new(StringComparer.Ordinal)
+                {
+                    ["Escape"] = "SecondaryClick",
+                    ["Back"] = "SecondaryClick",
+                },
+            };
+
         private static int[] _map;
         private static MelonLogger.Instance _log;
 
@@ -89,6 +115,19 @@ namespace Polyfill.ModFixes
             catch { return null; }
         }
 
+        /// <summary>The stand-in this mod's author chose for a deleted button, or nowhere.</summary>
+        private static int InsteadOf(int old)
+        {
+            if (!Instead.TryGetValue(Current, out var choices)) return Nowhere;
+            if (!choices.TryGetValue(OldName(old), out string wanted)) return Nowhere;
+
+            var names = InstalledOrder();
+            if (names == null) return Nowhere;
+            for (int now = 0; now < names.Length; now++)
+                if (string.Equals(names[now], wanted, StringComparison.Ordinal)) return now;
+            return Nowhere;
+        }
+
         internal static string OldName(int value)
             => value >= 0 && value < OldOrder.Length ? OldOrder[value] : value.ToString();
 
@@ -115,6 +154,7 @@ namespace Polyfill.ModFixes
                 if (old < 0 || old >= map.Length) continue;
 
                 int now = map[old];
+                if (now == Nowhere) now = InsteadOf(old);
                 if (now == old) continue;
 
                 // The instruction is EDITED, not replaced. A CodeInstruction carries the labels branches
@@ -220,6 +260,12 @@ namespace Polyfill.ModFixes
                             log.Warning($"[fix] {who}: {typeName} asks for the {OldName(old)} button, which "
                                       + "this build of the game does not have any more, so that key does "
                                       + "nothing.");
+                        else if (Instead.TryGetValue(who, out var choices)
+                                 && choices.ContainsKey(OldName(old)))
+                            log.Msg($"[fix] {who}: {typeName}.{methodName} asked for the {OldName(old)} "
+                                  + $"button, which this build does not have. Pointed at "
+                                  + $"{choices[OldName(old)]}, which is what the mod's own maintainers "
+                                  + "chose when they hit this.");
                         else
                             log.Msg($"[fix] {who}: {typeName}.{methodName} asked for button {old}, which was "
                                   + $"{OldName(old)} and is now {now}. Pointed at {now}.");
