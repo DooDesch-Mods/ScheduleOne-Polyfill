@@ -44,6 +44,17 @@ namespace Polyfill.ModFixes
 
         internal override bool Apply(MelonLogger.Instance log)
         {
+            // STANDS ASIDE WHEN THE INJECTION LAYER GOT THERE FIRST. Since the removed screen is answered
+            // with a null getter, the prefix compiles and runs, and OverTheCounter keeps its manager panel.
+            // Taking the patch off then would throw away a working feature to solve a problem that is gone.
+            if (AccessTools.Method(typeof(Il2CppScheduleOne.Management.ManagementInterface),
+                                   "get_NPCSelector") != null)
+            {
+                log.Msg("[fix] otc-clipboard: not needed - the NPC selector screen answers null now, so the "
+                      + "mod's own clipboard patch runs and keeps its manager panel.");
+                return false;
+            }
+
             Type patch = null;
             foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
