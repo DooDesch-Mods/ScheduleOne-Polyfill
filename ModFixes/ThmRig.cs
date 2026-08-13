@@ -54,6 +54,39 @@ namespace Polyfill.ModFixes
             MelonLoader.MelonCoroutines.Start(Attempt(id, what));
         }
 
+        /// <summary>
+        /// Put an item in the player's hand and watch what happens for a few seconds.
+        /// </summary>
+        /// <remarks>
+        /// Written for the management clipboard, and the reason is a lesson rather than a convenience. Its
+        /// repair takes a broken patch off; "the errors stopped" is easy to show and is NOT the claim. The
+        /// claim is that the game's own clipboard runs again, and the only way to see that is to hold one
+        /// and watch its Update tick without throwing.
+        ///
+        /// What this still cannot answer is whether the screen it opens behaves - that needs a mouse, and
+        /// a mouse is the one thing an agent does not have.
+        /// </remarks>
+        internal static void Equip(string id)
+        {
+            // A number is taken as the slot index, because not everything worth equipping is in the hotbar:
+            // the management clipboard has a slot of its own, index 8 in the game's own numbering
+            // (`PlayerInventory.IndexAllSlots`), and no item id will find it.
+            if (!int.TryParse(id, out int slot)) slot = SlotHolding(id);
+            if (slot < 0)
+            {
+                Report.Core.Log.Warning($"[rig] '{id}' is not in the hotbar. A number equips that slot "
+                                      + "directly - 8 is the clipboard.");
+                return;
+            }
+            try
+            {
+                Player.Local.SetEquippedSlotIndex(slot);
+                Report.Core.Log.Msg($"[rig] '{id}' equipped from slot {slot}. Anything it throws lands in "
+                                  + "the log from here on.");
+            }
+            catch (Exception e) { Report.Core.Log.Warning("[rig] equip failed: " + e.Message); }
+        }
+
         private static IEnumerator Attempt(string id, string what)
         {
             var player = Player.Local;
