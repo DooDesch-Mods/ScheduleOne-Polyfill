@@ -181,33 +181,48 @@ namespace Polyfill.Report
         /// to order: which doors are on ExitOnly, what property each is bound to, whether that property is
         /// owned, and where the door hangs - a mod's copy does not hang under <c>Map/</c>.
         ///
-        /// Two things measured with it, both worth not rediscovering. <c>Property.DoBoundsContainPoint</c>
-        /// answers false for a door of its OWN property (22 of 22 owned doors on 0.4.6f12), so "is this door
-        /// standing in the property it names" cannot be asked that way. And a PropertyDoorController with no
-        /// property at all is normal vanilla: the gas station staff doors are built that way and are meant
-        /// to be one-way.
+        /// Three things measured with it, all worth not rediscovering, on a 145-day save on 0.4.6f12:
+        ///
+        /// <c>Property.DoBoundsContainPoint</c> answers false for a door of its OWN property, 22 of 22 owned
+        /// doors, so "is this door standing in the property it names" cannot be asked that way.
+        ///
+        /// A PropertyDoorController with no property at all is normal vanilla: the gas station staff rooms
+        /// are built that way and are meant to be one-way.
+        ///
+        /// A save whose quest log names an OverTheCounter dispensary held 68 doors and every one of them
+        /// hangs under the map. The mod asks the lookup for its four door and switch names during the load
+        /// and places none of them as a door, so the reported dispensary cannot be reproduced by owning one.
         /// </remarks>
         private static void Doors()
         {
-            Il2CppScheduleOne.Building.Doors.PropertyDoorController[] all;
+            // FindObjectsOfTypeAll and not FindObjectsOfType: the latter skips switched-off objects, which
+            // is exactly the set worth looking at when a building has come out dead.
+            Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppReferenceArray<UnityEngine.Object> all;
             try
             {
-                all = UnityEngine.Object.FindObjectsOfType<
-                    Il2CppScheduleOne.Building.Doors.PropertyDoorController>();
+                all = Resources.FindObjectsOfTypeAll(
+                    Il2CppInterop.Runtime.Il2CppType.Of<Il2CppScheduleOne.Doors.DoorController>());
             }
             catch (Exception e) { Core.Log.Error("sweep failed: " + e.Message); return; }
-            if (all == null || all.Length == 0) { Core.Log.Msg("no property doors in the map."); return; }
+            if (all == null || all.Count == 0) { Core.Log.Msg("no doors loaded."); return; }
 
             int shut = 0;
-            Core.Log.Msg($"{all.Length} property door(s):");
-            foreach (var door in all)
+            Core.Log.Msg($"{all.Count} door(s), switched-off ones included:");
+            foreach (var one in all)
             {
+                var door = one?.TryCast<Il2CppScheduleOne.Doors.DoorController>();
+                if (door == null) continue;
+
                 string access;
                 try { access = door.PlayerAccess.ToString(); } catch { continue; }
-                if (access != "Open") shut++;
+                try { if (!door.gameObject.activeInHierarchy) access = "OFF/" + access; } catch { }
+                if (!access.EndsWith("Open", StringComparison.Ordinal)) shut++;
 
-                var property = door.Property;
-                string where = "no property";
+                // The base type covers both, and the difference is the point: only the property kind locks
+                // itself in Awake, so a plain one that will not open was built that way or was cloned that way.
+                var asProperty = door.TryCast<Il2CppScheduleOne.Building.Doors.PropertyDoorController>();
+                var property = asProperty?.Property;
+                string where = asProperty == null ? "plain door" : "no property";
                 if (property != null)
                     where = property.PropertyName + (property.IsOwned ? " (owned)" : " (NOT owned)");
                 Core.Log.Msg($"  {access,-9} {Path(door.transform)}   {where}");
@@ -218,7 +233,7 @@ namespace Polyfill.Report
                 }
                 catch { }
             }
-            Core.Log.Msg($"{shut} of {all.Length} will not open from the outside.");
+            Core.Log.Msg($"{shut} of {all.Count} will not open from the outside.");
         }
 
         /// <summary>Where an object hangs, root first. What a mod placed does not hang where the map does.</summary>
