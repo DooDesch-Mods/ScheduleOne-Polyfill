@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.7.3] - 2026-08-14
+
+### Added
+- `polyfillprefab tree <name>` walks a UI object in debug builds, for mods that find their way by a
+  spelled-out path and break when a screen is redesigned.
+
 ## [0.7.2] - 2026-08-13
 
 ### Fixed
