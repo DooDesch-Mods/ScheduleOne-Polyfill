@@ -82,6 +82,7 @@ namespace Polyfill.Report
             if (wanted.StartsWith("clone ", StringComparison.Ordinal))
             { Clone(wanted.Substring(6).Trim()); return; }
             if (wanted == "doors") { Doors(); return; }
+            if (wanted == "thm") { Polyfill.ModFixes.ThmGateProbe.Arm(); return; }
 #endif
 
             if (wanted == "list")
