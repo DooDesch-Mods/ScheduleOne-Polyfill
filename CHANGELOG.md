@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented here.
 
+## [0.6.0] - 2026-08-13
+
+### Fixed
+- T.H.M's syringe and garrote kill again. They were repaired as far as the killing blow, which then never
+  landed and said nothing.
+- A type the game moved to another assembly AND renamed is put back properly. The old repair crashed any
+  mod method that mentioned it, past that mod's own error handling.
+- Mods built before 0.4.6 press the key they mean to press. The game deleted 14 entries from the middle of
+  its button list, so `Interact` became the vehicle-lights key.
+
+### Added
+- `polyfillprefab thm` and `polyfillprefab doors` report why a mod's action did nothing, in debug builds.
+
 ## [0.5.2] - 2026-08-13
 
 ### Fixed

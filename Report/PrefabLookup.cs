@@ -83,6 +83,8 @@ namespace Polyfill.Report
             { Clone(wanted.Substring(6).Trim()); return; }
             if (wanted == "doors") { Doors(); return; }
             if (wanted == "thm") { Polyfill.ModFixes.ThmGateProbe.Arm(); return; }
+            if (wanted.StartsWith("thm run ", StringComparison.Ordinal))
+            { Polyfill.ModFixes.ThmRig.Run(wanted.Substring(8).Trim()); return; }
 #endif
 
             if (wanted == "list")

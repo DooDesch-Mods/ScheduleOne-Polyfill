@@ -38,6 +38,7 @@ namespace Polyfill.ModFixes
 
         private static bool _running;
         private static MethodInfo _cableEquipped, _syringeEquipped, _findAimed;
+        private static PropertyInfo _miniGameActive;
         private static string _last = "";
 
         internal static void Arm()
@@ -64,6 +65,7 @@ namespace Polyfill.ModFixes
             _cableEquipped = AccessTools.Method(thm.GetType("HitmanMod.StrangleHandler", false), "IsCableEquipped");
             _syringeEquipped = AccessTools.Method(thm.GetType("HitmanMod.PoisonHandler", false), "IsSyringeEquipped");
             _findAimed = AccessTools.Method(thm.GetType("HitmanMod.StrangleHandler", false), "FindAimedNpc");
+            _miniGameActive = AccessTools.Property(thm.GetType("HitmanMod.StrangleMiniGame", false), "IsActive");
 
             if (_findAimed == null) { Report.Core.Log.Warning("[thm] FindAimedNpc is not where it was."); return false; }
             return true;
@@ -82,11 +84,18 @@ namespace Polyfill.ModFixes
             Report.Core.Log.Msg("[thm] done watching.");
         }
 
-        private static string State()
+        internal static string State()
         {
+            if (!Bind()) return "T.H.M is not loaded.";
+
             var text = new System.Text.StringBuilder();
             text.Append("cable ").Append(Ask(_cableEquipped))
                 .Append("  syringe ").Append(Ask(_syringeEquipped));
+
+            // The mini-game is the first thing StrangleHandler.Update asks about, and it returns on the spot
+            // when one is running. An invisible one that never ends therefore looks exactly like a weapon
+            // that does nothing.
+            text.Append("  minigame ").Append(MiniGame());
 
             Player player = null;
             try { player = Player.Local; } catch { }
@@ -109,6 +118,13 @@ namespace Polyfill.ModFixes
             catch (Exception e) { text.Append("  angle failed: ").Append(e.Message); }
 
             return text.ToString();
+        }
+
+        internal static string MiniGame()
+        {
+            if (_miniGameActive == null) return "?";
+            try { return (bool)_miniGameActive.GetValue(null) ? "RUNNING" : "no"; }
+            catch (Exception e) { return "THREW " + (e.InnerException ?? e).GetType().Name; }
         }
 
         private static string Ask(MethodInfo method)
