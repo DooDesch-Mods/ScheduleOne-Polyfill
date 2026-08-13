@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.6.1] - 2026-08-13
+
+### Fixed
+- The management clipboard works again with OverTheCounter installed. Its patch asks for a screen 0.4.6
+  removed, which killed the whole clipboard and filled the console every frame.
+
 ## [0.6.0] - 2026-08-13
 
 ### Fixed
