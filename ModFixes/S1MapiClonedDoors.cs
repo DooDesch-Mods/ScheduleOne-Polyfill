@@ -90,7 +90,11 @@ namespace Polyfill.ModFixes
                 {
                     // Worth saying once. A door on an unowned property is normal at load and suspicious
                     // later, and this is the shape a report needs to tell those apart.
-                    if (++_leftShut <= 3 && _unlocked > 0)
+                    //
+                    // The unlock count is asked FIRST because ++ on the left of && always runs: every door
+                    // in the map arrives here before the save has granted anything, and counting those
+                    // spends the budget before the case worth reporting can happen.
+                    if (_unlocked > 0 && ++_leftShut <= 3)
                         _log?.Msg($"[fix] s1mapi-cloned-doors: a door on '{Name(property)}' was left shut - "
                                 + "that property is not owned.");
                     return;

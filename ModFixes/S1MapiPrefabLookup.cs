@@ -54,6 +54,20 @@ namespace Polyfill.ModFixes
         private static MelonLogger.Instance _log;
         private static readonly Dictionary<string, GameObject> _found = new(StringComparer.Ordinal);
 
+        /// <summary>
+        /// The switched-off answers, kept apart from <see cref="_found"/> and only briefly.
+        /// </summary>
+        /// <remarks>
+        /// They must not go in the cache, or a copy that happened to be off when the first question was
+        /// asked would be the answer for the rest of the session. They cannot be thrown away either:
+        /// S1MAPI's Find() holds no state and runs once per Instantiate, so a mod placing a hundred objects
+        /// would sweep every loaded object a hundred times, on the main thread, for one name.
+        /// </remarks>
+        private static readonly Dictionary<string, (GameObject Object, float When)> _dim
+            = new(StringComparer.Ordinal);
+
+        private const float RetrySeconds = 5f;
+
         internal override bool Apply(MelonLogger.Instance log)
         {
             _log = log;
@@ -90,14 +104,27 @@ namespace Polyfill.ModFixes
                 _found.Remove(name);                       // it was destroyed since; look again
             }
 
+            if (_dim.TryGetValue(name, out var dim) && dim.Object != null
+                && Time.realtimeSinceStartup - dim.When < RetrySeconds)
+            { __result = dim.Object; return; }
+
             var loaded = Loaded(name, out bool template, out bool active);
             if (loaded == null) return;
 
-            // A switched-off answer is not remembered. Which copies are switched on depends on where the
-            // player is standing, so the same question asked from somewhere else can have a better answer,
-            // and caching the bad one would make that impossible for the rest of the session.
-            if (template || active) _found[name] = loaded;
             __result = loaded;
+
+            // Which copies are switched on depends on where the player is standing, so a switched-off answer
+            // is held for a few seconds rather than cached: the same question asked later, from somewhere
+            // else, gets to find a better copy.
+            if (template || active) { _found[name] = loaded; _dim.Remove(name); }
+            else
+            {
+                // Said once per run of switched-off answers rather than once per object a mod places.
+                bool saidAlready = _dim.ContainsKey(name);
+                _dim[name] = (loaded, Time.realtimeSinceStartup);
+                if (saidAlready) return;
+            }
+
             // Which of the two it was matters when something comes out wrong: a template clones clean, a
             // copy taken out of the map carries whatever has already happened to it.
             _log?.Msg($"[fix] s1mapi-prefab-lookup: '{name}' is loaded but not spawnable - handed over "
