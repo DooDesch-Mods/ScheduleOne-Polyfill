@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.7.0] - 2026-08-13
+
+### Fixed
+- OverTheCounter keeps its manager panel AND the game keeps its clipboard. 0.4.6 deleted the NPC selector
+  screen, which killed both; it now answers that it is not open, which is true.
+
 ## [0.6.2] - 2026-08-13
 
 ### Fixed

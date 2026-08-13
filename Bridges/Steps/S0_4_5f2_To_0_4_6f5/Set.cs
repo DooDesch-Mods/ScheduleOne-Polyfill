@@ -109,6 +109,18 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                         + "migration of this call is MethInstance.cs:51",
                 Emit = EmitOverrideAggression,
             },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = "Il2CppScheduleOne.Management.ManagementInterface",
+                OldName = "get_NPCSelector",
+                ParameterCount = 0,
+                Because = "0.4.6 removed the NPC selector screen with no replacement and left its own stub "
+                        + "behind (NPCFieldUI.cs:79 logs \"NPCSelector not implemented\"). The only use is "
+                        + "a null check for \"is that screen open\", and a screen that does not exist is "
+                        + "not open - see Removed.cs for why answering costs less than refusing",
+                Emit = Removed.EmitNpcSelectorGetter,
+            },
 
             // 0.4.6 emptied NPC and NPCInventory of their loose configuration fields and put the values in
             // NPCData objects (NPCData.cs). Nothing was dropped and nothing changed meaning - the game reads
