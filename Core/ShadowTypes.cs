@@ -126,7 +126,7 @@ namespace Polyfill.Core
         /// there - and for that the target has to be read out of the other file. Cecil imports across
         /// assemblies on its own and adds the reference; all that is needed is the definition.
         /// </remarks>
-        private static TypeDefinition Resolve(ModuleDefinition module, string fullName, string assembly)
+        internal static TypeDefinition Resolve(ModuleDefinition module, string fullName, string assembly)
         {
             if (string.IsNullOrEmpty(fullName)) return null;
 

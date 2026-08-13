@@ -231,6 +231,19 @@ namespace Polyfill.Core
                         if (scope == null)
                         { Refuse(result, forward, forward.TargetAssembly + " is not installed"); continue; }
 
+                        // ASKED BEFORE IT IS WRITTEN, and this is the check that was missing. A forwarder is
+                        // a promise that the name is over there; nothing verifies it at write time, and the
+                        // runtime only disagrees much later, inside whichever mod method first mentions the
+                        // type. Resolving it here turns a crash in somebody else's code into a refusal in
+                        // the report, which is the whole difference between this project working and this
+                        // project appearing to work.
+                        if (ShadowTypes.Resolve(module, Full(forward), forward.TargetAssembly) == null)
+                        {
+                            Refuse(result, forward,
+                                   $"{forward.TargetAssembly} has no {Full(forward)} to point at");
+                            continue;
+                        }
+
                         module.ExportedTypes.Add(new ExportedType(forward.Namespace, forward.Name, module, scope)
                         {
                             Attributes = TypeAttributes.Forwarder,
