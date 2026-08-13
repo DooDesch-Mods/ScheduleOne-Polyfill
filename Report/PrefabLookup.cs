@@ -82,6 +82,8 @@ namespace Polyfill.Report
             if (wanted.StartsWith("clone ", StringComparison.Ordinal))
             { Clone(wanted.Substring(6).Trim()); return; }
             if (wanted == "doors") { Doors(); return; }
+            if (wanted.StartsWith("tree ", StringComparison.Ordinal))
+            { Tree(wanted.Substring(5).Trim()); return; }
             if (wanted == "thm") { Polyfill.ModFixes.ThmGateProbe.Arm(); return; }
             if (wanted.StartsWith("equip ", StringComparison.Ordinal))
             { Polyfill.ModFixes.ThmRig.Equip(wanted.Substring(6).Trim()); return; }
@@ -178,6 +180,62 @@ namespace Polyfill.Report
         }
 
 #if DEBUG
+        /// <summary>
+        /// The children under a named object, which is what a broken path needs.
+        /// </summary>
+        /// <remarks>
+        /// A mod that walks the UI spells its way out as a string - <c>Find("Scroll View/Viewport/Content/
+        /// Recipes")</c> - and a redesigned screen breaks that with nothing in the metadata to notice. The
+        /// only thing that answers "what is it called now" is the live tree, and reading it needs no mouse:
+        /// the phone's UI is built during the load, long before anybody opens it.
+        ///
+        /// Switched-off objects are included, since a panel that is not on screen is exactly the one being
+        /// looked for.
+        /// </remarks>
+        private static void Tree(string name)
+        {
+            if (string.IsNullOrEmpty(name)) { Core.Log.Warning("name an object to walk."); return; }
+
+            int found = 0;
+            try
+            {
+                foreach (var one in Resources.FindObjectsOfTypeAll(
+                             Il2CppInterop.Runtime.Il2CppType.Of<GameObject>()))
+                {
+                    GameObject root = null;
+                    try
+                    {
+                        if (one == null || one.name != name) continue;
+                        root = one.TryCast<GameObject>();
+                    }
+                    catch { continue; }
+                    if (root == null || ++found > 3) continue;
+
+                    Core.Log.Msg($"{Path(root.transform)}  ({(root.activeInHierarchy ? "on" : "off")})");
+                    Walk(root.transform, 1);
+                }
+            }
+            catch (Exception e) { Core.Log.Error("walk failed: " + e.Message); return; }
+
+            if (found == 0) Core.Log.Warning($"nothing loaded is called '{name}'.");
+        }
+
+        private static void Walk(Transform parent, int depth)
+        {
+            if (depth > 7) return;
+            try
+            {
+                for (int i = 0; i < parent.childCount; i++)
+                {
+                    var child = parent.GetChild(i);
+                    Core.Log.Msg(new string(' ', depth * 2) + child.name
+                               + (child.gameObject.activeSelf ? "" : "  (off)"));
+                    Walk(child, depth + 1);
+                }
+            }
+            catch { }
+        }
+
         /// <summary>
         /// Every property door in the map, and whether a player can get through it.
         /// </summary>
