@@ -81,6 +81,7 @@ namespace Polyfill.Report
 #if DEBUG
             if (wanted.StartsWith("clone ", StringComparison.Ordinal))
             { Clone(wanted.Substring(6).Trim()); return; }
+            if (wanted == "doors") { Doors(); return; }
 #endif
 
             if (wanted == "list")
@@ -172,6 +173,68 @@ namespace Polyfill.Report
         }
 
 #if DEBUG
+        /// <summary>
+        /// Every property door in the map, and whether a player can get through it.
+        /// </summary>
+        /// <remarks>
+        /// The one measurement that answers the reported failure on a real save rather than on a clone made
+        /// to order: which doors are on ExitOnly, what property each is bound to, whether that property is
+        /// owned, and where the door hangs - a mod's copy does not hang under <c>Map/</c>.
+        ///
+        /// Two things measured with it, both worth not rediscovering. <c>Property.DoBoundsContainPoint</c>
+        /// answers false for a door of its OWN property (22 of 22 owned doors on 0.4.6f12), so "is this door
+        /// standing in the property it names" cannot be asked that way. And a PropertyDoorController with no
+        /// property at all is normal vanilla: the gas station staff doors are built that way and are meant
+        /// to be one-way.
+        /// </remarks>
+        private static void Doors()
+        {
+            Il2CppScheduleOne.Building.Doors.PropertyDoorController[] all;
+            try
+            {
+                all = UnityEngine.Object.FindObjectsOfType<
+                    Il2CppScheduleOne.Building.Doors.PropertyDoorController>();
+            }
+            catch (Exception e) { Core.Log.Error("sweep failed: " + e.Message); return; }
+            if (all == null || all.Length == 0) { Core.Log.Msg("no property doors in the map."); return; }
+
+            int shut = 0;
+            Core.Log.Msg($"{all.Length} property door(s):");
+            foreach (var door in all)
+            {
+                string access;
+                try { access = door.PlayerAccess.ToString(); } catch { continue; }
+                if (access != "Open") shut++;
+
+                var property = door.Property;
+                string where = "no property";
+                if (property != null)
+                    where = property.PropertyName + (property.IsOwned ? " (owned)" : " (NOT owned)");
+                Core.Log.Msg($"  {access,-9} {Path(door.transform)}   {where}");
+                try
+                {
+                    var at = door.transform.position;
+                    Core.Log.Msg($"            at {at.x:0.#}, {at.y:0.#}, {at.z:0.#}");
+                }
+                catch { }
+            }
+            Core.Log.Msg($"{shut} of {all.Length} will not open from the outside.");
+        }
+
+        /// <summary>Where an object hangs, root first. What a mod placed does not hang where the map does.</summary>
+        private static string Path(Transform transform)
+        {
+            var parts = new List<string>();
+            try
+            {
+                for (var step = transform; step != null && parts.Count < 8; step = step.parent)
+                    parts.Add(step.name);
+            }
+            catch { }
+            parts.Reverse();
+            return string.Join("/", parts);
+        }
+
         /// <summary>
         /// Do to a name exactly what a mod does with it, and report what came out.
         /// </summary>

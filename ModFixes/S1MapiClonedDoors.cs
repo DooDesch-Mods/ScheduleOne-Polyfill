@@ -34,6 +34,17 @@ namespace Polyfill.ModFixes
     /// event carries, on a door that simply missed it - not a new permission. A door bound to a property
     /// nobody bought stays shut and is reported instead, because "the player may walk into a building they
     /// did not pay for" is not a trade a repair gets to make on a guess.
+    ///
+    /// THE OTHER TWO CANDIDATE RULES ARE BOTH WRONG, measured rather than reasoned (`polyfillprefab doors`
+    /// on a 145-day save, 0.4.6f12):
+    ///
+    /// "Unlock a door that has no property, since it can never unlock itself" would open the gas station
+    /// staff rooms. Three of the map's twenty-five property doors carry no property on purpose and are
+    /// meant to be one-way.
+    ///
+    /// "Unlock a door standing outside the property it names, since that binding must be a copy artefact"
+    /// would open everything: <c>Property.DoBoundsContainPoint</c> answers false for a door of its own
+    /// property, 22 of 22 owned doors.
     /// </remarks>
     internal sealed class S1MapiClonedDoors : Fix
     {
