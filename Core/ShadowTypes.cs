@@ -64,7 +64,57 @@ namespace Polyfill.Core
 
             shadow.Methods.Add(constructor);
             module.Types.Add(shadow);
+            Made[target.FullName] = shadow;
             return shadow;
+        }
+
+        /// <summary>
+        /// What this pass has put back, keyed by the full name of the type it stands in for.
+        /// </summary>
+        /// <remarks>
+        /// A record of what WE made, deliberately, rather than a search for "a type deriving from that one".
+        /// The game has plenty of its own subclasses, and handing a mod one of those under the old name
+        /// would be a wrong repair dressed as a right one. Cleared per module by <see cref="Begin"/>, and
+        /// safe to keep only because each pass starts from the untouched copy, so no shadow outlives it.
+        /// </remarks>
+        private static readonly Dictionary<string, TypeDefinition> Made
+            = new(StringComparer.Ordinal);
+
+        internal static void Begin() => Made.Clear();
+
+        /// <summary>The shadow standing in for <paramref name="type"/>, if this pass made one.</summary>
+        internal static TypeDefinition Shadowing(ModuleDefinition module, TypeReference type)
+            => type != null && Made.TryGetValue(type.FullName, out var shadow) ? shadow : null;
+
+        /// <summary>
+        /// Turn the value on the stack into the shadow around the same pointer. Null stays null.
+        /// </summary>
+        /// <remarks>
+        /// The null branch is not politeness. <c>Il2CppObjectBase.Pointer</c> on a null reference throws,
+        /// and a getter that legitimately answers "there is no weather yet" would become a crash at the one
+        /// moment a mod is most likely to ask.
+        /// </remarks>
+        internal static bool EmitRewrap(ModuleDefinition module, ILProcessor il, TypeDefinition shadow,
+                                        out string refusal)
+        {
+            refusal = null;
+
+            var pointer = PointerGetter(shadow);
+            var constructor = PointerConstructor(shadow);
+            if (pointer == null) { refusal = "Il2CppObjectBase.Pointer is not on it"; return false; }
+            if (constructor == null) { refusal = "the shadow has no pointer constructor"; return false; }
+
+            var keepNull = il.Create(OpCodes.Ret);
+
+            il.Emit(OpCodes.Dup);
+            il.Emit(OpCodes.Brfalse_S, keepNull);          // null in, null out
+
+            il.Emit(OpCodes.Call, module.ImportReference(pointer));
+            il.Emit(OpCodes.Newobj, module.ImportReference(constructor));
+            il.Emit(OpCodes.Ret);
+
+            il.Append(keepNull);                            // the duplicate is the null being returned
+            return true;
         }
 
         /// <summary>

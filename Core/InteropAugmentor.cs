@@ -178,6 +178,7 @@ namespace Polyfill.Core
             // the target is not on this build, a forwarder would point at its own assembly - and checking
             // against the plan turns any one of those into a failed verification, which throws away every
             // other repair with it. Refusing one repair must cost exactly that one repair.
+            ShadowTypes.Begin();
             var emittedForwards = new List<TypeForward>();
             var emittedMembers = new List<MemberForward>();
 
@@ -366,10 +367,25 @@ namespace Polyfill.Core
             if (target.HasGenericParameters)
             { Refuse(result, member, label, $"{member.NewName} is generic"); return false; }
 
+            // A CALLER MATCHES ON THE WHOLE SIGNATURE, RETURN TYPE INCLUDED. A mod compiled before the
+            // rename asks for a method that hands back the type under its OLD name, so a forward that
+            // returns the new one is a method the loader never finds:
+            //
+            //     MissingMethodException: 'Il2CppScheduleOne.Weather.WeatherConditions
+            //                              Il2CppScheduleOne.Weather.EnvironmentManager.get_CurrentWeatherConditions()'
+            //
+            // When that old name is back as a shadow class, the forward is declared to return the shadow
+            // and rebuilds the answer around the same native pointer. It is not a cast: the shadow DERIVES
+            // from the type the target returns, so going that way is a downcast on an object that was never
+            // an instance of it. In interop a managed object is a shell around a pointer, and a second shell
+            // of the other class around the same pointer IS the same object.
+            var shadow = ShadowTypes.Shadowing(module, target.ReturnType);
+            var returns = shadow ?? target.ReturnType;
+
             var forward = new MethodDefinition(member.OldName,
                 MethodAttributes.Public | MethodAttributes.HideBySig
                     | (target.IsStatic ? MethodAttributes.Static : 0),
-                target.ReturnType);
+                returns);
 
             foreach (var parameter in target.Parameters)
                 forward.Parameters.Add(new ParameterDefinition(parameter.Name, parameter.Attributes,
@@ -382,6 +398,10 @@ namespace Polyfill.Core
             // Call, not callvirt: the target is a concrete method on a concrete type and the null check has
             // already happened on the caller's side.
             il.Emit(OpCodes.Call, target);
+
+            if (shadow != null && !ShadowTypes.EmitRewrap(module, il, shadow, out string cannot))
+            { Refuse(result, member, label, "its answer cannot be handed back under the old name: " + cannot); return false; }
+
             il.Emit(OpCodes.Ret);
 
             type.Methods.Add(forward);
