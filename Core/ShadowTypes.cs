@@ -87,6 +87,32 @@ namespace Polyfill.Core
             => type != null && Made.TryGetValue(type.FullName, out var shadow) ? shadow : null;
 
         /// <summary>
+        /// Is a renamed type buried inside this one, where standing in for it would not work?
+        /// </summary>
+        /// <remarks>
+        /// A shadow can be handed to anything expecting the type it derives from, which is what makes a
+        /// plain parameter or return value work. Wrapped in something else it stops being true:
+        /// <c>List&lt;Old&gt;</c> is not a <c>List&lt;New&gt;</c>, because a generic class is invariant, and
+        /// <c>Old[]</c> is covariant to <c>New[]</c> only until the callee stores a plain New in it and the
+        /// array throws. Both are refused with a reason rather than emitted and hoped for.
+        /// </remarks>
+        internal static bool BuriesAShadow(TypeReference type)
+        {
+            if (type == null) return false;
+
+            if (type is GenericInstanceType generic)
+            {
+                foreach (var argument in generic.GenericArguments)
+                    if (Made.ContainsKey(argument.FullName) || BuriesAShadow(argument)) return true;
+                return false;
+            }
+
+            var element = (type as ArrayType)?.ElementType ?? (type as ByReferenceType)?.ElementType;
+            if (element == null) return false;
+            return Made.ContainsKey(element.FullName) || BuriesAShadow(element);
+        }
+
+        /// <summary>
         /// Turn the value on the stack into the shadow around the same pointer. Null stays null.
         /// </summary>
         /// <remarks>
