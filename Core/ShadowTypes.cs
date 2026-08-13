@@ -26,13 +26,14 @@ namespace Polyfill.Core
         /// <summary>Puts <paramref name="oldNamespace"/>.<paramref name="oldName"/> back as a subclass of
         /// where the type lives now, or says why it cannot.</summary>
         internal static TypeDefinition TryAdd(ModuleDefinition module, string oldNamespace, string oldName,
-                                              string targetFullName, out string refusal)
+                                              string targetFullName, out string refusal,
+                                              string targetAssembly = null)
         {
             refusal = null;
 
-            var target = targetFullName == null ? null : module.GetType(targetFullName);
+            var target = Resolve(module, targetFullName, targetAssembly);
             if (target == null)
-            { refusal = "the type it became is not in this assembly after all"; return null; }
+            { refusal = "the type it became is not where it was said to be"; return null; }
             if (target.IsInterface || target.IsEnum || target.IsValueType)
             { refusal = $"{target.FullName} is not a class"; return null; }
             if (target.IsSealed)
@@ -63,7 +64,85 @@ namespace Polyfill.Core
 
             shadow.Methods.Add(constructor);
             module.Types.Add(shadow);
+            Made[target.FullName] = shadow;
             return shadow;
+        }
+
+        /// <summary>
+        /// What this pass has put back, keyed by the full name of the type it stands in for.
+        /// </summary>
+        /// <remarks>
+        /// A record of what WE made, deliberately, rather than a search for "a type deriving from that one".
+        /// The game has plenty of its own subclasses, and handing a mod one of those under the old name
+        /// would be a wrong repair dressed as a right one. Cleared per module by <see cref="Begin"/>, and
+        /// safe to keep only because each pass starts from the untouched copy, so no shadow outlives it.
+        /// </remarks>
+        private static readonly Dictionary<string, TypeDefinition> Made
+            = new(StringComparer.Ordinal);
+
+        internal static void Begin() => Made.Clear();
+
+        /// <summary>The shadow standing in for <paramref name="type"/>, if this pass made one.</summary>
+        internal static TypeDefinition Shadowing(ModuleDefinition module, TypeReference type)
+            => type != null && Made.TryGetValue(type.FullName, out var shadow) ? shadow : null;
+
+        /// <summary>
+        /// Turn the value on the stack into the shadow around the same pointer. Null stays null.
+        /// </summary>
+        /// <remarks>
+        /// The null branch is not politeness. <c>Il2CppObjectBase.Pointer</c> on a null reference throws,
+        /// and a getter that legitimately answers "there is no weather yet" would become a crash at the one
+        /// moment a mod is most likely to ask.
+        /// </remarks>
+        internal static bool EmitRewrap(ModuleDefinition module, ILProcessor il, TypeDefinition shadow,
+                                        out string refusal)
+        {
+            refusal = null;
+
+            var pointer = PointerGetter(shadow);
+            var constructor = PointerConstructor(shadow);
+            if (pointer == null) { refusal = "Il2CppObjectBase.Pointer is not on it"; return false; }
+            if (constructor == null) { refusal = "the shadow has no pointer constructor"; return false; }
+
+            var keepNull = il.Create(OpCodes.Ret);
+
+            il.Emit(OpCodes.Dup);
+            il.Emit(OpCodes.Brfalse_S, keepNull);          // null in, null out
+
+            il.Emit(OpCodes.Call, module.ImportReference(pointer));
+            il.Emit(OpCodes.Newobj, module.ImportReference(constructor));
+            il.Emit(OpCodes.Ret);
+
+            il.Append(keepNull);                            // the duplicate is the null being returned
+            return true;
+        }
+
+        /// <summary>
+        /// The type a name became, in this assembly or in the one it moved to.
+        /// </summary>
+        /// <remarks>
+        /// The cross-assembly half is what makes a moved-AND-renamed type repairable at all. A forwarder
+        /// cannot carry a new name, so the only thing left is a class here that derives from the class
+        /// there - and for that the target has to be read out of the other file. Cecil imports across
+        /// assemblies on its own and adds the reference; all that is needed is the definition.
+        /// </remarks>
+        internal static TypeDefinition Resolve(ModuleDefinition module, string fullName, string assembly)
+        {
+            if (string.IsNullOrEmpty(fullName)) return null;
+
+            var here = module.GetType(fullName);
+            if (here != null) return here;
+            if (string.IsNullOrEmpty(assembly)
+                || string.Equals(assembly, module.Assembly?.Name?.Name, StringComparison.OrdinalIgnoreCase))
+                return null;
+
+            try
+            {
+                // Interop assemblies are all 0.0.0.0 and unsigned, so a bare name is the whole identity.
+                var reference = new AssemblyNameReference(assembly, new Version(0, 0, 0, 0));
+                return module.AssemblyResolver?.Resolve(reference)?.MainModule?.GetType(fullName);
+            }
+            catch { return null; }
         }
 
         private static MethodDefinition PointerConstructor(TypeDefinition type)

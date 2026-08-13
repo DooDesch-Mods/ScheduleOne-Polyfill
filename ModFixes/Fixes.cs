@@ -31,6 +31,8 @@ namespace Polyfill.ModFixes
             new S1MapiInstancedTrees(),
             new OverTheCounterNetworkLib(),
             new OverTheCounterDrifterPrefab(),
+            new OverTheCounterButtonCodes(),
+            new ThmButtonCodes(),
             new BiggerTreesScale(),
         };
 
