@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.7.2] - 2026-08-13
+
+### Fixed
+- Bella's handover screen really does list your options now. 0.7.1 checked the wrong thing: the screen
+  reads the customer's favourite drug with no count check, and hers has none.
+
 ## [0.7.1] - 2026-08-13
 
 ### Fixed

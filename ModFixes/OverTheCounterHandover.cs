@@ -16,7 +16,8 @@ namespace Polyfill.ModFixes
     /// StandardsStar.color = ItemQuality.GetColor(customer.CustomerData.Standards.GetCorrespondingQuality());
     /// for (int i = 0; i &lt; customer.CustomerData.PreferredProperties.Count; i++)
     /// </code>
-    /// A synthetic customer has no <c>CustomerData</c>, so building the panel throws and it never fills in.
+    /// A synthetic customer has no product affinities and no data, so building the panel throws before it
+    /// fills in - at <c>GetOrderedDrugTypes()[0]</c>, which is indexed with no count check at all.
     /// Reported as "no options appear as a choice, even though I obviously have a weed mix worth over $105"
     /// - the offer is there, the screen that should show it is not.
     ///
@@ -64,7 +65,7 @@ namespace Polyfill.ModFixes
         {
             try
             {
-                if (customer != null && customer.CustomerData != null) return;
+                if (CanDraw(customer)) return;
 
                 var stand = WithData(customer);
                 if (stand == null)
@@ -106,12 +107,45 @@ namespace Polyfill.ModFixes
                     try
                     {
                         if (candidate == null || candidate == avoid) continue;
-                        if (candidate.CustomerData != null) return candidate;
+                        if (CanDraw(candidate)) return candidate;
                     }
                     catch { }
                 }
             }
             return null;
+        }
+
+        /// <summary>
+        /// Everything the panel touches, asked in the order it touches it.
+        /// </summary>
+        /// <remarks>
+        /// DERIVED FROM READING THE PANEL, not from one symptom, and the difference cost a release. The
+        /// first version of this asked only whether <c>CustomerData</c> was there, because that is what the
+        /// first report looked like. The next report carried the real stack:
+        /// <code>
+        /// ArgumentOutOfRangeException at List`1.get_Item
+        ///   at HandoverScreenDetailPanel.Open (Customer customer)
+        /// </code>
+        /// which is this line, four above the CustomerData ones:
+        /// <code>
+        /// EDrugType property = customer.GetOrderedDrugTypes()[0];     // no count check
+        /// </code>
+        /// The list is built from <c>currentAffinityData.ProductAffinities</c>
+        /// (`ScheduleOne.Economy/Customer.cs:2366-2374`), which a mod's own customer leaves empty. So the
+        /// question is not "does it have data" but "can the panel draw it", and every part is asked.
+        /// </remarks>
+        private static bool CanDraw(Customer customer)
+        {
+            try
+            {
+                if (customer == null) return false;
+                if (customer.NPC == null || customer.NPC.RelationData == null) return false;   // :34-40
+                if (customer.CustomerData == null) return false;                               // :47-48
+                if (customer.CustomerData.PreferredProperties == null) return false;           // :54
+                var drugs = customer.GetOrderedDrugTypes();                                    // :50
+                return drugs != null && drugs.Count > 0;
+            }
+            catch { return false; }
         }
     }
 }
