@@ -197,15 +197,24 @@ namespace Polyfill.Core
                         // unresolvable, and the process dies when a mod's compiled call reaches it rather than
                         // when reflection asks politely.
                         //
-                        // A type that only changed namespace gets a class instead, deriving from where it
-                        // lives now. See ShadowTypes.
-                        if (string.Equals(forward.TargetAssembly, forward.InAssembly, StringComparison.OrdinalIgnoreCase))
+                        // A TYPE FORWARDER CANNOT RENAME. It carries one name and tells the runtime to look
+                        // for THAT name in another assembly, so it only works when the type kept its full
+                        // name and moved house. When the name changed too, the runtime looks up a name the
+                        // target assembly does not have and throws TypeLoadException at the first JIT of any
+                        // method that mentions the type - past every try/catch in the mod, because a method
+                        // that will not compile never runs its handlers. That failure cost a whole evening
+                        // on T.H.M: the repair logged "applied", the mod's kill silently never happened.
+                        //
+                        // So the question is the NAME, not the assembly.
+                        bool renamed = !string.Equals(forward.TargetFullName, Full(forward), StringComparison.Ordinal);
+                        if (renamed)
                         {
                             var shadow = ShadowTypes.TryAdd(module, forward.Namespace, forward.Name,
-                                                            forward.TargetFullName, out string why);
+                                                            forward.TargetFullName, out string why,
+                                                            forward.TargetAssembly);
                             if (shadow == null)
                             {
-                                Refuse(result, forward, "it only changed namespace, and " + why);
+                                Refuse(result, forward, "its name changed, and " + why);
                                 continue;
                             }
                             result.Applied.Add($"{forward.InAssembly}!{Full(forward)} -> a class deriving from "

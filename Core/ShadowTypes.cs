@@ -26,13 +26,14 @@ namespace Polyfill.Core
         /// <summary>Puts <paramref name="oldNamespace"/>.<paramref name="oldName"/> back as a subclass of
         /// where the type lives now, or says why it cannot.</summary>
         internal static TypeDefinition TryAdd(ModuleDefinition module, string oldNamespace, string oldName,
-                                              string targetFullName, out string refusal)
+                                              string targetFullName, out string refusal,
+                                              string targetAssembly = null)
         {
             refusal = null;
 
-            var target = targetFullName == null ? null : module.GetType(targetFullName);
+            var target = Resolve(module, targetFullName, targetAssembly);
             if (target == null)
-            { refusal = "the type it became is not in this assembly after all"; return null; }
+            { refusal = "the type it became is not where it was said to be"; return null; }
             if (target.IsInterface || target.IsEnum || target.IsValueType)
             { refusal = $"{target.FullName} is not a class"; return null; }
             if (target.IsSealed)
@@ -64,6 +65,34 @@ namespace Polyfill.Core
             shadow.Methods.Add(constructor);
             module.Types.Add(shadow);
             return shadow;
+        }
+
+        /// <summary>
+        /// The type a name became, in this assembly or in the one it moved to.
+        /// </summary>
+        /// <remarks>
+        /// The cross-assembly half is what makes a moved-AND-renamed type repairable at all. A forwarder
+        /// cannot carry a new name, so the only thing left is a class here that derives from the class
+        /// there - and for that the target has to be read out of the other file. Cecil imports across
+        /// assemblies on its own and adds the reference; all that is needed is the definition.
+        /// </remarks>
+        private static TypeDefinition Resolve(ModuleDefinition module, string fullName, string assembly)
+        {
+            if (string.IsNullOrEmpty(fullName)) return null;
+
+            var here = module.GetType(fullName);
+            if (here != null) return here;
+            if (string.IsNullOrEmpty(assembly)
+                || string.Equals(assembly, module.Assembly?.Name?.Name, StringComparison.OrdinalIgnoreCase))
+                return null;
+
+            try
+            {
+                // Interop assemblies are all 0.0.0.0 and unsigned, so a bare name is the whole identity.
+                var reference = new AssemblyNameReference(assembly, new Version(0, 0, 0, 0));
+                return module.AssemblyResolver?.Resolve(reference)?.MainModule?.GetType(fullName);
+            }
+            catch { return null; }
         }
 
         private static MethodDefinition PointerConstructor(TypeDefinition type)
