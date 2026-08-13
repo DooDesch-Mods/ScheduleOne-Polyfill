@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.7.1] - 2026-08-13
+
+### Fixed
+- Bella's handover screen shows your options again. It reads the customer's preferences straight out, and
+  OverTheCounter's own customer has none, so the screen never filled in.
+
 ## [0.7.0] - 2026-08-13
 
 ### Fixed
