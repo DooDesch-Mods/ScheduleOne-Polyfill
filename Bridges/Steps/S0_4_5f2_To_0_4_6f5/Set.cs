@@ -170,6 +170,26 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         /// full one.</summary>
         private const string StructArrayName = "Il2CppStructArray`1";
 
+        /// <summary>
+        /// Why <c>_inputField</c> and not <c>_tmpInputField</c>, settled rather than assumed.
+        /// </summary>
+        /// <remarks>
+        /// <c>AmountSelector</c> carries both and prefers the TextMeshPro one when it is set, so which one
+        /// this screen uses decides whether the repair hands back a control or a null. It is not answerable
+        /// from a running game - the counteroffer screen is not in the scene until it is opened - and it
+        /// does not have to be: the value is serialized, and the prefab is readable offline.
+        ///
+        /// <code>
+        /// Player.prefab, the AmountSelector that CounterofferInterface.PriceSelector points at:
+        ///   _inputField:    {fileID: 114179318410282125}   -> m_TextComponent, m_ContentType,
+        ///                                                     m_CharacterLimit: 8  (UnityEngine.UI.InputField)
+        ///   _tmpInputField: {fileID: 0}                    -> null
+        /// </code>
+        ///
+        /// The lesson is worth more than the answer: "no instance in the scene" means the probe cannot see
+        /// it, not that nothing can. What a component is WIRED to lives in the prefab, and a question about
+        /// wiring belongs there.
+        /// </remarks>
         private const string PriceBox = "CounterofferInterface.cs:20 held the price box directly until "
                                       + "0.4.5f2; 0.4.6 wraps it in an AmountSelector, whose _inputField "
                                       + "is the same control (AmountSelector.cs:19)";
