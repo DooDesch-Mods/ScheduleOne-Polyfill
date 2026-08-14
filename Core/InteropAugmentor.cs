@@ -43,9 +43,21 @@ namespace Polyfill.Core
             internal string TargetAssembly;  // where it lives now
             internal string TargetFullName;  // and under what name, which a namespace change makes differ
 
+            /// <summary>
+            /// The type the old name lived INSIDE, when it was a nested one.
+            /// </summary>
+            /// <remarks>
+            /// A nested type carries no namespace, so building the stand-in from namespace and name alone
+            /// produced a top-level class called <c>ProductTypeContainer</c> while the mod asked for
+            /// <c>ProductManagerApp/ProductTypeContainer</c>. The name resolved to nothing, the repair
+            /// logged as applied, and the mod threw TypeLoadException at the first method that mentioned
+            /// it - which is the exact failure shape this project exists to stop.
+            /// </remarks>
+            internal string NestedIn;
+
             /// <summary>Identity of the repair, for deduplicating it across mods and for carrying its
             /// outcome back to every finding that asked for it.</summary>
-            internal string Key => "T|" + InAssembly + "!" + Namespace + "." + Name;
+            internal string Key => "T|" + InAssembly + "!" + (NestedIn ?? Namespace) + "." + Name;
         }
 
         /// <summary>An old member name, put back on the type that used to carry it.</summary>
@@ -75,6 +87,29 @@ namespace Polyfill.Core
                                  + (ParameterTypes == null ? "" : "(" + string.Join(",", ParameterTypes) + ")");
         }
 
+        /// <summary>
+        /// A parameter put back under the name it used to have, so a patch binds to it again.
+        /// </summary>
+        /// <remarks>
+        /// The smallest repair in the project and the only one that changes nothing executable: a
+        /// parameter name in an interop assembly is metadata, no call site binds to it, and the CLR does
+        /// not read it. Harmony does, which is the whole reason this exists.
+        /// </remarks>
+        internal sealed class ParameterRename
+        {
+            internal string InAssembly;
+            internal string DeclaringType;
+            internal string Method;
+            internal int ParameterCount;
+            internal int Index;
+            internal string Name;        // what it is being put back to
+            internal string WasCalled;   // what this build calls it
+            internal string Because;
+
+            internal string Key => "P|" + InAssembly + "!" + DeclaringType + "::" + Method
+                                 + "/" + ParameterCount + "#" + Index;
+        }
+
         internal sealed class Result
         {
             internal int Written;
@@ -95,15 +130,17 @@ namespace Polyfill.Core
 
         /// <summary>Put every collected repair into the assemblies that need them.</summary>
         internal static Result Apply(string interopDirectory, List<TypeForward> types,
-                                     List<MemberForward> members, InteropOriginals originals,
+                                     List<MemberForward> members, List<ParameterRename> renames,
+                                     InteropOriginals originals,
                                      MelonLogger.Instance log)
         {
             var result = new Result();
-            if (types.Count == 0 && members.Count == 0) return result;
+            if (types.Count == 0 && members.Count == 0 && renames.Count == 0) return result;
 
             var assemblies = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var one in types) assemblies.Add(one.InAssembly);
             foreach (var one in members) assemblies.Add(one.InAssembly);
+            foreach (var one in renames) if (one.InAssembly != null) assemblies.Add(one.InAssembly);
 
             foreach (string assembly in assemblies)
             {
@@ -113,6 +150,9 @@ namespace Polyfill.Core
                 var typesHere = new List<TypeForward>();
                 foreach (var one in types)
                     if (string.Equals(one.InAssembly, assembly, StringComparison.OrdinalIgnoreCase)) typesHere.Add(one);
+                var renamesHere = new List<ParameterRename>();
+                foreach (var one in renames)
+                    if (string.Equals(one.InAssembly, assembly, StringComparison.OrdinalIgnoreCase)) renamesHere.Add(one);
                 var membersHere = new List<MemberForward>();
                 foreach (var one in members)
                     if (string.Equals(one.InAssembly, assembly, StringComparison.OrdinalIgnoreCase)) membersHere.Add(one);
@@ -124,7 +164,7 @@ namespace Polyfill.Core
                 if (!originals.MayWrite(assembly))
                 { RefuseAll(result, typesHere, membersHere, assembly, originals.RefusalFor(assembly)); continue; }
 
-                try { ApplyTo(live, typesHere, membersHere, originals, result, log); }
+                try { ApplyTo(live, typesHere, membersHere, renamesHere, originals, result, log); }
                 catch (Exception e)
                 {
                     // The live file is only ever replaced by a completed temp file, so nothing is half-written.
@@ -145,7 +185,8 @@ namespace Polyfill.Core
         }
 
         private static void ApplyTo(string livePath, List<TypeForward> forwards,
-                                    List<MemberForward> members, InteropOriginals originals,
+                                    List<MemberForward> members, List<ParameterRename> renames,
+                                    InteropOriginals originals,
                                     Result result, MelonLogger.Instance log)
         {
             string interop = Path.GetDirectoryName(livePath);
@@ -218,7 +259,7 @@ namespace Polyfill.Core
                         {
                             var shadow = ShadowTypes.TryAdd(module, forward.Namespace, forward.Name,
                                                             forward.TargetFullName, out string why,
-                                                            forward.TargetAssembly);
+                                                            forward.TargetAssembly, forward.NestedIn);
                             if (shadow == null)
                             {
                                 Refuse(result, forward, "its name changed, and " + why);
@@ -263,6 +304,9 @@ namespace Polyfill.Core
 
                     foreach (var member in members)
                         if (AddMemberForward(module, member, result)) { emittedMembers.Add(member); added++; }
+
+                    foreach (var rename in renames)
+                        if (PutParameterNameBack(module, rename, result)) added++;
 
                     if (added == 0) return;
 
@@ -311,6 +355,66 @@ namespace Polyfill.Core
                 // A half-written image must never be left lying next to the real one.
                 try { if (File.Exists(temporary)) File.Delete(temporary); } catch { }
             }
+        }
+
+        /// <summary>
+        /// Give one parameter its old name back.
+        /// </summary>
+        /// <remarks>
+        /// The whole repair, and it is one assignment - which is exactly why it is worth having: a
+        /// parameter name in an interop assembly is metadata nothing executable reads, so putting the old
+        /// one back cannot change what any code does. Harmony reads it, and that is where the mod died.
+        ///
+        /// Refuses on anything it cannot state exactly, including the case where this build already calls
+        /// it what the mod wants - then there was nothing to repair and something else is wrong.
+        /// </remarks>
+        private static bool PutParameterNameBack(ModuleDefinition module, ParameterRename rename,
+                                                 Result result)
+        {
+            string label = $"{rename.DeclaringType}::{rename.Method}({rename.Name})";
+
+            var type = module.GetType(rename.DeclaringType);
+            if (type == null)
+            { Refuse(result, rename, label, "the type it is on is not in this assembly"); return false; }
+
+            MethodDefinition target = null;
+            foreach (var candidate in type.Methods)
+            {
+                if (candidate.Name != rename.Method) continue;
+                if (candidate.Parameters.Count != rename.ParameterCount) continue;
+                if (target != null)
+                { Refuse(result, rename, label, "more than one method here has that shape"); return false; }
+                target = candidate;
+            }
+            if (target == null)
+            { Refuse(result, rename, label, "no method here has that shape"); return false; }
+
+            if (rename.Index < 0 || rename.Index >= target.Parameters.Count)
+            { Refuse(result, rename, label, "the parameter is not where the rule says"); return false; }
+
+            var parameter = target.Parameters[rename.Index];
+            if (parameter.Name == rename.Name)
+            { Refuse(result, rename, label, "it is already called that here"); return false; }
+
+            if (parameter.Name != rename.WasCalled)
+            {
+                Refuse(result, rename, label,
+                       $"this build calls it {parameter.Name}, not {rename.WasCalled}, so the rule does "
+                     + "not describe this game");
+                return false;
+            }
+
+            parameter.Name = rename.Name;
+            result.Applied.Add($"{rename.InAssembly}!{label}  [was {rename.WasCalled}: {rename.Because}]");
+            result.Record(rename.Key, Contract.Outcome.Applied,
+                          $"renamed from {rename.WasCalled} ({rename.Because})");
+            return true;
+        }
+
+        private static void Refuse(Result result, ParameterRename rename, string label, string why)
+        {
+            result.Refused.Add($"{label}: {why}");
+            result.Record(rename.Key, Contract.Outcome.Refused, why);
         }
 
         /// <summary>
@@ -566,8 +670,18 @@ namespace Polyfill.Core
             });
         }
 
+        /// <summary>
+        /// The name the mod uses, spelled the way metadata spells it.
+        /// </summary>
+        /// <remarks>
+        /// A nested type is <c>Outer/Inner</c> and carries no namespace of its own, so joining namespace
+        /// and name gives a name nothing has - which is how a stand-in came to be written at the top level
+        /// under a name no mod ever asks for.
+        /// </remarks>
         private static string Full(TypeForward forward)
-            => string.IsNullOrEmpty(forward.Namespace) ? forward.Name : forward.Namespace + "." + forward.Name;
+            => forward.NestedIn != null ? forward.NestedIn + "/" + forward.Name
+             : string.IsNullOrEmpty(forward.Namespace) ? forward.Name
+             : forward.Namespace + "." + forward.Name;
 
         private static AssemblyNameReference ScopeFor(ModuleDefinition module, string assemblyName)
         {

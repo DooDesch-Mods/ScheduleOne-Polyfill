@@ -114,6 +114,11 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                                            + "shared StationInterface<T> base and renamed it _canvas";
 
         private const string Avatar = "Il2CppScheduleOne.AvatarFramework.Avatar";
+        private const string PlayerType = "Il2CppScheduleOne.PlayerScripts.Player";
+
+        private const string PlayerToggle = "Player.cs:1423-1441 until 0.4.5f2; 0.4.6 deleted both and "
+                                          + "rewrote its own three callers to register a UI element "
+                                          + "instead, leaving every line these ran still there";
         private const string Number = "System.Single";
 
         private const string Pickpocketed = "NPCInventory.cs:40 until 0.4.5f2; the same InteractableObject "
@@ -324,6 +329,32 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             // A method that LOST an argument, which is the mirror of the three above and needs its own
             // shape: the old form has one parameter too many rather than one too few.
             Dropped(Avatar, "ApplyShapeKeys", new[] { Number, Number }, "System.Boolean", ShapeKeys),
+
+            // One method that became two. See Contract/SplitScreens for why an EMPTY body is the right
+            // one and where the other half of the repair lives.
+            SplitInTwo(0), SplitInTwo(1), SplitInTwo(2), SplitInTwo(3), SplitInTwo(4),
+
+            // Two static methods 0.4.6 deleted whose every line still exists. Rebuilt rather than pointed
+            // somewhere, because there is nowhere to point: the game replaced the CALLS with a different
+            // mechanism (PlayerCamera.AddActiveUIElement) and left the five things they did untouched.
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = PlayerType,
+                OldName = "Activate",
+                ParameterCount = 0,
+                Because = PlayerToggle,
+                Emit = (module, type) => EmitPlayerToggle(module, type, "Activate", on: true),
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = PlayerType,
+                OldName = "Deactivate",
+                ParameterCount = 1,
+                Because = PlayerToggle,
+                Emit = (module, type) => EmitPlayerToggle(module, type, "Deactivate", on: false),
+            },
 
             // Methods that gained a trailing parameter. The old form is genuinely gone while the name is
             // not, so these are the only rules allowed to add an overload.
@@ -709,6 +740,188 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                 Because = because,
                 Emit = (module, type) => EmitWithDefaults(module, type, name, leading, defaults),
             };
+
+        /// <summary>
+        /// <c>Player.Activate()</c> and <c>Player.Deactivate(bool)</c>, rebuilt line for line.
+        /// </summary>
+        /// <remarks>
+        /// The only bridge here that reconstructs a whole BODY, and it is allowed because there is nothing
+        /// to interpret: all five statements are still on this build, and the pair is symmetric, so the
+        /// two methods differ by one boolean. 0.4.5f2:
+        /// <code>
+        /// Activate()               Deactivate(bool freeMouse)
+        ///   camera.SetCanLook(true)  camera.SetCanLook(false); camera.ResetRotation()
+        ///   movement.CanMove = true  movement.CanMove = false
+        ///   inventory.Set(true)      inventory.Set(false)
+        ///   hud.Crosshair(true)      -
+        ///   camera.LockMouse()       if (freeMouse) camera.FreeMouse()
+        /// </code>
+        /// <c>LockMouse</c> and <c>FreeMouse</c> gained a crosshair flag in 0.4.6, and <c>true</c> is what
+        /// the call did before it existed - the same reading the Defaulted rule for them already carries.
+        ///
+        /// WHAT THIS DOES NOT DO, and it belongs in the report rather than in a hope: the GAME does not
+        /// call these any more. A mod that CALLS them works exactly as before; a mod that PATCHES them
+        /// sees its patch fire only when another mod calls them. The reason to write them anyway is that
+        /// Harmony discards a patch CLASS when one target is missing, and Backpack keeps its save and load
+        /// hooks in the same class as its Activate patch - so this one gap was taking the backpack's
+        /// persistence with it.
+        /// </remarks>
+        private static MethodDefinition EmitPlayerToggle(ModuleDefinition module, TypeDefinition player,
+                                                         string name, bool on)
+        {
+            var camera = Singleton(module, "Il2CppScheduleOne.PlayerScripts.PlayerCamera", player: true);
+            var movement = Singleton(module, "Il2CppScheduleOne.PlayerScripts.PlayerMovement", player: true);
+            var inventory = Singleton(module, "Il2CppScheduleOne.PlayerScripts.PlayerInventory", player: true);
+            var hud = Singleton(module, "Il2CppScheduleOne.UI.HUD", player: false);
+            if (camera.Get == null || movement.Get == null || inventory.Get == null || hud.Get == null)
+                return null;
+
+            var look = Method(camera.Type, "SetCanLook", 1);
+            var canMove = Method(movement.Type, "set_CanMove", 1);
+            var enable = Method(inventory.Type, "SetInventoryEnabled", 1);
+            var crosshair = Method(hud.Type, "SetCrosshairVisible", 1);
+            var mouse = Method(camera.Type, on ? "LockMouse" : "FreeMouse", 1);
+            var reset = Method(camera.Type, "ResetRotation", 0);
+            if (look == null || canMove == null || enable == null || crosshair == null || mouse == null
+                || (!on && reset == null))
+                return null;
+
+            var method = new MethodDefinition(name,
+                MethodAttributes.Public | MethodAttributes.Static | MethodAttributes.HideBySig,
+                module.TypeSystem.Void);
+            if (!on)
+                method.Parameters.Add(new ParameterDefinition("freeMouse", ParameterAttributes.None,
+                                          module.TypeSystem.Boolean));
+
+            var il = method.Body.GetILProcessor();
+            var flag = on ? OpCodes.Ldc_I4_1 : OpCodes.Ldc_I4_0;
+
+            il.Emit(OpCodes.Call, camera.Get);
+            il.Emit(flag);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(look));
+
+            if (!on)
+            {
+                il.Emit(OpCodes.Call, camera.Get);
+                il.Emit(OpCodes.Callvirt, module.ImportReference(reset));
+            }
+
+            il.Emit(OpCodes.Call, movement.Get);
+            il.Emit(flag);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(canMove));
+
+            il.Emit(OpCodes.Call, inventory.Get);
+            il.Emit(flag);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(enable));
+
+            if (on)
+            {
+                il.Emit(OpCodes.Call, hud.Get);
+                il.Emit(OpCodes.Ldc_I4_1);
+                il.Emit(OpCodes.Callvirt, module.ImportReference(crosshair));
+
+                il.Emit(OpCodes.Call, camera.Get);
+                il.Emit(OpCodes.Ldc_I4_1);                      // the crosshair flag LockMouse() implied
+                il.Emit(OpCodes.Callvirt, module.ImportReference(mouse));
+            }
+            else
+            {
+                var skip = il.Create(OpCodes.Ret);
+                il.Emit(OpCodes.Ldarg_0);
+                il.Emit(OpCodes.Brfalse, skip);
+                il.Emit(OpCodes.Call, camera.Get);
+                il.Emit(OpCodes.Ldc_I4_1);
+                il.Emit(OpCodes.Callvirt, module.ImportReference(mouse));
+                il.Append(skip);
+                return method;
+            }
+
+            il.Emit(OpCodes.Ret);
+            return method;
+        }
+
+        /// <summary><c>Singleton&lt;T&gt;.Instance</c> or <c>PlayerSingleton&lt;T&gt;.Instance</c>.</summary>
+        private static (TypeDefinition Type, MethodReference Get) Singleton(ModuleDefinition module,
+                                                                            string fullName, bool player)
+        {
+            var type = module.GetType(fullName);
+            if (type == null) return (null, null);
+
+            string holder = "Il2CppScheduleOne.DevUtilities." + (player ? "PlayerSingleton`1" : "Singleton`1");
+            var open = module.GetType(holder);
+            var get = Method(open, "get_Instance", 0);
+            if (get == null || !get.IsStatic) return (type, null);
+
+            var instance = new GenericInstanceType(module.ImportReference(open));
+            instance.GenericArguments.Add(module.ImportReference(type));
+            return (type, Against(module, get, instance));
+        }
+
+        /// <summary>
+        /// The open-or-close method of one station screen, put back as a place to hang a patch on.
+        /// </summary>
+        /// <remarks>
+        /// THE BODY IS EMPTY AND THAT IS THE POINT. Every other bridge answers a CALL, so its body does
+        /// the thing the old member did. Nothing calls this one - 0.4.6 split it into <c>Open</c> and
+        /// <c>Close</c> and rewrote its own callers - so a body here would be a second, competing way to
+        /// open a station screen, reachable only by a mod that has no idea it exists.
+        ///
+        /// What it is for is the patch. Harmony discards an entire patch class when one target cannot be
+        /// resolved, so this single gap took Backpack's whole canvas handling with it, five times over.
+        /// The method existing is what lets those classes register; the postfix in
+        /// <c>ModFixes/SplitScreenPatches.cs</c> is what makes them fire, by calling this from the real
+        /// <c>Open</c> and <c>Close</c>.
+        ///
+        /// Refuses unless the type, the station type and both replacements are on this build, so a game
+        /// that splits them differently gets nothing rather than an empty method nobody can explain.
+        /// </remarks>
+        private static Bridge SplitInTwo(int index)
+        {
+            var entry = Contract.SplitScreens.All[index];
+            var parameters = entry.HasRemoveUi
+                ? new[] { entry.Station, "System.Boolean", "System.Boolean" }
+                : new[] { entry.Station, "System.Boolean" };
+
+            return new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = entry.Type,
+                OldName = "SetIsOpen",
+                ParameterCount = parameters.Length,
+                ParameterTypes = parameters,
+                AllowOverload = true,
+                Because = "0.4.6 split SetIsOpen into Open and Close; this is where a patch aimed at the "
+                        + "old name lands, and Polyfill calls it from both of them",
+                Emit = (module, type) => EmitSplitHook(module, type, entry),
+            };
+        }
+
+        /// <summary>The old signature, exact down to the parameter names, over an empty body.</summary>
+        private static MethodDefinition EmitSplitHook(ModuleDefinition module, TypeDefinition type,
+                                                      Contract.SplitScreens.Entry entry)
+        {
+            var station = module.GetType(entry.Station);
+            if (station == null) return null;
+
+            // Only worth having where the two methods it stands between actually exist - and they may be
+            // one level up, because two of these five screens were ALSO renamed, so the type this is
+            // written onto is the stand-in class and Open lives on what it derives from.
+            if (MethodUp(type, "Open", 1) == null || MethodUp(type, "Close", 0) == null) return null;
+
+            var method = new MethodDefinition("SetIsOpen",
+                MethodAttributes.Public | MethodAttributes.HideBySig, module.TypeSystem.Void);
+
+            method.Parameters.Add(new ParameterDefinition(entry.StationName, ParameterAttributes.None,
+                                      module.ImportReference(station)));
+            method.Parameters.Add(new ParameterDefinition("open", ParameterAttributes.None,
+                                      module.TypeSystem.Boolean));
+            if (entry.HasRemoveUi)
+                method.Parameters.Add(new ParameterDefinition("removeUI", ParameterAttributes.None,
+                                          module.TypeSystem.Boolean));
+
+            method.Body.GetILProcessor().Emit(OpCodes.Ret);
+            return method;
+        }
 
         /// <summary>
         /// The method a mod calls, still there, having stopped taking an argument it used to.
@@ -1702,6 +1915,22 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
 
         private static MethodDefinition Getter(TypeDefinition type, string member)
             => Method(type, "get_" + member, 0);
+
+        /// <summary>A method on this type or anything it derives from.</summary>
+        private static MethodDefinition MethodUp(TypeDefinition type, string name, int parameters)
+        {
+            for (var current = type; current != null; )
+            {
+                var found = Method(current, name, parameters);
+                if (found != null) return found;
+
+                TypeDefinition next = null;
+                try { next = current.BaseType?.Resolve(); } catch { }
+                if (next == current) return null;
+                current = next;
+            }
+            return null;
+        }
 
         private static MethodDefinition Method(TypeDefinition type, string name, int parameters)
         {

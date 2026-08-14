@@ -53,11 +53,19 @@ namespace Polyfill.Boot
                     return;
                 }
 
-                new HarmonyLib.Harmony(Id).Patch(target,
+                var harmony = new HarmonyLib.Harmony(Id);
+                harmony.Patch(target,
+                    prefix: new HarmonyMethod(typeof(DeclaredMethodFallback), nameof(Unambiguous)),
                     postfix: new HarmonyMethod(typeof(DeclaredMethodFallback), nameof(Fallback)));
 
+                var property = AccessTools.Method(typeof(AccessTools), nameof(AccessTools.DeclaredProperty),
+                    new[] { typeof(Type), typeof(string) });
+                if (property != null)
+                    harmony.Patch(property,
+                        postfix: new HarmonyMethod(typeof(DeclaredMethodFallback), nameof(ForProperty)));
+
                 log.Msg("[harmony] a patch aimed at a type this build renamed will be pointed at the "
-                      + "method the game has.");
+                      + "member the game has.");
             }
             catch (Exception e)
             {
@@ -81,6 +89,66 @@ namespace Polyfill.Boot
             try
             {
                 var found = AccessTools.Method(type, name, parameters, generics);
+                if (found == null || found.DeclaringType == type) return;
+                __result = found;
+            }
+            catch { }
+        }
+
+        /// <summary>
+        /// A patch that names no parameters gets the GAME's method, not the one Polyfill added.
+        /// </summary>
+        /// <remarks>
+        /// PUTTING A SIGNATURE BACK MAKES A NAME AMBIGUOUS, and Harmony's lookup answers that by throwing.
+        /// <c>[HarmonyPatch(typeof(CustomerData), "GetOrderDays")]</c> resolved fine until Polyfill added
+        /// the pre-0.4.6 form beside the current one; after that the same attribute produces
+        /// <c>AmbiguousMatchException</c>, Harmony discards the patch class, and a mod that worked before
+        /// the repair stops working because of it.
+        ///
+        /// Naming no parameters means "the method", and the method is the game's - the stand-in exists only
+        /// so an old CALL resolves. So this answers with the game's own, and only ever for a name Polyfill
+        /// is on record as having doubled.
+        ///
+        /// A prefix rather than a postfix because there is no result to correct: the original throws.
+        /// </remarks>
+        private static bool Unambiguous(Type type, string name, Type[] parameters, ref MethodInfo __result)
+        {
+            if (type == null || name == null || parameters != null) return true;
+            if (!GrownOverloads.Doubled(type.FullName, name)) return true;
+
+            try
+            {
+                MethodInfo game = null;
+                foreach (var candidate in type.GetMethods(AccessTools.all))
+                {
+                    if (candidate.Name != name || candidate.DeclaringType != type) continue;
+                    if (GrownOverloads.IsStandIn(type.FullName, name, candidate.GetParameters().Length))
+                        continue;
+                    if (game != null) return true;              // the game has two of its own; not ours to pick
+                    game = candidate;
+                }
+                if (game == null) return true;
+
+                __result = game;
+                return false;
+            }
+            catch { return true; }
+        }
+
+        /// <summary>The same fallback for a property, which is how Harmony resolves a getter patch.</summary>
+        /// <remarks>
+        /// Lithium aims a postfix at <c>ATMInterface.remainingAllowedDeposit</c>, a getter. That route goes
+        /// through <c>DeclaredProperty</c>, so repairing only <c>DeclaredMethod</c> left it dead while
+        /// every method patch on the same renamed type came back to life.
+        /// </remarks>
+        private static void ForProperty(Type type, string name, ref PropertyInfo __result)
+        {
+            if (__result != null || type == null || name == null) return;
+            if (!RenamedTypes.IsStandIn(type.FullName)) return;
+
+            try
+            {
+                var found = AccessTools.Property(type, name);
                 if (found == null || found.DeclaringType == type) return;
                 __result = found;
             }

@@ -26,6 +26,7 @@ namespace Polyfill.Core
         /// <summary>Repairs the analysis found, collected across every mod: one game, one set of forwarders.</summary>
         private static readonly List<InteropAugmentor.TypeForward> _forwards = new();
         private static readonly List<InteropAugmentor.MemberForward> _members = new();
+        private static readonly List<InteropAugmentor.ParameterRename> _renames = new();
 
         /// <summary>
         /// Put the found repairs into the interop assemblies.
@@ -38,10 +39,10 @@ namespace Polyfill.Core
                                                         MelonLogger.Instance log)
         {
             var nothing = new Dictionary<string, string>(StringComparer.Ordinal);
-            if (_forwards.Count == 0 && _members.Count == 0) return nothing;
+            if (_forwards.Count == 0 && _members.Count == 0 && _renames.Count == 0) return nothing;
             if (Boot.Plugin.DryRun)
             {
-                log.Msg($"[inject] DryRun: {_forwards.Count + _members.Count} repair(s) found and none applied. "
+                log.Msg($"[inject] DryRun: {_forwards.Count + _members.Count + _renames.Count} repair(s) found and none applied. "
                       + "Turn DryRun off in MelonPreferences to let them through.");
                 return nothing;
             }
@@ -58,7 +59,12 @@ namespace Polyfill.Core
             foreach (var member in _members)
                 if (seen.Add(member.Key)) uniqueMembers.Add(member);
 
-            var result = InteropAugmentor.Apply(interopDirectory, uniqueTypes, uniqueMembers, originals, log);
+            var uniqueRenames = new List<InteropAugmentor.ParameterRename>();
+            foreach (var rename in _renames)
+                if (seen.Add(rename.Key)) uniqueRenames.Add(rename);
+
+            var result = InteropAugmentor.Apply(interopDirectory, uniqueTypes, uniqueMembers, uniqueRenames,
+                                                originals, log);
             foreach (string applied in result.Applied) log.Msg("[inject]   " + applied);
             foreach (string refused in result.Refused) log.Warning("[inject]   refused: " + refused);
 
@@ -102,6 +108,7 @@ namespace Polyfill.Core
 
             _forwards.Clear();
             _members.Clear();
+            _renames.Clear();
             var reports = new List<ModReport>(candidates.Count);
             int assemblyCount;
 
@@ -177,8 +184,9 @@ namespace Polyfill.Core
                     AssemblyResolver = index.Resolver,
                 });
 
-                var missingTypes = CheckTypes(module, index, report);
-                CheckMembers(module, index, report, missingTypes);
+                var repaired = new Dictionary<string, TypeDefinition>(StringComparer.Ordinal);
+                var missingTypes = CheckTypes(module, index, report, repaired);
+                CheckMembers(module, index, report, missingTypes, repaired);
                 HarmonyTargets.Check(module, index, report);
             }
             catch (Exception e)
@@ -195,7 +203,8 @@ namespace Polyfill.Core
         }
 
         /// <summary>Every game type the mod names, and whether it is still there.</summary>
-        private static HashSet<string> CheckTypes(ModuleDefinition module, InteropIndex index, ModReport report)
+        private static HashSet<string> CheckTypes(ModuleDefinition module, InteropIndex index, ModReport report,
+                                                  Dictionary<string, TypeDefinition> repaired)
         {
             var missing = new HashSet<string>(StringComparer.Ordinal);
 
@@ -241,11 +250,16 @@ namespace Polyfill.Core
 
                 if (became != null)
                 {
+                    // The type is not missing after this - it is standing in for the new one. Remembering
+                    // WHICH is the whole reason the members on it can be checked at all; see CheckMembers.
+                    repaired[reference.FullName] = became;
+
                     var forward = new InteropAugmentor.TypeForward
                     {
                         InAssembly = scope,
                         Namespace = reference.Namespace,
                         Name = reference.Name,
+                        NestedIn = Root(reference.DeclaringType)?.FullName,
                         TargetAssembly = became.Module.Assembly.Name.Name,
                         TargetFullName = became.FullName,
                     };
@@ -265,7 +279,8 @@ namespace Polyfill.Core
 
         /// <summary>Every game member the mod calls or reads, and whether it is still there.</summary>
         private static void CheckMembers(ModuleDefinition module, InteropIndex index, ModReport report,
-                                         HashSet<string> missingTypes)
+                                         HashSet<string> missingTypes,
+                                         Dictionary<string, TypeDefinition> repaired)
         {
             foreach (var reference in module.GetMemberReferences())
             {
@@ -274,16 +289,28 @@ namespace Polyfill.Core
                 if (!index.IsTracked(scope)) continue;
                 report.MemberRefs++;
 
-                // A member of a type that is already reported missing is not a second finding.
-                if (declaringReference != null && missingTypes.Contains(declaringReference.FullName)) continue;
-
                 var declaring = Resolve(declaringReference, index);
+
+                // A TYPE THAT WAS REPAIRED IS NOT MISSING, and treating it as missing skipped every member
+                // on it. Measured: Lithium's ATM patch registered once the type came back, then threw
+                // eighteen thousand times in one session on ATMInterface.isOpen - which 0.4.6 calls IsOpen
+                // and which nothing had ever looked for, because the check that would have found it
+                // stopped at "the type it is on was reported already".
+                //
+                // The members are checked against what the type BECAME. What is emitted then lands on that
+                // type, and the stand-in inherits it.
+                if (declaring == null && declaringReference != null)
+                    repaired.TryGetValue(declaringReference.FullName, out declaring);
+
+                // A member of a type that is genuinely gone is not a second finding.
+                if (declaring == null && declaringReference != null
+                    && missingTypes.Contains(declaringReference.FullName)) continue;
                 if (declaring == null) continue;
 
                 // A library break is a different repair from a game break - the game's missing names go back
                 // into the interop assemblies, a library's cannot - so the two are never one finding kind.
                 string prefix = index.Kind(scope) == "game" ? "" : "library-";
-                if (reference is MethodReference method) CheckMethod(method, declaring, scope, prefix, report, index);
+                if (reference is MethodReference method) CheckMethod(method, declaring, scope, prefix, report, index, repaired);
                 else if (reference is FieldReference field) CheckField(field, declaring, scope, prefix, report, index);
             }
         }
@@ -363,14 +390,35 @@ namespace Polyfill.Core
         }
 
         private static void CheckMethod(MethodReference wanted, TypeDefinition declaring, string scope,
-                                        string kindPrefix, ModReport report, InteropIndex index)
+                                        string kindPrefix, ModReport report, InteropIndex index,
+                                        Dictionary<string, TypeDefinition> repaired)
         {
             bool nameExists = false;
             foreach (var method in declaring.Methods)
             {
                 if (method.Name != wanted.Name) continue;
                 nameExists = true;
-                if (NameHeuristics.SameParameters(wanted, method)) return;   // still there, unchanged
+                if (!NameHeuristics.SameParameters(wanted, method)) continue;
+
+                // A CALLER MATCHES ON THE RETURN TYPE TOO, and the same-name-same-parameters test does not.
+                // ProductManagerApp still has FavouritesContainer, and it hands back the ProductTypeContainer
+                // that moved OUT of it - a different type from the one the mod names, so the call does not
+                // resolve and this check called it present. Only ever raised for a type Polyfill itself put
+                // back, which is the one case where the two names are known to mean the same thing.
+                string returns = wanted.ReturnType?.FullName;
+                if (returns != null && repaired.ContainsKey(returns)
+                    && !string.Equals(returns, method.ReturnType?.FullName, StringComparison.Ordinal))
+                {
+                    report.Findings.Add(new Finding
+                    {
+                        Kind = kindPrefix + "member", Scope = scope,
+                        Symbol = declaring.FullName + "::" + wanted.Name + Signature(wanted),
+                        Reason = "the method is here and hands back "
+                               + (method.ReturnType?.Name ?? "something else") + " from where that type "
+                               + "moved to, so a call naming the old one does not resolve",
+                    });
+                }
+                return;                                                      // still there, unchanged
             }
 
             // Inherited counts as present: the runtime finds it, so there is nothing to repair and nothing
@@ -378,7 +426,30 @@ namespace Polyfill.Core
             // every candidate on the derived type wrong by definition.
             if (Inherits(declaring, wanted, index) != null) return;
 
+            // THE CANDIDATES MAY BE ONE LEVEL UP, and until this walk they were invisible. A type Polyfill
+            // put back is an EMPTY class deriving from the renamed one, so a member reference against it
+            // finds nothing on the type itself and every spelling rule came back with nothing to say.
+            // Measured: Lithium asks for ATM.ATMInterface.get_isOpen, the game calls it IsOpen on the type
+            // the stand-in derives from, and the patch that reads it threw eighteen thousand times in one
+            // session - once per frame, because the repair that made the patch register did not also make
+            // the member it reads resolvable.
+            //
+            // The forward is emitted on the type that CARRIES the candidate, not on the one the mod named:
+            // the stand-in inherits it, and putting it on the empty class would hide the real member from
+            // anything that resolves through the base.
+            var host = declaring;
             var hits = NameHeuristics.ForMethod(declaring, wanted.Name, wanted);
+            if (hits.Count == 0)
+                foreach (var above in Chain(declaring, index))
+                {
+                    if (above == declaring) continue;
+                    var higher = NameHeuristics.ForMethod(above, wanted.Name, wanted);
+                    if (higher.Count == 0) continue;
+                    hits = higher;
+                    host = above;
+                    break;
+                }
+
             string hint = hits.Count == 1 ? hits[0].NewName + "  [" + hits[0].Rule + "]" : "";
             int parameters = wanted.Parameters?.Count ?? 0;
 
@@ -443,7 +514,7 @@ namespace Polyfill.Core
                     repairKey = Collect(new InteropAugmentor.MemberForward
                     {
                         InAssembly = scope,
-                        DeclaringType = declaring.FullName,
+                        DeclaringType = host.FullName,
                         OldName = wanted.Name,
                         NewName = hits[0].NewName,
                         ParameterCount = parameters,
@@ -507,6 +578,16 @@ namespace Polyfill.Core
         {
             _members.Add(member);
             return member.Key;
+        }
+
+        /// <summary>The same, for the Harmony pass - a patch target is a reason to repair too.</summary>
+        internal static string Request(InteropAugmentor.MemberForward member) => Collect(member);
+
+        /// <summary>A parameter the game renamed, which only the Harmony pass can see.</summary>
+        internal static string RequestRename(InteropAugmentor.ParameterRename rename)
+        {
+            _renames.Add(rename);
+            return rename.Key;
         }
 
         /// <summary>Unwrap arrays, by-ref and generic instances down to the type that carries the scope.</summary>

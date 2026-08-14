@@ -2,6 +2,24 @@
 
 All notable changes to this project are documented here.
 
+## [0.9.0] - 2026-08-14
+
+### Fixed
+- Mods stop throwing thousands of errors a session. A type Polyfill put back had its own members skipped,
+  so one ATM reading alone threw once a frame for as long as the game ran.
+- OG Backpack saves and loads its contents again, and its station panels work. One dead patch target was
+  taking the whole class with it, five times over.
+- Lithium's shop prices refresh again. 0.4.6 renamed an argument, and Harmony matches those by name.
+- Lithium's drying rack and ATM screens work again.
+- A nested type Polyfill put back is nested again. It was written at the top level under a name nothing
+  asks for, so the repair reported success and the mod threw on the type.
+
+### Added
+- `polyfillfixes` gains `split-screen-patches`: where 0.4.6 split a station screen's `SetIsOpen` into
+  `Open` and `Close`, a patch aimed at the old name runs again from both.
+- The report says when a patch will be moved rather than left dead, so a working mod stops being listed
+  as broken.
+
 ## [0.8.1] - 2026-08-14
 
 ### Fixed

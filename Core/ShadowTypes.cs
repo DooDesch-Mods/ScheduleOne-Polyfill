@@ -27,7 +27,7 @@ namespace Polyfill.Core
         /// where the type lives now, or says why it cannot.</summary>
         internal static TypeDefinition TryAdd(ModuleDefinition module, string oldNamespace, string oldName,
                                               string targetFullName, out string refusal,
-                                              string targetAssembly = null)
+                                              string targetAssembly = null, string nestedIn = null)
         {
             refusal = null;
 
@@ -63,7 +63,28 @@ namespace Polyfill.Core
             il.Emit(OpCodes.Ret);
 
             shadow.Methods.Add(constructor);
-            module.Types.Add(shadow);
+
+            // A NESTED NAME HAS TO GO BACK NESTED. Building it from namespace and name alone gave a
+            // top-level ProductTypeContainer while the mod asks for ProductManagerApp/ProductTypeContainer,
+            // so the name resolved to nothing and the repair reported success - the mod then threw
+            // TypeLoadException at the first method that mentioned the type, thirty-five times a session.
+            if (nestedIn != null)
+            {
+                var outer = module.GetType(nestedIn);
+                if (outer == null)
+                { refusal = $"{nestedIn}, which it was nested in, is not in this assembly"; return null; }
+
+                foreach (var existing in outer.NestedTypes)
+                    if (existing.Name == oldName)
+                    { refusal = "the name is taken inside " + nestedIn; return null; }
+
+                shadow.Namespace = "";
+                shadow.Attributes = TypeAttributes.NestedPublic | TypeAttributes.Class
+                                  | TypeAttributes.BeforeFieldInit;
+                outer.NestedTypes.Add(shadow);
+            }
+            else module.Types.Add(shadow);
+
             Made[target.FullName] = shadow;
             return shadow;
         }

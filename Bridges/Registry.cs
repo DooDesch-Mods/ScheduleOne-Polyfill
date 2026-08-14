@@ -76,6 +76,32 @@ namespace Polyfill.Bridges
         }
 
         /// <summary>
+        /// The one bridge for this name, when a caller could not say which signature it means.
+        /// </summary>
+        /// <remarks>
+        /// A Harmony attribute may name only the method - <c>[HarmonyPatch("SetIsOpen")]</c> - so there is
+        /// no arity to match on and <see cref="Find"/> cannot answer. Falling back to the name is safe
+        /// here for the same reason the attribute is: if more than one bridge fits, the mod's own lookup
+        /// is ambiguous too, and picking for it would be picking blind.
+        /// </remarks>
+        internal static Bridge FindByName(string assembly, string declaringType, string name,
+                                          int parameterCount)
+        {
+            Bridge only = null;
+            foreach (var bridge in Bridges())
+            {
+                if (bridge.OldName != name || bridge.DeclaringType != declaringType
+                    || !string.Equals(bridge.Assembly, assembly, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (parameterCount >= 0 && bridge.ParameterCount != parameterCount) continue;
+
+                if (only != null) return null;
+                only = bridge;
+            }
+            return only;
+        }
+
+        /// <summary>
         /// The rename written for this exact type, or null.
         /// </summary>
         /// <remarks>
