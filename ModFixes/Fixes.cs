@@ -37,9 +37,10 @@ namespace Polyfill.ModFixes
             new ThmButtonCodes(),
             new BiggerTreesScale(),
 
-            // Last, and that is not cosmetic: it reads what other mods have patched, so it has to run
+            // Last, and that is not cosmetic: these read what other mods have patched, so they have to run
             // after every one of them has had its turn.
             new PatchesOnGrownOverloads(),
+            new SplitScreenPatches(),
         };
 
         private static MelonPreferences_Entry<string> _disabled;

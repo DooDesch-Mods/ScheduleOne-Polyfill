@@ -1,6 +1,56 @@
 namespace Polyfill.Contract
 {
     /// <summary>
+    /// The station screens whose one open-or-close method 0.4.6 split into two.
+    /// </summary>
+    /// <remarks>
+    /// A PATCH TARGET THAT WAS SPLIT IN TWO HAS NO SUCCESSOR, which is what the report said and what this
+    /// is the answer to. <c>SetIsOpen(station, open)</c> became <c>Open(station)</c> plus <c>Close()</c>,
+    /// so there is nothing to point a patch at - and because Harmony throws a whole patch CLASS away when
+    /// one target is missing, that one gap also took Backpack's canvas handling with it, five times over.
+    ///
+    /// The repair is in two halves, and neither works alone. The plugin writes <c>SetIsOpen</c> back as an
+    /// empty method, so the patch resolves and the class registers. The mod then patches something the
+    /// game never calls - so the mod half hangs a postfix on the real <c>Open</c> and <c>Close</c> that
+    /// calls the empty one, at the moment it used to be called and with the value it used to be given.
+    ///
+    /// Parameter names carry the repair as much as the types do: Harmony binds a patch's arguments by
+    /// name, and every one of these took its flag as <c>open</c> (PackagingStationCanvas.cs:148 and its
+    /// four siblings in 0.4.5f2). Backpack's postfix is declared <c>(canvas __instance, bool open)</c> and
+    /// binds unchanged.
+    /// </remarks>
+    internal static class SplitScreens
+    {
+        internal sealed class Entry
+        {
+            internal string Type;
+            internal string Station;      // the parameter the old method took first, by full name
+            internal string StationName;  // and what it was called, because Harmony binds by name
+            internal bool HasRemoveUi;    // four of the five carried a third argument
+
+            /// <summary>The station type at runtime, or null when this build does not have it.</summary>
+            internal Type StationType() => HarmonyLib.AccessTools.TypeByName(Station);
+        }
+
+        private const string Stations = "Il2CppScheduleOne.UI.Stations.";
+        private const string Objects = "Il2CppScheduleOne.ObjectScripts.";
+
+        internal static readonly Entry[] All =
+        {
+            new Entry { Type = Stations + "PackagingStationCanvas", Station = Objects + "PackagingStation",
+                        StationName = "station", HasRemoveUi = true },
+            new Entry { Type = Stations + "BrickPressCanvas", Station = Objects + "BrickPress",
+                        StationName = "press", HasRemoveUi = true },
+            new Entry { Type = Stations + "LabOvenCanvas", Station = Objects + "LabOven",
+                        StationName = "oven", HasRemoveUi = true },
+            new Entry { Type = Stations + "CauldronCanvas", Station = Objects + "Cauldron",
+                        StationName = "cauldron", HasRemoveUi = true },
+            new Entry { Type = Stations + "DryingRackCanvas", Station = Objects + "DryingRack",
+                        StationName = "rack", HasRemoveUi = false },
+        };
+    }
+
+    /// <summary>
     /// Methods the game kept and gave a trailing argument to, named once for both halves of the project.
     /// </summary>
     /// <remarks>
@@ -55,6 +105,32 @@ namespace Polyfill.Contract
                 },
                 Because = "0.4.6 gave every StorageMenu.Open a closing callback",
             },
+            new Entry
+            {
+                Type = "Il2CppScheduleOne.Economy.CustomerData",
+                Name = "GetOrderDays",
+                OldParameters = new[] { "System.Single", "System.Single" },
+                Because = "GetOrderDays stopped returning the list and started filling one it is handed",
+            },
         };
+
+        /// <summary>Has Polyfill put a second signature under this name?</summary>
+        internal static bool Doubled(string type, string name)
+        {
+            foreach (var entry in All)
+                if (entry.Name == name && string.Equals(entry.Type, type, StringComparison.Ordinal))
+                    return true;
+            return false;
+        }
+
+        /// <summary>Is a method of that arity one Polyfill added rather than one the game has?</summary>
+        internal static bool IsStandIn(string type, string name, int parameterCount)
+        {
+            foreach (var entry in All)
+                if (entry.Name == name && entry.OldParameters.Length == parameterCount
+                    && string.Equals(entry.Type, type, StringComparison.Ordinal))
+                    return true;
+            return false;
+        }
     }
 }

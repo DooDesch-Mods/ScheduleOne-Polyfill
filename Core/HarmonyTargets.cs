@@ -41,7 +41,7 @@ namespace Polyfill.Core
 
                 // A class-level target with a name is a patch site in its own right.
                 if (classHasPatch && onClass.MethodName != null)
-                    Verify(onClass, type.FullName, index, report);
+                    Verify(onClass, type.FullName, index, report, PatchMethods(type));
 
                 if (!type.HasMethods) continue;
                 foreach (var method in type.Methods)
@@ -54,12 +54,14 @@ namespace Polyfill.Core
                     // Already reported at class level, with the same target.
                     if (classHasPatch && onMethod.DeclaringType == null && onMethod.MethodName == null) continue;
 
-                    Verify(merged, type.FullName + "." + method.Name, index, report);
+                    Verify(merged, type.FullName + "." + method.Name, index, report,
+                           new List<MethodDefinition> { method });
                 }
             }
         }
 
-        private static void Verify(Spec spec, string site, InteropIndex index, ModReport report)
+        private static void Verify(Spec spec, string site, InteropIndex index, ModReport report,
+                                   List<MethodDefinition> patches)
         {
             report.HarmonyTargetsChecked++;
             TypeDefinition declaring = null;
@@ -86,7 +88,7 @@ namespace Polyfill.Core
                 var replacement = renamed == null ? null : index.FindType(scope, renamed.NewFullName);
                 if (replacement != null)
                 {
-                    Verify(spec, site, index, report, replacement, wanted);
+                    Verify(spec, site, index, report, replacement, wanted, patches);
                     return;
                 }
 
@@ -103,13 +105,43 @@ namespace Polyfill.Core
                 return;
             }
 
-            Verify(spec, site, index, report, declaring, null);
+            Verify(spec, site, index, report, declaring, null, patches);
+        }
+
+        /// <summary>
+        /// The methods of a patch class that Harmony will actually bind, when the target is on the class.
+        /// </summary>
+        /// <remarks>
+        /// <c>[HarmonyPatch(typeof(X), "Y")]</c> on the class and <c>[HarmonyPostfix]</c> on the method is
+        /// the common shape, and it is the shape that hid the parameter-rename break: the attribute the
+        /// target comes from is on the class, so the method carrying the argument names was never looked
+        /// at. Harmony also accepts the bare names, so those count too.
+        /// </remarks>
+        private static List<MethodDefinition> PatchMethods(TypeDefinition type)
+        {
+            var found = new List<MethodDefinition>();
+            if (!type.HasMethods) return found;
+
+            foreach (var method in type.Methods)
+            {
+                bool marked = method.Name is "Prefix" or "Postfix" or "Finalizer";
+                if (!marked && method.HasCustomAttributes)
+                    foreach (var attribute in method.CustomAttributes)
+                    {
+                        string name = attribute.AttributeType?.FullName;
+                        if (name is "HarmonyLib.HarmonyPrefix" or "HarmonyLib.HarmonyPostfix"
+                                 or "HarmonyLib.HarmonyFinalizer")
+                        { marked = true; break; }
+                    }
+                if (marked) found.Add(method);
+            }
+            return found;
         }
 
         /// <summary>The method half of the check, once the type it is on has been settled.</summary>
         /// <param name="under">The name the mod used, when that is not the type being searched.</param>
         private static void Verify(Spec spec, string site, InteropIndex index, ModReport report,
-                                   TypeDefinition declaring, string under)
+                                   TypeDefinition declaring, string under, List<MethodDefinition> patches)
         {
             string name = Decorate(spec.MethodName, spec.MethodType);
             int argumentCount = spec.ArgumentTypes?.Count ?? -1;
@@ -118,7 +150,8 @@ namespace Polyfill.Core
             {
                 if (method.Name != name) continue;
                 if (argumentCount >= 0 && method.Parameters.Count != argumentCount) continue;
-                return;                                   // the target is there
+                Names(method, patches, site, report);     // the target is there; is it still spelled right
+                return;
             }
 
             // Inherited counts, because Harmony's own lookup walks the base chain. Without this, a patch
@@ -127,14 +160,67 @@ namespace Polyfill.Core
                 foreach (var method in above.Methods)
                     if (method.Name == name
                         && (argumentCount < 0 || method.Parameters.Count == argumentCount))
-                        return;
+                    { Names(method, patches, site, report); return; }
+
+            // A PATCH TARGET CAN ASK FOR A REPAIR TOO, and until this line it could not. The member check
+            // collects a bridge whenever a mod CALLS something that is gone; a member that is only ever
+            // PATCHED went through here instead, which reported it and asked for nothing. So a method the
+            // game deleted outright - Player.Activate, a station screen's SetIsOpen - stayed missing even
+            // where a bridge for it existed, and Harmony threw away the whole patch class it was in.
+            string scope = declaring.Module?.Assembly?.Name?.Name ?? "";
+            string owner = under ?? declaring.FullName;
+            var bridge = Bridges.Registry.FindByName(scope, owner, name, argumentCount);
+
+            if (bridge != null)
+            {
+                string key = Triage.Request(new InteropAugmentor.MemberForward
+                {
+                    InAssembly = bridge.Assembly,
+                    DeclaringType = bridge.DeclaringType,
+                    OldName = bridge.OldName,
+                    NewName = null,
+                    ParameterCount = bridge.ParameterCount,
+                    ParameterTypes = bridge.ParameterTypes,
+                    Rule = "curated",
+                });
+
+                report.Findings.Add(new Finding
+                {
+                    Kind = "harmony-target",
+                    Scope = scope,
+                    Symbol = owner + "::" + name,
+                    Reason = "the patched method is gone",
+                    Hint = "hand-written rule: " + bridge.Because,
+                    RepairKey = key,
+                    Site = site,
+                });
+                return;
+            }
+
+            // The old signature is one Polyfill puts back AND moves the patch off again, so calling this
+            // dead was true before that pair existed. Said here because a report that names a working
+            // patch as broken sends people to fix what is not wrong.
+            if (GrownOverloads.Doubled(owner, name))
+            {
+                report.Findings.Add(new Finding
+                {
+                    Kind = "harmony-target",
+                    Scope = scope,
+                    Symbol = owner + "::" + name,
+                    Reason = "the signature this patch names is gone; Polyfill puts it back and moves the "
+                           + "patch onto the method the game calls (`polyfillfixes` lists it as "
+                           + "patches-on-grown-overloads)",
+                    Site = site,
+                });
+                return;
+            }
 
             var candidates = NameHeuristics.ForMethod(declaring, name, null);
             report.Findings.Add(new Finding
             {
                 Kind = "harmony-target",
-                Scope = declaring.Module?.Assembly?.Name?.Name ?? "",
-                Symbol = (under ?? declaring.FullName) + "::" + name,
+                Scope = scope,
+                Symbol = owner + "::" + name,
                 Reason = candidates.Count > 1
                     ? $"the patched method is gone; {candidates.Count} members could be meant, so none is chosen"
                     : under != null
@@ -143,6 +229,81 @@ namespace Polyfill.Core
                 Hint = candidates.Count == 1 ? candidates[0].NewName + "  [" + candidates[0].Rule + "]" : "",
                 Site = site,
             });
+        }
+
+        /// <summary>
+        /// The target is there and the patch may still not bind to it, because Harmony matches by name.
+        /// </summary>
+        /// <remarks>
+        /// The only check here that runs on a member NOTHING is wrong with. A parameter rename changes no
+        /// type, no signature and no name a compiler resolves - and kills the patch anyway:
+        /// <c>Parameter "isOpen" not found in method void ShopInterface::SetIsOpen(bool open)</c>.
+        ///
+        /// What is collected is EVIDENCE, not a decision. Each installed mod's patch says which spelling it
+        /// wants; the injector renames only where the old one is wanted and the new one is not. See
+        /// <see cref="RenamedParameters"/> for why both cannot be right at once.
+        ///
+        /// Harmony's own injected names are skipped: they are its vocabulary, not the game's.
+        /// </remarks>
+        private static void Names(MethodDefinition target, List<MethodDefinition> patches, string site,
+                                  ModReport report)
+        {
+            if (patches == null || patches.Count == 0 || target == null) return;
+
+            string type = target.DeclaringType?.FullName;
+            if (type == null) return;
+
+            foreach (var entry in RenamedParameters.For(type, target.Name, target.Parameters.Count))
+            {
+                bool wantsOld = false, wantsNew = false;
+                foreach (var patch in patches)
+                foreach (var parameter in patch.Parameters)
+                {
+                    if (parameter.Name == null || parameter.Name.StartsWith("__", StringComparison.Ordinal))
+                        continue;
+                    if (parameter.Name == entry.OldName) wantsOld = true;
+                    if (parameter.Name == entry.NewName) wantsNew = true;
+                }
+                if (!wantsOld) continue;
+
+                if (wantsNew)
+                {
+                    report.Findings.Add(new Finding
+                    {
+                        Kind = "harmony-target",
+                        Scope = target.Module?.Assembly?.Name?.Name ?? "",
+                        Symbol = type + "::" + target.Name + "(" + entry.NewName + ")",
+                        Reason = $"this patch asks for the argument under both names, so neither can be "
+                               + $"put back; 0.4.6 renamed {entry.OldName} to {entry.NewName}",
+                        Site = site,
+                    });
+                    continue;
+                }
+
+                string key = Triage.RequestRename(new InteropAugmentor.ParameterRename
+                {
+                    InAssembly = target.Module?.Assembly?.Name?.Name,
+                    DeclaringType = type,
+                    Method = target.Name,
+                    ParameterCount = target.Parameters.Count,
+                    Index = entry.Index,
+                    Name = entry.OldName,
+                    WasCalled = entry.NewName,
+                    Because = entry.Because,
+                });
+
+                report.Findings.Add(new Finding
+                {
+                    Kind = "harmony-target",
+                    Scope = target.Module?.Assembly?.Name?.Name ?? "",
+                    Symbol = type + "::" + target.Name + "(" + entry.OldName + ")",
+                    Reason = $"the method is here and its argument was renamed to {entry.NewName}, which "
+                           + "Harmony matches on",
+                    Hint = "hand-written rule: " + entry.Because,
+                    RepairKey = key,
+                    Site = site,
+                });
+            }
         }
 
         private static TypeDefinition Base(TypeDefinition type, InteropIndex index)
