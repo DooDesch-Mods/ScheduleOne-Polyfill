@@ -36,6 +36,10 @@ namespace Polyfill.ModFixes
             new OverTheCounterHandover(),
             new ThmButtonCodes(),
             new BiggerTreesScale(),
+
+            // Last, and that is not cosmetic: it reads what other mods have patched, so it has to run
+            // after every one of them has had its turn.
+            new PatchesOnGrownOverloads(),
         };
 
         private static MelonPreferences_Entry<string> _disabled;
@@ -120,6 +124,11 @@ namespace Polyfill.ModFixes
         /// </remarks>
         private static string InstalledVersion(string name)
         {
+            // A fix for no mod in particular. Every other one repairs a named mod and must stand down when
+            // that mod is absent; this kind repairs whatever asked for a signature the game changed, and
+            // asking "is * installed" would switch it off on every machine.
+            if (name == "*") return "*";
+
             try
             {
                 foreach (var melon in MelonBase.RegisteredMelons)

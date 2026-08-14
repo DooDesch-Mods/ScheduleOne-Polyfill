@@ -29,6 +29,32 @@ namespace Polyfill.Bridges
         internal string Because;
         internal Func<ModuleDefinition, TypeDefinition, MethodDefinition> Emit;
 
+        /// <summary>
+        /// The old parameter types, by full name, when the count alone picks the wrong overload.
+        /// </summary>
+        /// <remarks>
+        /// A COUNT IS NOT A SIGNATURE, and treating it as one cost a mod. 0.4.6 added a trailing callback to
+        /// all THREE of StorageMenu's Opens, two of which took three arguments in different orders:
+        /// <c>Open(IItemSlotOwner, string, string)</c> and <c>Open(string, string, IItemSlotOwner)</c>. One
+        /// bridge was written, matched on the name and the count, and answered for both - so a mod calling
+        /// the second one got a method with the first one's parameters, which is not the method it asked
+        /// for. The repair was reported as applied and the mod stayed broken, which is the worst of the
+        /// three possible outcomes.
+        ///
+        /// Left null where the name carries one shape of that arity, which is nearly always.
+        /// </remarks>
+        internal string[] ParameterTypes;
+
+        /// <summary>Does this bridge answer for that exact call?</summary>
+        internal bool Fits(IReadOnlyList<string> parameterTypes)
+        {
+            if (ParameterTypes == null) return true;
+            if (parameterTypes == null || parameterTypes.Count != ParameterTypes.Length) return false;
+            for (int i = 0; i < ParameterTypes.Length; i++)
+                if (!string.Equals(ParameterTypes[i], parameterTypes[i], StringComparison.Ordinal)) return false;
+            return true;
+        }
+
         /// <summary>Which step wrote it. Filled in by the set it belongs to; never by hand.</summary>
         internal BridgeSet Set;
 
@@ -47,7 +73,17 @@ namespace Polyfill.Bridges
                 int dot = type.LastIndexOfAny(new[] { '.', '/' });
                 if (dot >= 0) type = type.Substring(dot + 1);
                 string name = (OldName ?? "").Replace("get_", "get-").Replace("set_", "set-");
-                return (type + "-" + name).ToLowerInvariant();
+                string id = (type + "-" + name).ToLowerInvariant();
+
+                // Two bridges for the same name need two names. The first parameter is what tells the
+                // StorageMenu Opens apart, and it is also what a person would say out loud.
+                if (ParameterTypes is { Length: > 0 })
+                {
+                    string first = ParameterTypes[0];
+                    int mark = first.LastIndexOfAny(new[] { '.', '/' });
+                    id += "-" + (mark >= 0 ? first.Substring(mark + 1) : first).ToLowerInvariant();
+                }
+                return id;
             }
         }
 
@@ -70,6 +106,37 @@ namespace Polyfill.Bridges
         /// <summary>Was this bridge read against the build that is running?</summary>
         internal bool Verified(GameVersion game)
             => Set == null || Set.VerifiedRange.Allows(game);
+    }
+
+    /// <summary>
+    /// A type the game renamed to something no rule could match it to.
+    /// </summary>
+    /// <remarks>
+    /// The automatic search matches a missing type against every type with the SAME SIMPLE NAME, which is
+    /// how a namespace move is found. It cannot find a rename: <c>MixingStationCanvas</c> and
+    /// <c>MixingStationInterface</c> share no name at all, and 0.4.6 renamed four station screens that way
+    /// in one pass while factoring their common parts into a base class.
+    ///
+    /// Naming the pair by hand is the whole repair, and it buys more than a resolvable type. The two
+    /// classes have the same members under the same names, so a Harmony patch aimed at
+    /// <c>MixingStationCanvas::Open</c> walks the shadow's base chain and lands on the real
+    /// <c>MixingStationInterface.Open(MixingStation)</c> - the mod's patch applies to the method the game
+    /// actually calls.
+    ///
+    /// What it does NOT buy is a member the rename dropped on the way. <c>Close(bool)</c> became
+    /// <c>Close()</c>, so a patch that names the old parameter list still finds nothing. That is a true
+    /// answer rather than a repair, and it is the reason this only ever states the pair and never claims
+    /// the members line up.
+    /// </remarks>
+    internal sealed class TypeRename
+    {
+        internal string Assembly;
+        internal string OldFullName;
+        internal string NewFullName;
+        internal string Because;
+
+        /// <summary>Which step wrote it. Filled in by the set it belongs to; never by hand.</summary>
+        internal BridgeSet Set;
     }
 
     /// <summary>
@@ -104,8 +171,28 @@ namespace Polyfill.Bridges
 
         internal abstract IEnumerable<Bridge> Declare();
 
+        /// <summary>The types this step renamed beyond what a name match can follow. Usually none.</summary>
+        internal virtual IEnumerable<TypeRename> DeclareRenames() => Array.Empty<TypeRename>();
+
         private List<Bridge> _bridges;
+        private List<TypeRename> _renames;
         private VersionRange _verified;
+
+        internal IReadOnlyList<TypeRename> Renames
+        {
+            get
+            {
+                if (_renames != null) return _renames;
+                _renames = new List<TypeRename>();
+                foreach (var rename in DeclareRenames())
+                {
+                    if (rename == null) continue;
+                    rename.Set = this;
+                    _renames.Add(rename);
+                }
+                return _renames;
+            }
+        }
 
         internal IReadOnlyList<Bridge> Bridges
         {

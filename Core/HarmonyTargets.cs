@@ -74,11 +74,27 @@ namespace Polyfill.Core
             if (declaring == null)
             {
                 string wanted = spec.DeclaringType?.FullName ?? spec.TypeName ?? "?";
+                string scope = spec.DeclaringType?.Scope?.Name ?? "";
+
+                // A RENAMED TYPE IS PUT BACK AS A CLASS DERIVING FROM THE NEW ONE, and a patch aimed at it
+                // then lands on the real method: Harmony resolves a name up the base chain, so
+                // MixingStationCanvas::Open finds MixingStationInterface.Open(MixingStation) - measured, the
+                // runtime reports that method as declared on MixingStationInterface. Saying the patch will
+                // not apply was true before that repair existed and is false now, which is worse than
+                // saying nothing.
+                var renamed = Bridges.Registry.FindType(scope, wanted);
+                var replacement = renamed == null ? null : index.FindType(scope, renamed.NewFullName);
+                if (replacement != null)
+                {
+                    Verify(spec, site, index, report, replacement, wanted);
+                    return;
+                }
+
                 var elsewhere = index.BySimpleName(SimpleNameOf(wanted));
                 report.Findings.Add(new Finding
                 {
                     Kind = "harmony-target",
-                    Scope = spec.DeclaringType?.Scope?.Name ?? "",
+                    Scope = scope,
                     Symbol = wanted + "::" + spec.MethodName,
                     Reason = "the patched type does not exist here, so this patch will not apply",
                     Hint = elsewhere.Count == 1 ? elsewhere[0].FullName : "",
@@ -87,6 +103,14 @@ namespace Polyfill.Core
                 return;
             }
 
+            Verify(spec, site, index, report, declaring, null);
+        }
+
+        /// <summary>The method half of the check, once the type it is on has been settled.</summary>
+        /// <param name="under">The name the mod used, when that is not the type being searched.</param>
+        private static void Verify(Spec spec, string site, InteropIndex index, ModReport report,
+                                   TypeDefinition declaring, string under)
+        {
             string name = Decorate(spec.MethodName, spec.MethodType);
             int argumentCount = spec.ArgumentTypes?.Count ?? -1;
 
@@ -97,19 +121,32 @@ namespace Polyfill.Core
                 return;                                   // the target is there
             }
 
+            // Inherited counts, because Harmony's own lookup walks the base chain. Without this, a patch
+            // aimed at a renamed screen was reported as dead while the runtime was resolving it fine.
+            for (var above = Base(declaring, index); above != null; above = Base(above, index))
+                foreach (var method in above.Methods)
+                    if (method.Name == name
+                        && (argumentCount < 0 || method.Parameters.Count == argumentCount))
+                        return;
+
             var candidates = NameHeuristics.ForMethod(declaring, name, null);
             report.Findings.Add(new Finding
             {
                 Kind = "harmony-target",
                 Scope = declaring.Module?.Assembly?.Name?.Name ?? "",
-                Symbol = declaring.FullName + "::" + name,
+                Symbol = (under ?? declaring.FullName) + "::" + name,
                 Reason = candidates.Count > 1
                     ? $"the patched method is gone; {candidates.Count} members could be meant, so none is chosen"
-                    : "the patched method is gone, so this patch will not apply",
+                    : under != null
+                        ? $"the type is put back as {declaring.Name}, which has no {name} to patch"
+                        : "the patched method is gone, so this patch will not apply",
                 Hint = candidates.Count == 1 ? candidates[0].NewName + "  [" + candidates[0].Rule + "]" : "",
                 Site = site,
             });
         }
+
+        private static TypeDefinition Base(TypeDefinition type, InteropIndex index)
+            => type?.BaseType == null ? null : Triage.Resolve(Triage.Root(type.BaseType), index);
 
         private static string SimpleNameOf(string fullName)
         {

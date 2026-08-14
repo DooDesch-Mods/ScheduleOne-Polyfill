@@ -208,31 +208,46 @@ namespace Polyfill.Core
                 if (Resolve(reference, index) != null) continue;
                 missing.Add(reference.FullName);
 
-                var elsewhere = index.BySimpleName(reference.Name);
                 string hint = "", reason = "type no longer exists in " + scope;
-
-                if (elsewhere.Count == 1)
-                {
-                    var found = elsewhere[0];
-                    hint = found.FullName + " in " + found.Module.Assembly.Name.Name;
-                    reason = "type moved";
-                }
-                else if (elsewhere.Count > 1)
-                {
-                    reason = $"type no longer exists in {scope}; {elsewhere.Count} types share the name "
-                           + $"{reference.Name}, so which one it became is not decidable here";
-                }
-
                 string repairKey = null;
-                if (elsewhere.Count == 1)
+                TypeDefinition became = null;
+
+                // A person naming the pair outranks a name that merely matches, for the same reason a
+                // bridge outranks a spelling rule on a member: one of the two was read out of both builds.
+                var renamed = Bridges.Registry.FindType(scope, reference.FullName);
+                if (renamed != null)
+                {
+                    became = index.FindType(scope, renamed.NewFullName);
+                    if (became != null) hint = "hand-written rule: " + renamed.Because;
+                    else reason = $"type no longer exists in {scope}, and {renamed.NewFullName} - what it "
+                                + "became in 0.4.6 - is not on this build either";
+                }
+
+                if (became == null && renamed == null)
+                {
+                    var elsewhere = index.BySimpleName(reference.Name);
+                    if (elsewhere.Count == 1)
+                    {
+                        became = elsewhere[0];
+                        hint = became.FullName + " in " + became.Module.Assembly.Name.Name;
+                        reason = "type moved";
+                    }
+                    else if (elsewhere.Count > 1)
+                    {
+                        reason = $"type no longer exists in {scope}; {elsewhere.Count} types share the name "
+                               + $"{reference.Name}, so which one it became is not decidable here";
+                    }
+                }
+
+                if (became != null)
                 {
                     var forward = new InteropAugmentor.TypeForward
                     {
                         InAssembly = scope,
                         Namespace = reference.Namespace,
                         Name = reference.Name,
-                        TargetAssembly = elsewhere[0].Module.Assembly.Name.Name,
-                        TargetFullName = elsewhere[0].FullName,
+                        TargetAssembly = became.Module.Assembly.Name.Name,
+                        TargetFullName = became.FullName,
                     };
                     _forwards.Add(forward);
                     repairKey = forward.Key;
@@ -268,8 +283,8 @@ namespace Polyfill.Core
                 // A library break is a different repair from a game break - the game's missing names go back
                 // into the interop assemblies, a library's cannot - so the two are never one finding kind.
                 string prefix = index.Kind(scope) == "game" ? "" : "library-";
-                if (reference is MethodReference method) CheckMethod(method, declaring, scope, prefix, report);
-                else if (reference is FieldReference field) CheckField(field, declaring, scope, prefix, report);
+                if (reference is MethodReference method) CheckMethod(method, declaring, scope, prefix, report, index);
+                else if (reference is FieldReference field) CheckField(field, declaring, scope, prefix, report, index);
             }
         }
 
@@ -281,8 +296,74 @@ namespace Polyfill.Core
             return false;
         }
 
+        /// <summary>
+        /// The type a member could be declared on: itself, then everything it inherits from.
+        /// </summary>
+        /// <remarks>
+        /// A MEMBER ON A BASE TYPE IS NOT MISSING, and not walking here made Polyfill invent breakage. 0.4.6
+        /// moved <c>ID</c>, <c>Name</c>, <c>Icon</c> and five more off <c>ItemDefinition</c> onto
+        /// <c>Core.Items.Framework.BaseItemDefinition</c> - a base class in ANOTHER assembly. The CLR
+        /// resolves a member reference by walking the hierarchy, so every one of those calls still works;
+        /// only this analysis, which looked at the named type and stopped, said otherwise. Four mods in a
+        /// single reported run were marked "blocked" for members that were never gone.
+        ///
+        /// The same shape repeats where the game factors a base out: <c>StationInterface&lt;T&gt;</c> took
+        /// <c>_canvas</c> from every station screen in 0.4.6.
+        ///
+        /// Generic bases are unwrapped to the open type, which is where the members are declared -
+        /// <c>PackagingStationCanvas : StationInterface&lt;PackagingStationCanvas&gt;</c> answers about
+        /// <c>StationInterface`1</c>. The visited set is not paranoia about real hierarchies but about
+        /// hand-edited metadata, which this reads without trusting.
+        /// </remarks>
+        private static IEnumerable<TypeDefinition> Chain(TypeDefinition type, InteropIndex index)
+        {
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            for (var current = type; current != null; )
+            {
+                if (!seen.Add(current.FullName)) yield break;
+                yield return current;
+
+                if (current.BaseType == null) yield break;
+                current = Resolve(Root(current.BaseType), index);
+            }
+        }
+
+        /// <summary>The base type that carries this member under this exact signature, or null.</summary>
+        private static TypeDefinition Inherits(TypeDefinition declaring, MethodReference wanted,
+                                               InteropIndex index)
+        {
+            bool first = true;
+            foreach (var type in Chain(declaring, index))
+            {
+                if (first) { first = false; continue; }          // the type itself was already asked
+                foreach (var method in type.Methods)
+                    if (method.Name == wanted.Name && NameHeuristics.SameParameters(wanted, method))
+                        return type;
+            }
+            return null;
+        }
+
+        /// <summary>What a base type has that looks like the member, phrased for the report, or null.</summary>
+        private static string Nearby(TypeDefinition declaring, string name, InteropIndex index)
+        {
+            bool first = true;
+            foreach (var type in Chain(declaring, index))
+            {
+                if (first) { first = false; continue; }
+
+                foreach (var method in type.Methods)
+                    if (method.Name == name)
+                        return $"{type.Name} has {name} under different parameters";
+
+                var hits = NameHeuristics.ForMethod(type, name, null);
+                if (hits.Count == 1)
+                    return $"{type.Name} has {hits[0].NewName}";
+            }
+            return null;
+        }
+
         private static void CheckMethod(MethodReference wanted, TypeDefinition declaring, string scope,
-                                        string kindPrefix, ModReport report)
+                                        string kindPrefix, ModReport report, InteropIndex index)
         {
             bool nameExists = false;
             foreach (var method in declaring.Methods)
@@ -291,6 +372,11 @@ namespace Polyfill.Core
                 nameExists = true;
                 if (NameHeuristics.SameParameters(wanted, method)) return;   // still there, unchanged
             }
+
+            // Inherited counts as present: the runtime finds it, so there is nothing to repair and nothing
+            // to report. Asked before any candidate is looked for, because a base that HAS the member makes
+            // every candidate on the derived type wrong by definition.
+            if (Inherits(declaring, wanted, index) != null) return;
 
             var hits = NameHeuristics.ForMethod(declaring, wanted.Name, wanted);
             string hint = hits.Count == 1 ? hits[0].NewName + "  [" + hits[0].Rule + "]" : "";
@@ -307,8 +393,9 @@ namespace Polyfill.Core
             // therefore enough to silence the one source that actually knew, and the mod stayed broken while
             // the report said a candidate existed.
             string repairKey = null;
+            var parameterTypes = ParameterTypes(wanted);
             var authored = kindPrefix.Length == 0
-                ? Bridges.Registry.Find(scope, declaring.FullName, wanted.Name, parameters)
+                ? Bridges.Registry.Find(scope, declaring.FullName, wanted.Name, parameters, parameterTypes)
                 : null;
 
             if (authored != null)
@@ -321,6 +408,7 @@ namespace Polyfill.Core
                     OldName = wanted.Name,
                     NewName = null,
                     ParameterCount = parameters,
+                    ParameterTypes = parameterTypes,
                     Rule = "curated",
                 });
             }
@@ -370,6 +458,17 @@ namespace Polyfill.Core
                     ? $"method missing; {hits.Count} members could be meant, so none is chosen"
                     : "method missing, with nothing on this type to point at";
 
+            // A candidate one level up is named even though it is not repaired here. The forward would have
+            // to call a member of a generic base instantiation - PackagingStationCanvas inherits _canvas
+            // from StationInterface<PackagingStationCanvas> - which this does not build. Saying WHERE the
+            // value went is still most of the answer for whoever fixes the mod, and it is the difference
+            // between "gone" and "on the base class under a different name".
+            if (!nameExists && string.IsNullOrEmpty(hint))
+            {
+                string onBase = Nearby(declaring, wanted.Name, index);
+                if (onBase != null) reason += "; the base type " + onBase;
+            }
+
             report.Findings.Add(new Finding
             {
                 Kind = kindPrefix + "member", Scope = scope,
@@ -379,10 +478,13 @@ namespace Polyfill.Core
         }
 
         private static void CheckField(FieldReference wanted, TypeDefinition declaring, string scope,
-                                       string kindPrefix, ModReport report)
+                                       string kindPrefix, ModReport report, InteropIndex index)
         {
-            foreach (var field in declaring.Fields)
-                if (field.Name == wanted.Name) return;
+            // Base types included, for the same reason as methods: the runtime resolves a field reference up
+            // the hierarchy, so a field the game moved onto a base class was never missing.
+            foreach (var type in Chain(declaring, index))
+                foreach (var field in type.Fields)
+                    if (field.Name == wanted.Name) return;
 
             var hits = NameHeuristics.ForField(declaring, wanted.Name);
             string hint = hits.Count == 1 ? hits[0].NewName + "  [" + hits[0].Rule + "]" : "";
@@ -432,6 +534,16 @@ namespace Polyfill.Core
             if (fromIndex != null) return fromIndex;
 
             try { return reference.Resolve(); } catch { return null; }
+        }
+
+        /// <summary>The parameter types of a call, by full name, in order.</summary>
+        private static string[] ParameterTypes(MethodReference method)
+        {
+            if (method?.Parameters == null) return Array.Empty<string>();
+            var names = new string[method.Parameters.Count];
+            for (int i = 0; i < names.Length; i++)
+                names[i] = method.Parameters[i].ParameterType?.FullName ?? "?";
+            return names;
         }
 
         private static string Signature(MethodReference method)
