@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.9.5] - 2026-08-14
+
+### Changed
+- Schedule I 0.4.6f13 is a build these repairs have been read against, so they stop reporting themselves
+  as unchecked on it. Nothing 0.4.6f13 changed is anything they touch.
+
 ## [0.9.4] - 2026-08-14
 
 ### Fixed

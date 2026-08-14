@@ -29,8 +29,20 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         /// there and none of this is needed.</summary>
         internal override string From => "0.4.6f5";
 
-        /// <summary>Read against 0.4.6f12. Newer than that they still run, and say they were not checked.</summary>
-        internal override string VerifiedTo => "0.4.6f12";
+        /// <summary>
+        /// Read against 0.4.6f13. Newer than that they still run, and say they were not checked.
+        /// </summary>
+        /// <remarks>
+        /// Moved from f12 on evidence rather than on a green boot. Steam shipped f13 mid-session, all 32
+        /// bridges still emitted, and the decompiled diff f11..f13 was read for every file these rules
+        /// cite: 40 files changed and not one of them is a bridge target. The three that came closest are
+        /// worth naming, because "it still compiles" is not the standard here -
+        /// <c>Player.cs</c> tightened a ServerRpc's ownership, <c>PlayerInventory.cs</c> lost a Debug.Log,
+        /// and <c>PlayerCamera.SetCanLook</c> stopped returning early during a camera lerp. The last one is
+        /// a behaviour change in a method <c>Player.Activate</c> calls - and it applies equally to the
+        /// game's own callers, so the rebuilt body does what the original would have done on this build.
+        /// </remarks>
+        internal override string VerifiedTo => "0.4.6f13";
 
         internal override IEnumerable<Bridge> Declare() => All;
 
