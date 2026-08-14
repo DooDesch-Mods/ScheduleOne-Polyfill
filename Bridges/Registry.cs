@@ -55,6 +55,25 @@ namespace Polyfill.Bridges
         }
 
         /// <summary>
+        /// The rename written for this exact type, or null.
+        /// </summary>
+        /// <remarks>
+        /// Asked BEFORE the name search, for the reason the member pipeline puts a bridge first: a person
+        /// read both builds to write this, and a coincidence of spelling is not allowed to outvote that.
+        /// Whether the target is actually on the installed game is decided afterwards, by resolving it -
+        /// naming a pair is a claim about one update, not about the player's files.
+        /// </remarks>
+        internal static TypeRename FindType(string assembly, string oldFullName)
+        {
+            foreach (var set in Sets)
+                foreach (var rename in set.Renames)
+                    if (rename.OldFullName == oldFullName
+                        && string.Equals(rename.Assembly, assembly, StringComparison.OrdinalIgnoreCase))
+                        return rename;
+            return null;
+        }
+
+        /// <summary>
         /// What to say once, at startup, on a build newer than anything here was read against.
         /// </summary>
         /// <remarks>

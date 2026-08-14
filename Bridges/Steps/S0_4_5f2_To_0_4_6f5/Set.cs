@@ -34,6 +34,55 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
 
         internal override IEnumerable<Bridge> Declare() => All;
 
+        internal override IEnumerable<TypeRename> DeclareRenames() => Renamed_;
+
+        private const string Stations = "Il2CppScheduleOne.UI.Stations.";
+
+        private const string StationSweep = "0.4.6 factored the station screens onto a shared "
+                                          + "StationInterface<T> base and renamed the four that still said "
+                                          + "Canvas; same members, same namespace, one word different";
+
+        /// <summary>
+        /// Types the game renamed outright, which no name match can follow.
+        /// </summary>
+        /// <remarks>
+        /// Four station screens plus the handover price control. All five are one-word renames within the
+        /// same namespace, verified against both API dumps rather than guessed from the spelling: the old
+        /// name exists in 0.4.5f2 and not in 0.4.6f12, the new one the other way round, and the members
+        /// line up.
+        ///
+        /// <c>HandoverScreenPriceSelector</c> is the odd one and worth the note: it did not just get a
+        /// name, it got a JOB. The class stopped being about prices and became the game's general amount
+        /// box, so <c>Price</c> is <c>SelectedAmount</c> and <c>SetPrice</c> is <c>SetAmount</c>. The type
+        /// resolving is what lets a mod's method compile at all; the members under their old names are a
+        /// separate question this does not answer.
+        /// </remarks>
+        private static readonly List<TypeRename> Renamed_ = new()
+        {
+            Renames(Stations + "MixingStationCanvas",    Stations + "MixingStationInterface"),
+            Renames(Stations + "ChemistryStationCanvas", Stations + "ChemistryStationInterface"),
+            Renames(Stations + "CauldronCanvas",         Stations + "CauldronInterface"),
+            Renames(Stations + "DryingRackCanvas",       Stations + "DryingRackInterface"),
+
+            new TypeRename
+            {
+                Assembly = "Assembly-CSharp",
+                OldFullName = "Il2CppScheduleOne.UI.Handover.HandoverScreenPriceSelector",
+                NewFullName = "Il2CppScheduleOne.UI.AmountSelector",
+                Because = "the price control became the game's general amount box in 0.4.6 and moved out "
+                        + "of the handover namespace; HandoverScreen.PriceSelector is an AmountSelector now",
+            },
+        };
+
+        private static TypeRename Renames(string oldFullName, string newFullName)
+            => new()
+            {
+                Assembly = "Assembly-CSharp",
+                OldFullName = oldFullName,
+                NewFullName = newFullName,
+                Because = StationSweep,
+            };
+
         /// <summary>The label every stack entry Polyfill pushes is filed under, so it can be found again.</summary>
         internal const string StackLabel = "Polyfill";
 
@@ -62,6 +111,15 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                                      + "lost its old name in Inventory.cs";
         private const string Pickpocket = "NPCInventory.cs:47 until 0.4.5f2, now Inventory.CanBePickpocketed, "
                                         + "read at NPCInventory.cs:372";
+
+        private const string Counteroffer = "Il2CppScheduleOne.UI.Phone.CounterofferInterface";
+
+        private static readonly string[] PriceSelector = { "PriceSelector" };
+        private static readonly string[] DealerData = { "DealerData" };
+
+        private const string PriceBox = "CounterofferInterface.cs:20 held the price box directly until "
+                                      + "0.4.5f2; 0.4.6 wraps it in an AmountSelector, whose _inputField "
+                                      + "is the same control (AmountSelector.cs:19)";
 
         private const string Emitter = "Il2CppScheduleOne.VoiceOver.VOEmitter";
         private const string Camera = "Il2CppScheduleOne.PlayerScripts.PlayerCamera";
@@ -140,6 +198,14 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             Moved(Inv, "RandomItems", Write, Inventory, "RandomizeInventory", Renamed),
             Moved(Inv, "CanBePickpocketed", Write, Inventory, "CanBePickpocketed", Pickpocket),
 
+            // The counteroffer screen kept its price box and changed what the box IS. Reported as
+            // "DealOptimizer generates errors over and over and the interface is blank", which is exactly
+            // what a MissingMethodException in the mod's Subscribe() looks like from the outside.
+            Moved(Counteroffer, "PriceInput", Read, PriceSelector, "_inputField", PriceBox),
+            Moved("Il2CppScheduleOne.Economy.Dealer", "DealerType", Read, DealerData, "DealerType",
+                  "Dealer.cs held the type itself until 0.4.5f2; 0.4.6 keeps every dealer-specific value "
+                + "on DealerNPCData and Dealer.DealerData is the way in"),
+
             // Members that were renamed past what a name rule can see: the new name shares no stem with the
             // old one, or it stopped being an accessor. Each one is a member of the same type holding the
             // same value, read out of both versions of the body.
@@ -152,6 +218,9 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                   + "assigned NPC and returns string.Empty for none, which is what the field held"),
             NowCalled("Il2CppScheduleOne.PlayerScripts.Health.PlayerHealth", "get_MAX_HEALTH", 0, "get_MaxHealth",
                     "the same constant, renamed to PascalCase (PlayerHealth.cs:18)"),
+            NowCalled("Il2CppScheduleOne.UI.StorageMenu", "get_CloseButton", 0, "get_CloseButtonContainer",
+                    "the same RectTransform, renamed when the button got its own container "
+                  + "(StorageMenu.cs:24)"),
 
             // Methods that gained a trailing parameter. The old form is genuinely gone while the name is
             // not, so these are the only rules allowed to add an overload.

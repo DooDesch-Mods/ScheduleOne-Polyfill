@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented here.
 
+## [0.8.0] - 2026-08-14
+
+### Fixed
+- The report stops naming members that were never gone. 0.4.6 moved eight of them onto base classes, where
+  the game finds them anyway; four mods in one report were called blocked over that alone.
+- Mods that patch the mixing, chemistry, cauldron or drying rack screen reach the game's method again.
+  0.4.6 renamed all four screens and Polyfill now knows what each became.
+- Lithium reads a dealer's type again. Since 0.4.6 it sits on `DealerData` rather than on the dealer.
+- DealOptimizer finds the counteroffer price box again. It became an `AmountSelector`, and the input field
+  inside it is the same control.
+- The storage menu's close button answers to its old name again. 0.4.6 calls it `CloseButtonContainer`.
+
+### Added
+- When a member moved to a base class under a new name, the report says which class and which name, so a
+  mod author has the answer rather than a dead end.
+
 ## [0.7.4] - 2026-08-14
 
 ### Fixed

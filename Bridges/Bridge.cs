@@ -73,6 +73,37 @@ namespace Polyfill.Bridges
     }
 
     /// <summary>
+    /// A type the game renamed to something no rule could match it to.
+    /// </summary>
+    /// <remarks>
+    /// The automatic search matches a missing type against every type with the SAME SIMPLE NAME, which is
+    /// how a namespace move is found. It cannot find a rename: <c>MixingStationCanvas</c> and
+    /// <c>MixingStationInterface</c> share no name at all, and 0.4.6 renamed four station screens that way
+    /// in one pass while factoring their common parts into a base class.
+    ///
+    /// Naming the pair by hand is the whole repair, and it buys more than a resolvable type. The two
+    /// classes have the same members under the same names, so a Harmony patch aimed at
+    /// <c>MixingStationCanvas::Open</c> walks the shadow's base chain and lands on the real
+    /// <c>MixingStationInterface.Open(MixingStation)</c> - the mod's patch applies to the method the game
+    /// actually calls.
+    ///
+    /// What it does NOT buy is a member the rename dropped on the way. <c>Close(bool)</c> became
+    /// <c>Close()</c>, so a patch that names the old parameter list still finds nothing. That is a true
+    /// answer rather than a repair, and it is the reason this only ever states the pair and never claims
+    /// the members line up.
+    /// </remarks>
+    internal sealed class TypeRename
+    {
+        internal string Assembly;
+        internal string OldFullName;
+        internal string NewFullName;
+        internal string Because;
+
+        /// <summary>Which step wrote it. Filled in by the set it belongs to; never by hand.</summary>
+        internal BridgeSet Set;
+    }
+
+    /// <summary>
     /// Every bridge written for one step of the game, and the gate they share.
     /// </summary>
     /// <remarks>
@@ -104,8 +135,28 @@ namespace Polyfill.Bridges
 
         internal abstract IEnumerable<Bridge> Declare();
 
+        /// <summary>The types this step renamed beyond what a name match can follow. Usually none.</summary>
+        internal virtual IEnumerable<TypeRename> DeclareRenames() => Array.Empty<TypeRename>();
+
         private List<Bridge> _bridges;
+        private List<TypeRename> _renames;
         private VersionRange _verified;
+
+        internal IReadOnlyList<TypeRename> Renames
+        {
+            get
+            {
+                if (_renames != null) return _renames;
+                _renames = new List<TypeRename>();
+                foreach (var rename in DeclareRenames())
+                {
+                    if (rename == null) continue;
+                    rename.Set = this;
+                    _renames.Add(rename);
+                }
+                return _renames;
+            }
+        }
 
         internal IReadOnlyList<Bridge> Bridges
         {
