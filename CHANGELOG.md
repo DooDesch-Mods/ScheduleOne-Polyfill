@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here.
 
+## [0.9.4] - 2026-08-14
+
+### Fixed
+- The manager clipboard in Over The Counter answers the interact key again. It was listening on the key
+  0.4.6 moved its button to, so the prompt appeared and nothing happened.
+- NPCs stop going unresponsive after you trade with them. The storage window lost the event a mod uses to
+  put them back, so its cleanup never ran.
+
 ## [0.9.3] - 2026-08-14
 
 ### Fixed
