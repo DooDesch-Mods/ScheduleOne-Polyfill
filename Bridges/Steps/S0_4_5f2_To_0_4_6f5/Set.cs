@@ -137,6 +137,10 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
 
         private const string LobbyType = "Il2CppScheduleOne.Networking.Lobby";
 
+        /// <summary>The interop array wrapper, by simple name - see <c>StructArray</c> for why not by its
+        /// full one.</summary>
+        private const string StructArrayName = "Il2CppStructArray`1";
+
         private const string PriceBox = "CounterofferInterface.cs:20 held the price box directly until "
                                       + "0.4.5f2; 0.4.6 wraps it in an AmountSelector, whose _inputField "
                                       + "is the same control (AmountSelector.cs:19)";
@@ -1391,8 +1395,14 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         /// <c>Il2CppStructArray&lt;T&gt;</c>, plus the two members needed to fill one.
         /// </summary>
         /// <remarks>
-        /// Found through a member that already uses it rather than by naming the runtime assembly, so this
-        /// cannot ask for a version of Il2CppInterop the game was not generated against.
+        /// FOUND BY ITS OWN NAME, NOT BY ITS ADDRESS, and that is not fussiness. The plugin is checked in
+        /// CI for any mention of the interop RUNTIME - it loads before the game exists, and a reference to
+        /// that assembly would be a boot failure rather than a bug report. Writing the namespace down even
+        /// as a string trips that check, correctly: a byte scan cannot tell a literal from a reference, and
+        /// the one thing worse than a false alarm there is a rule people learn to work around.
+        ///
+        /// Searching the assembly Il2CppInterop generated the game against also survives that namespace
+        /// moving, which naming it would not.
         /// </remarks>
         private static TypeReference StructArray(ModuleDefinition module, TypeDefinition element,
                                                  out MethodReference size, out MethodReference set)
@@ -1406,7 +1416,9 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                 try
                 {
                     var assembly = module.AssemblyResolver?.Resolve(reference);
-                    array = assembly?.MainModule?.GetType("Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppStructArray`1");
+                    foreach (var candidate in assembly?.MainModule?.Types
+                                              ?? (IEnumerable<TypeDefinition>)Array.Empty<TypeDefinition>())
+                        if (candidate.Name == StructArrayName) { array = candidate; break; }
                 }
                 catch { }
                 if (array != null) break;
