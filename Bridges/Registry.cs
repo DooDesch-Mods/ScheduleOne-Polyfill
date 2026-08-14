@@ -44,14 +44,35 @@ namespace Polyfill.Bridges
         /// Matched on all four parts and nothing fuzzy: a bridge is a person's decision about one member,
         /// and a decision that spreads to a member nobody looked at is not the same decision.
         /// </remarks>
-        internal static Bridge Find(string assembly, string declaringType, string oldName, int parameterCount)
+        /// <param name="parameterTypes">The types the caller actually named, when they are known. A bridge
+        /// that declares its own is skipped unless they line up - see <see cref="Bridge.ParameterTypes"/>
+        /// for the overload this exists to keep apart.</param>
+        internal static Bridge Find(string assembly, string declaringType, string oldName, int parameterCount,
+                                    IReadOnlyList<string> parameterTypes = null)
         {
+            Bridge loose = null;
             foreach (var bridge in Bridges())
-                if (bridge.OldName == oldName && bridge.DeclaringType == declaringType
-                    && bridge.ParameterCount == parameterCount
-                    && string.Equals(bridge.Assembly, assembly, StringComparison.OrdinalIgnoreCase))
-                    return bridge;
-            return null;
+            {
+                if (bridge.OldName != oldName || bridge.DeclaringType != declaringType
+                    || bridge.ParameterCount != parameterCount
+                    || !string.Equals(bridge.Assembly, assembly, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                if (bridge.ParameterTypes == null) { loose ??= bridge; continue; }
+                if (bridge.Fits(parameterTypes)) return bridge;
+            }
+
+            // A bridge that names its parameters and does not fit is a REFUSAL, not a miss: it is the same
+            // name and arity, so falling back to one that says nothing about its parameters would hand back
+            // exactly the wrong-overload answer this signature check exists to stop.
+            if (parameterTypes != null)
+                foreach (var bridge in Bridges())
+                    if (bridge.OldName == oldName && bridge.DeclaringType == declaringType
+                        && bridge.ParameterCount == parameterCount && bridge.ParameterTypes != null
+                        && string.Equals(bridge.Assembly, assembly, StringComparison.OrdinalIgnoreCase))
+                        return null;
+
+            return loose;
         }
 
         /// <summary>

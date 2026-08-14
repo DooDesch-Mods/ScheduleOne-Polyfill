@@ -393,8 +393,9 @@ namespace Polyfill.Core
             // therefore enough to silence the one source that actually knew, and the mod stayed broken while
             // the report said a candidate existed.
             string repairKey = null;
+            var parameterTypes = ParameterTypes(wanted);
             var authored = kindPrefix.Length == 0
-                ? Bridges.Registry.Find(scope, declaring.FullName, wanted.Name, parameters)
+                ? Bridges.Registry.Find(scope, declaring.FullName, wanted.Name, parameters, parameterTypes)
                 : null;
 
             if (authored != null)
@@ -407,6 +408,7 @@ namespace Polyfill.Core
                     OldName = wanted.Name,
                     NewName = null,
                     ParameterCount = parameters,
+                    ParameterTypes = parameterTypes,
                     Rule = "curated",
                 });
             }
@@ -532,6 +534,16 @@ namespace Polyfill.Core
             if (fromIndex != null) return fromIndex;
 
             try { return reference.Resolve(); } catch { return null; }
+        }
+
+        /// <summary>The parameter types of a call, by full name, in order.</summary>
+        private static string[] ParameterTypes(MethodReference method)
+        {
+            if (method?.Parameters == null) return Array.Empty<string>();
+            var names = new string[method.Parameters.Count];
+            for (int i = 0; i < names.Length; i++)
+                names[i] = method.Parameters[i].ParameterType?.FullName ?? "?";
+            return names;
         }
 
         private static string Signature(MethodReference method)

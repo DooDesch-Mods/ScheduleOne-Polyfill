@@ -59,10 +59,10 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         /// </remarks>
         private static readonly List<TypeRename> Renamed_ = new()
         {
-            Renames(Stations + "MixingStationCanvas",    Stations + "MixingStationInterface"),
-            Renames(Stations + "ChemistryStationCanvas", Stations + "ChemistryStationInterface"),
-            Renames(Stations + "CauldronCanvas",         Stations + "CauldronInterface"),
-            Renames(Stations + "DryingRackCanvas",       Stations + "DryingRackInterface"),
+            Pair(Stations +"MixingStationCanvas",    Stations + "MixingStationInterface"),
+            Pair(Stations +"ChemistryStationCanvas", Stations + "ChemistryStationInterface"),
+            Pair(Stations +"CauldronCanvas",         Stations + "CauldronInterface"),
+            Pair(Stations +"DryingRackCanvas",       Stations + "DryingRackInterface"),
 
             new TypeRename
             {
@@ -74,7 +74,7 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             },
         };
 
-        private static TypeRename Renames(string oldFullName, string newFullName)
+        private static TypeRename Pair(string oldFullName, string newFullName)
             => new()
             {
                 Assembly = "Assembly-CSharp",
@@ -102,6 +102,17 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
 
         private static readonly string[] NoParameters = Array.Empty<string>();
 
+        private const string Storage = "Il2CppScheduleOne.UI.StorageMenu";
+        private const string Owner = "Il2CppScheduleOne.ItemFramework.IItemSlotOwner";
+        private const string Text = "System.String";
+        private static readonly object[] OneCallback = { null };
+
+        private const string Speed = "npc.NPCData.Movement, which is where NPCMovement's own getter reads "
+                                   + "it from (NPCMovement.cs:170-172)";
+
+        private const string StationCanvas = "0.4.6 pulled the canvas off every station screen into the "
+                                           + "shared StationInterface<T> base and renamed it _canvas";
+
         private const string NameSplit = "NPC.cs:63-69 until 0.4.5f2, now BasicInfo.cs:4-7";
         private const string Summon = "NPC.cs:116 until 0.4.5f2, now Interaction.cs:8 - and the game reads it "
                                     + "from there in NPCEnterableBuilding.cs:96";
@@ -116,6 +127,15 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
 
         private static readonly string[] PriceSelector = { "PriceSelector" };
         private static readonly string[] DealerData = { "DealerData" };
+
+        private const string Movement = "Il2CppScheduleOne.NPCs.NPCMovement";
+
+        /// <summary>NPCMovement is a component, so its path starts at its own back-reference to the NPC -
+        /// the same one its surviving getters use.</summary>
+        private static readonly string[] NpcSpeed = { "npc", "NPCData", "Movement" };
+        private static readonly string[] SupplierData = { "SupplierData" };
+
+        private const string LobbyType = "Il2CppScheduleOne.Networking.Lobby";
 
         private const string PriceBox = "CounterofferInterface.cs:20 held the price box directly until "
                                       + "0.4.5f2; 0.4.6 wraps it in an AmountSelector, whose _inputField "
@@ -202,6 +222,55 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             // "DealOptimizer generates errors over and over and the interface is blank", which is exactly
             // what a MissingMethodException in the mod's Subscribe() looks like from the outside.
             Moved(Counteroffer, "PriceInput", Read, PriceSelector, "_inputField", PriceBox),
+
+            // Walk and run speed became read-only views over the NPC's data object. Writing one wrote the
+            // value the getter still reads, so the write goes to the same place.
+            Moved(Movement, "WalkSpeed", Write, NpcSpeed, "WalkSpeed", Speed),
+            Moved(Movement, "RunSpeed", Write, NpcSpeed, "SprintSpeed", Speed),
+
+            Moved("Il2CppScheduleOne.Economy.Supplier", "OnlineShopItems", Read, SupplierData,
+                  "DeliveryShopListings",
+                  "the same PhoneShopInterface.Listing[]; 0.4.6 keeps it on SupplierNPCData and "
+                + "Supplier.SupplierData is the way in"),
+
+            // The station screens that KEPT their name still lost this one to the new shared base.
+            FromBase(Stations + "PackagingStationCanvas", "Canvas", "_canvas", StationCanvas),
+            FromBase(Stations + "BrickPressCanvas", "Canvas", "_canvas", StationCanvas),
+            FromBase(Stations + "LabOvenCanvas", "Canvas", "_canvas", StationCanvas),
+            FromBase(Stations + "MushroomSpawnStationInterface", "Canvas", "_canvas", StationCanvas),
+
+            // 0.4.6 put a service between the lobby and Steam and dropped every CSteamID off the public
+            // surface. The values themselves did not go anywhere - each one is still exactly derivable, and
+            // the first is derivable from the same expression 0.4.5f2 used.
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = LobbyType,
+                OldName = "get_LobbySteamID",
+                ParameterCount = 0,
+                Because = "Lobby.cs:59 until 0.4.5f2 was `new CSteamID(LobbyID)`, and LobbyID is still here",
+                Emit = EmitLobbySteamId,
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = LobbyType,
+                OldName = "get_LocalPlayerID",
+                ParameterCount = 0,
+                Because = "the field held this client's own Steam id, which is what SteamUser.GetSteamID() "
+                        + "answers; 0.4.6 stopped keeping a copy of it on Lobby",
+                Emit = EmitLocalPlayerId,
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = LobbyType,
+                OldName = "get_Players",
+                ParameterCount = 0,
+                Because = "the same ids, rebuilt from GetLobbyMemberIDs() - which SteamLobbyService.cs:178 "
+                        + "builds out of the very array this used to be",
+                Emit = EmitLobbyPlayers,
+            },
             Moved("Il2CppScheduleOne.Economy.Dealer", "DealerType", Read, DealerData, "DealerType",
                   "Dealer.cs held the type itself until 0.4.5f2; 0.4.6 keeps every dealer-specific value "
                 + "on DealerNPCData and Dealer.DealerData is the way in"),
@@ -226,11 +295,20 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             // not, so these are the only rules allowed to add an overload.
             Defaulted(Camera, "FreeMouse", NoParameters, new object[] { true }, Crosshair),
             Defaulted(Camera, "LockMouse", NoParameters, new object[] { true }, Crosshair),
-            Defaulted("Il2CppScheduleOne.UI.StorageMenu", "Open",
-                      new[] { "Il2CppScheduleOne.ItemFramework.IItemSlotOwner", "System.String", "System.String" },
-                      new object[] { null },
+            // ALL THREE Opens took a callback, and two of them take three arguments in different orders.
+            // Only the first was bridged, and because a bridge was matched on the name and the count alone,
+            // it answered for the other as well - so a mod calling Open(title, subtitle, owner) was handed
+            // Open(owner, title, subtitle) and threw MissingMethodException inside its own try/catch. That
+            // is Backpack's B key: "Error toggling backpack: Method not found" (Support #17).
+            Defaulted(Storage, "Open", new[] { Owner, Text, Text }, OneCallback,
                       "Open took a callback in 0.4.6 and the old three-argument form passed none "
                     + "(StorageMenu.cs:56)"),
+            Defaulted(Storage, "Open", new[] { Text, Text, Owner }, OneCallback,
+                      "the same callback, on the overload that names the storage last "
+                    + "(StorageMenu.cs:62)"),
+            Defaulted(Storage, "Open", new[] { "Il2CppScheduleOne.Storage.StorageEntity" }, OneCallback,
+                      "the same callback, on the overload that takes a storage entity "
+                    + "(StorageMenu.cs:50)"),
 
             new Bridge
             {
@@ -590,6 +668,9 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                 DeclaringType = declaringType,
                 OldName = name,
                 ParameterCount = leading.Length,
+                // The old parameter types ARE the caller's signature, so they double as the tie-break
+                // between two overloads of the same arity.
+                ParameterTypes = leading,
                 AllowOverload = true,
                 Because = because,
                 Emit = (module, type) => EmitWithDefaults(module, type, name, leading, defaults),
@@ -1114,6 +1195,353 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                 if (candidate.Name == "op_Equality" && candidate.Parameters.Count == 2)
                     return module.ImportReference(candidate);
             return null;
+        }
+
+        /// <summary><c>new CSteamID(this.LobbyID)</c> - the 0.4.5f2 body, unchanged.</summary>
+        private static MethodDefinition EmitLobbySteamId(ModuleDefinition module, TypeDefinition lobby)
+        {
+            var id = Getter(lobby, "LobbyID");
+            var steamId = SteamType(module, "CSteamID");
+            if (id == null || steamId == null) return null;
+
+            MethodDefinition constructor = null;
+            foreach (var candidate in steamId.Methods)
+                if (candidate.IsConstructor && candidate.Parameters.Count == 1
+                    && candidate.Parameters[0].ParameterType.MetadataType == MetadataType.UInt64)
+                    constructor = candidate;
+            if (constructor == null) return null;
+
+            var method = new MethodDefinition("get_LobbySteamID",
+                MethodAttributes.Public | MethodAttributes.HideBySig, module.ImportReference(steamId));
+
+            var il = method.Body.GetILProcessor();
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, module.ImportReference(id));
+            il.Emit(OpCodes.Newobj, module.ImportReference(constructor));
+            il.Emit(OpCodes.Ret);
+            return method;
+        }
+
+        /// <summary><c>SteamUser.GetSteamID()</c>, which is where the removed field's value came from.</summary>
+        private static MethodDefinition EmitLocalPlayerId(ModuleDefinition module, TypeDefinition lobby)
+        {
+            var user = SteamType(module, "SteamUser");
+            var steamId = SteamType(module, "CSteamID");
+            var get = Method(user, "GetSteamID", 0);
+            if (steamId == null || get == null || !get.IsStatic) return null;
+
+            var method = new MethodDefinition("get_LocalPlayerID",
+                MethodAttributes.Public | MethodAttributes.HideBySig, module.ImportReference(steamId));
+
+            var il = method.Body.GetILProcessor();
+            il.Emit(OpCodes.Call, module.ImportReference(get));
+            il.Emit(OpCodes.Ret);
+            return method;
+        }
+
+        /// <summary>
+        /// The lobby's Steam ids as an array again, rebuilt from the list that replaced it.
+        /// </summary>
+        /// <remarks>
+        /// <c>SteamLobbyService.cs:178-189</c> builds that list out of its own <c>CSteamID[]</c> by writing
+        /// <c>m_SteamID.ToString()</c> for every slot that is not <c>Nil</c>, so reading it back is the
+        /// inverse of one method rather than an interpretation of a design.
+        ///
+        /// ONE DIFFERENCE, AND IT IS WORTH STATING: the old array had a fixed length of four with empty
+        /// slots left as <c>CSteamID.Nil</c>, and this one has no holes. Every use of it filters those out
+        /// first - the game's own <c>PlayerCount</c> counted non-Nil entries - so a shorter array with the
+        /// same members is what the callers were computing anyway. What it is NOT is a stable slot index,
+        /// and a mod using <c>Players[2]</c> as "the third player's seat" would be reading something else.
+        ///
+        /// An id that does not parse is skipped rather than turned into zero: zero is <c>Nil</c>, and Nil
+        /// in a list of real players is a member that is not there.
+        /// </remarks>
+        private static MethodDefinition EmitLobbyPlayers(ModuleDefinition module, TypeDefinition lobby)
+        {
+            var ids = Method(lobby, "GetLobbyMemberIDs", 0);
+            var steamId = SteamType(module, "CSteamID");
+            if (ids == null || steamId == null) return null;
+
+            // THE CALLS HAVE TO NAME List<string>, NOT List<T>. Cecil resolves the return type to the open
+            // definition, and a reference built from that describes a method on the open generic - which is
+            // not a method any instance can be called through. Building both against the instantiation the
+            // getter actually returns is the whole difference between IL that runs and IL that does not.
+            var listInstance = ids.ReturnType as GenericInstanceType;
+            var list = ids.ReturnType?.Resolve();
+            var countDefinition = Getter(list, "Count");
+            var itemDefinition = Method(list, "get_Item", 1);
+            if (listInstance == null || countDefinition == null || itemDefinition == null) return null;
+
+            var text = listInstance.GenericArguments[0];
+            var count = Against(module, countDefinition, module.ImportReference(listInstance));
+            var item = Against(module, itemDefinition, module.ImportReference(listInstance));
+            if (text.MetadataType != MetadataType.String) return null;
+
+            MethodDefinition constructor = null;
+            foreach (var candidate in steamId.Methods)
+                if (candidate.IsConstructor && candidate.Parameters.Count == 1
+                    && candidate.Parameters[0].ParameterType.MetadataType == MetadataType.UInt64)
+                    constructor = candidate;
+            if (constructor == null) return null;
+
+            var parse = TryParse(module);
+            var array = StructArray(module, steamId, out var arraySize, out var arraySet);
+            if (parse == null || array == null || arraySize == null || arraySet == null) return null;
+
+            var method = new MethodDefinition("get_Players",
+                MethodAttributes.Public | MethodAttributes.HideBySig, array);
+
+            var listSlot = new VariableDefinition(module.ImportReference(ids.ReturnType));
+            var resultSlot = new VariableDefinition(array);
+            var readSlot = new VariableDefinition(module.TypeSystem.Int32);
+            var writeSlot = new VariableDefinition(module.TypeSystem.Int32);
+            var valueSlot = new VariableDefinition(module.TypeSystem.UInt64);
+            foreach (var slot in new[] { listSlot, resultSlot, readSlot, writeSlot, valueSlot })
+                method.Body.Variables.Add(slot);
+            method.Body.InitLocals = true;
+
+            var il = method.Body.GetILProcessor();
+            var empty = il.Create(OpCodes.Ldnull);
+            var test = il.Create(OpCodes.Ldloc, readSlot);
+            var next = il.Create(OpCodes.Ldloc, readSlot);
+            var body = il.Create(OpCodes.Nop);
+
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(ids));
+            il.Emit(OpCodes.Stloc, listSlot);
+            il.Emit(OpCodes.Ldloc, listSlot);
+            il.Emit(OpCodes.Brfalse, empty);
+
+            // A list of n ids can yield at most n usable ones, so one allocation of that size is enough and
+            // the unused tail stays Nil - which is what the old array's spare slots held.
+            il.Emit(OpCodes.Ldloc, listSlot);
+            il.Emit(OpCodes.Callvirt, count);
+            il.Emit(OpCodes.Conv_I8);
+            il.Emit(OpCodes.Newobj, arraySize);
+            il.Emit(OpCodes.Stloc, resultSlot);
+
+            il.Emit(OpCodes.Br, test);
+            il.Append(body);
+            il.Emit(OpCodes.Ldloc, listSlot);
+            il.Emit(OpCodes.Ldloc, readSlot);
+            il.Emit(OpCodes.Callvirt, item);
+            il.Emit(OpCodes.Ldloca, valueSlot);
+            il.Emit(OpCodes.Call, parse);
+            il.Emit(OpCodes.Brfalse, next);
+
+            il.Emit(OpCodes.Ldloc, resultSlot);
+            il.Emit(OpCodes.Ldloc, writeSlot);
+            il.Emit(OpCodes.Ldloc, valueSlot);
+            il.Emit(OpCodes.Newobj, module.ImportReference(constructor));
+            il.Emit(OpCodes.Callvirt, arraySet);
+            il.Emit(OpCodes.Ldloc, writeSlot);
+            il.Emit(OpCodes.Ldc_I4_1);
+            il.Emit(OpCodes.Add);
+            il.Emit(OpCodes.Stloc, writeSlot);
+
+            il.Append(next);
+            il.Emit(OpCodes.Ldc_I4_1);
+            il.Emit(OpCodes.Add);
+            il.Emit(OpCodes.Stloc, readSlot);
+
+            il.Append(test);
+            il.Emit(OpCodes.Ldloc, listSlot);
+            il.Emit(OpCodes.Callvirt, count);
+            il.Emit(OpCodes.Blt, body);
+
+            il.Emit(OpCodes.Ldloc, resultSlot);
+            il.Emit(OpCodes.Ret);
+
+            il.Append(empty);
+            il.Emit(OpCodes.Ret);
+            return method;
+        }
+
+        /// <summary>A type out of the Steamworks interop assembly, or null when it is not installed.</summary>
+        private static TypeDefinition SteamType(ModuleDefinition module, string name)
+        {
+            foreach (var reference in module.AssemblyReferences)
+            {
+                if (reference.Name.IndexOf("steamworks", StringComparison.OrdinalIgnoreCase) < 0) continue;
+                try
+                {
+                    var assembly = module.AssemblyResolver?.Resolve(reference);
+                    var found = assembly?.MainModule?.GetType("Il2CppSteamworks." + name);
+                    if (found != null) return found;
+                }
+                catch { }
+            }
+            return null;
+        }
+
+        /// <summary><c>ulong.TryParse(string, out ulong)</c>.</summary>
+        private static MethodReference TryParse(ModuleDefinition module)
+        {
+            var type = module.TypeSystem.UInt64.Resolve();
+            if (type == null) return null;
+            foreach (var candidate in type.Methods)
+                if (candidate.Name == "TryParse" && candidate.IsStatic && candidate.Parameters.Count == 2
+                    && candidate.Parameters[0].ParameterType.MetadataType == MetadataType.String
+                    && candidate.Parameters[1].ParameterType.IsByReference)
+                    return module.ImportReference(candidate);
+            return null;
+        }
+
+        /// <summary>
+        /// <c>Il2CppStructArray&lt;T&gt;</c>, plus the two members needed to fill one.
+        /// </summary>
+        /// <remarks>
+        /// Found through a member that already uses it rather than by naming the runtime assembly, so this
+        /// cannot ask for a version of Il2CppInterop the game was not generated against.
+        /// </remarks>
+        private static TypeReference StructArray(ModuleDefinition module, TypeDefinition element,
+                                                 out MethodReference size, out MethodReference set)
+        {
+            size = null; set = null;
+
+            TypeDefinition array = null;
+            foreach (var reference in module.AssemblyReferences)
+            {
+                if (!reference.Name.StartsWith("Il2CppInterop", StringComparison.OrdinalIgnoreCase)) continue;
+                try
+                {
+                    var assembly = module.AssemblyResolver?.Resolve(reference);
+                    array = assembly?.MainModule?.GetType("Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppStructArray`1");
+                }
+                catch { }
+                if (array != null) break;
+            }
+            if (array == null || array.GenericParameters.Count != 1) return null;
+
+            var imported = module.ImportReference(array);
+            if (imported == null) return null;
+
+            var instance = new GenericInstanceType(imported);
+            instance.GenericArguments.Add(module.ImportReference(element));
+
+            MethodDefinition sizeDefinition = null, setDefinition = null;
+            foreach (var candidate in array.Methods)
+            {
+                if (candidate.IsConstructor && candidate.Parameters.Count == 1
+                    && candidate.Parameters[0].ParameterType.MetadataType == MetadataType.Int64)
+                    sizeDefinition = candidate;
+                if (candidate.Name == "set_Item" && candidate.Parameters.Count == 2)
+                    setDefinition = candidate;
+            }
+            if (sizeDefinition == null) return null;
+
+            // set_Item is declared on the base Il2CppArrayBase<T>, so look one level up when it is not here.
+            if (setDefinition == null)
+            {
+                TypeDefinition above = null;
+                try { above = array.BaseType?.Resolve(); } catch { }
+                if (above == null || above.GenericParameters.Count != 1) return null;
+
+                foreach (var candidate in above.Methods)
+                    if (candidate.Name == "set_Item" && candidate.Parameters.Count == 2) setDefinition = candidate;
+                if (setDefinition == null) return null;
+
+                var baseInstance = new GenericInstanceType(module.ImportReference(above));
+                baseInstance.GenericArguments.Add(module.ImportReference(element));
+                set = Against(module, setDefinition, baseInstance);
+            }
+            else set = Against(module, setDefinition, instance);
+
+            size = Against(module, sizeDefinition, instance);
+            return instance;
+        }
+
+        /// <summary>
+        /// The same method, named against a generic instantiation instead of the open type.
+        /// </summary>
+        /// <remarks>
+        /// THE SIGNATURE KEEPS T AND THE DECLARING TYPE CARRIES THE ARGUMENT. That is the metadata rule for
+        /// a member reference on a generic instance, and getting it backwards fails twice over. Substituting
+        /// by hand into the signature produced
+        /// <c>MissingMethodException: 'System.String List`1.get_Item(Int32)'</c> - the runtime looks for a
+        /// method whose signature says <c>!0</c> and finds none saying <c>System.String</c>. Importing the
+        /// bare parameter instead throws inside Cecil's own importer, which has no context to resolve it
+        /// against. So neither is touched: the types are taken from the definition exactly as written, and
+        /// only the owner is the instantiation.
+        /// </remarks>
+        private static MethodReference Against(ModuleDefinition module, MethodDefinition method,
+                                               TypeReference owner)
+        {
+            var reference = new MethodReference(method.Name, method.ReturnType, owner)
+            {
+                HasThis = method.HasThis,
+                ExplicitThis = method.ExplicitThis,
+                CallingConvention = method.CallingConvention,
+            };
+
+            foreach (var parameter in method.Parameters)
+                reference.Parameters.Add(new ParameterDefinition(parameter.ParameterType));
+            foreach (var parameter in method.GenericParameters)
+                reference.GenericParameters.Add(new GenericParameter(parameter.Name, reference));
+            return reference;
+        }
+
+        /// <summary>
+        /// The value moved up to a base class and took a new name with it.
+        /// </summary>
+        /// <remarks>
+        /// Inheritance alone needs no repair - the runtime walks the hierarchy, which is why an inherited
+        /// member is not reported missing at all. This is the case where the game ALSO renamed it on the
+        /// way up: 0.4.6 pulled <c>Canvas</c> off every station screen into
+        /// <c>StationInterface&lt;T&gt;._canvas</c>, so the old name resolves nowhere and the new one is not
+        /// on the type the mod names.
+        /// </remarks>
+        private static Bridge FromBase(string declaringType, string oldName, string baseName, string because)
+            => new()
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = declaringType,
+                OldName = "get_" + oldName,
+                ParameterCount = 0,
+                Because = because,
+                Emit = (module, type) => EmitFromBase(module, type, "get_" + oldName, "get_" + baseName),
+            };
+
+        /// <summary>
+        /// Emits <c>this.&lt;base&gt;.Target</c>, which is one instruction and one careful reference.
+        /// </summary>
+        /// <remarks>
+        /// THE BASE IS A GENERIC INSTANCE and that is the whole difficulty. <c>PackagingStationCanvas</c>
+        /// derives from <c>StationInterface&lt;PackagingStationCanvas&gt;</c>, so a call to the member has
+        /// to name that instantiation rather than the open type - the definition Cecil resolves to. Hence
+        /// the hand-built MethodReference against <c>type.BaseType</c>, which already carries the arguments.
+        ///
+        /// Refuses on anything it cannot state exactly: a target further than the immediate base under a
+        /// second set of generic arguments, or a value whose type IS a generic parameter. Both are
+        /// substitutions, and a substitution done wrong emits IL that verifies and returns the wrong thing.
+        /// </remarks>
+        private static MethodDefinition EmitFromBase(ModuleDefinition module, TypeDefinition type,
+                                                     string accessor, string target)
+        {
+            var baseReference = type?.BaseType;
+            if (baseReference == null) return null;
+
+            TypeDefinition baseType = null;
+            try { baseType = baseReference.Resolve(); } catch { }
+
+            var found = Method(baseType, target, 0);
+            if (found == null || found.IsStatic || found.ReturnType == null) return null;
+            if (found.ReturnType.ContainsGenericParameter) return null;
+
+            var returns = module.ImportReference(found.ReturnType);
+            var call = new MethodReference(found.Name, returns, module.ImportReference(baseReference))
+            {
+                HasThis = true,
+            };
+
+            var method = new MethodDefinition(accessor,
+                MethodAttributes.Public | MethodAttributes.HideBySig, returns);
+
+            var il = method.Body.GetILProcessor();
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, call);
+            il.Emit(OpCodes.Ret);
+            return method;
         }
 
         /// <summary>A getter on this type or anything it derives from.</summary>

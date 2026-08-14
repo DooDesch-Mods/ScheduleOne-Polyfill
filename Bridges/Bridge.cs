@@ -29,6 +29,32 @@ namespace Polyfill.Bridges
         internal string Because;
         internal Func<ModuleDefinition, TypeDefinition, MethodDefinition> Emit;
 
+        /// <summary>
+        /// The old parameter types, by full name, when the count alone picks the wrong overload.
+        /// </summary>
+        /// <remarks>
+        /// A COUNT IS NOT A SIGNATURE, and treating it as one cost a mod. 0.4.6 added a trailing callback to
+        /// all THREE of StorageMenu's Opens, two of which took three arguments in different orders:
+        /// <c>Open(IItemSlotOwner, string, string)</c> and <c>Open(string, string, IItemSlotOwner)</c>. One
+        /// bridge was written, matched on the name and the count, and answered for both - so a mod calling
+        /// the second one got a method with the first one's parameters, which is not the method it asked
+        /// for. The repair was reported as applied and the mod stayed broken, which is the worst of the
+        /// three possible outcomes.
+        ///
+        /// Left null where the name carries one shape of that arity, which is nearly always.
+        /// </remarks>
+        internal string[] ParameterTypes;
+
+        /// <summary>Does this bridge answer for that exact call?</summary>
+        internal bool Fits(IReadOnlyList<string> parameterTypes)
+        {
+            if (ParameterTypes == null) return true;
+            if (parameterTypes == null || parameterTypes.Count != ParameterTypes.Length) return false;
+            for (int i = 0; i < ParameterTypes.Length; i++)
+                if (!string.Equals(ParameterTypes[i], parameterTypes[i], StringComparison.Ordinal)) return false;
+            return true;
+        }
+
         /// <summary>Which step wrote it. Filled in by the set it belongs to; never by hand.</summary>
         internal BridgeSet Set;
 
@@ -47,7 +73,17 @@ namespace Polyfill.Bridges
                 int dot = type.LastIndexOfAny(new[] { '.', '/' });
                 if (dot >= 0) type = type.Substring(dot + 1);
                 string name = (OldName ?? "").Replace("get_", "get-").Replace("set_", "set-");
-                return (type + "-" + name).ToLowerInvariant();
+                string id = (type + "-" + name).ToLowerInvariant();
+
+                // Two bridges for the same name need two names. The first parameter is what tells the
+                // StorageMenu Opens apart, and it is also what a person would say out loud.
+                if (ParameterTypes is { Length: > 0 })
+                {
+                    string first = ParameterTypes[0];
+                    int mark = first.LastIndexOfAny(new[] { '.', '/' });
+                    id += "-" + (mark >= 0 ? first.Substring(mark + 1) : first).ToLowerInvariant();
+                }
+                return id;
             }
         }
 

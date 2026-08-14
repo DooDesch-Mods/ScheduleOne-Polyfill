@@ -60,13 +60,19 @@ namespace Polyfill.Core
             internal int ParameterCount;
             internal string Rule;            // which heuristic or rule proposed it, for the log
 
+            /// <summary>The parameter types the mod named, so a bridge can tell two overloads apart.</summary>
+            internal string[] ParameterTypes;
+
             /// <summary>
             /// Identity of the repair. The parameter count is part of it, and that is a fix rather than a
             /// detail: without it <c>Foo(int)</c> and <c>Foo(int, int)</c> are one key, the second is
             /// dropped as a duplicate, the mod that wanted it stays broken, and its report says "adaptable".
+            /// The types go in for the same reason one step further down: 0.4.6 left StorageMenu with two
+            /// three-argument <c>Open</c>s whose parameters are in different orders.
             /// </summary>
             internal string Key => "M|" + InAssembly + "!" + DeclaringType + "::" + OldName
-                                 + "/" + ParameterCount;
+                                 + "/" + ParameterCount
+                                 + (ParameterTypes == null ? "" : "(" + string.Join(",", ParameterTypes) + ")");
         }
 
         internal sealed class Result
@@ -333,7 +339,7 @@ namespace Polyfill.Core
             // No single successor - a hand-written rule builds the body instead.
             var rule = member.NewName == null
                 ? Bridges.Registry.Find(member.InAssembly, member.DeclaringType,
-                                    member.OldName, member.ParameterCount)
+                                    member.OldName, member.ParameterCount, member.ParameterTypes)
                 : null;
 
             if (rule == null || !rule.AllowOverload)
@@ -345,7 +351,19 @@ namespace Polyfill.Core
             {
                 if (rule == null) { Refuse(result, member, label, "nothing here knows what it became"); return false; }
 
-                var built = rule.Emit(module, type);
+                // ONE EMITTER MUST NOT COST THE ASSEMBLY. Refusing is a designed outcome and every emitter
+                // is written to return null for it - but a null it did not expect throws, the exception
+                // came out of Apply, and Assembly-CSharp was written back untouched. Measured: one bad
+                // emitter took 51 working repairs with it, and the log said only that the assembly was
+                // left alone. A throw is now the same thing as a null, plus the reason.
+                MethodDefinition built;
+                try { built = rule.Emit(module, type); }
+                catch (Exception e)
+                {
+                    Refuse(result, member, label, "the rule for it failed on this build: " + e.Message);
+                    MelonLoader.MelonLogger.Warning("[inject] " + label + " emitter threw:\n" + e);
+                    return false;
+                }
                 if (built == null)
                 { Refuse(result, member, label, "the rule for it needs members this build does not have"); return false; }
 

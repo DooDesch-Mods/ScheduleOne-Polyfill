@@ -5,18 +5,27 @@ All notable changes to this project are documented here.
 ## [0.8.0] - 2026-08-14
 
 ### Fixed
-- The report stops naming members that were never gone. 0.4.6 moved eight of them onto base classes, where
-  the game finds them anyway; four mods in one report were called blocked over that alone.
-- Mods that patch the mixing, chemistry, cauldron or drying rack screen reach the game's method again.
-  0.4.6 renamed all four screens and Polyfill now knows what each became.
-- Lithium reads a dealer's type again. Since 0.4.6 it sits on `DealerData` rather than on the dealer.
+- OG Backpack opens with B again. The storage window has three `Open` methods, all three grew an argument
+  in 0.4.6, and the repair answered for the wrong one.
+- Mods that patch the mixing or chemistry station screen work again. Those two and two more were renamed in
+  0.4.6, and a patch aimed at the old name now reaches the method the game calls.
+- StackPro talks to other players again. 0.4.6 took the Steam ids off the lobby, and all three are still
+  derivable from what it kept.
+- Lithium reads a dealer's type and an NPC's walking speed again, and its ATM screen patches apply.
 - DealOptimizer finds the counteroffer price box again. It became an `AmountSelector`, and the input field
   inside it is the same control.
-- The storage menu's close button answers to its old name again. 0.4.6 calls it `CloseButtonContainer`.
+
+### Changed
+- The report stops naming members that were never gone. 0.4.6 moved eight of them onto base classes, where
+  the game finds them anyway; four mods in one report were called blocked over that alone.
+- One repair that fails no longer costs the other fifty. An emitter that threw took the whole assembly with
+  it, and the log said only that it had been left alone.
 
 ### Added
 - When a member moved to a base class under a new name, the report says which class and which name, so a
-  mod author has the answer rather than a dead end.
+  mod author has an answer rather than a dead end.
+- `polyfillfixes` gains `patches-on-grown-overloads`, which moves a mod's patch onto the method the game
+  calls when the old signature only exists because Polyfill put it back.
 
 ## [0.7.4] - 2026-08-14
 

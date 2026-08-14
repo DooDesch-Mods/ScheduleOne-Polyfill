@@ -70,6 +70,11 @@ namespace Polyfill.Boot
                 Core.AliasDb.Load(LoggerInstance);
                 ModScan.Run(LoggerInstance);
 
+                // After the writing, before the first mod's PatchAll - the only window where both halves
+                // of a renamed type can be dealt with. See DeclaredMethodFallback for why the stand-in
+                // class alone leaves every Harmony patch on that name unregistered.
+                if (!DryRun) DeclaredMethodFallback.Install(LoggerInstance);
+
                 // Layer 2. Off under DryRun like everything else: it answers the same questions the same way,
                 // but it is still a change to a running game, and "repair nothing" has to mean nothing.
                 if (DryRun)
