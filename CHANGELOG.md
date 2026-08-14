@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here.
 
+## [0.9.6] - 2026-08-14
+
+### Fixed
+- Deal Optimizer reads and sets the handover price again, and asks a dealer how much of a product it has.
+  All three kept their meaning and lost their names.
+- Always Show Distances On Compass finds what a compass marker points at. 0.4.6f5 renamed it to
+  `TargetTransform`.
+
 ## [0.9.5] - 2026-08-14
 
 ### Changed

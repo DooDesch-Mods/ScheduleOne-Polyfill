@@ -170,6 +170,12 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         private static readonly string[] DealerData = { "DealerData" };
 
         private const string Movement = "Il2CppScheduleOne.NPCs.NPCMovement";
+        private const string Amount = "Il2CppScheduleOne.UI.AmountSelector";
+        private const string CompassElement = "Il2CppScheduleOne.UI.Compass.CompassManager/Element";
+
+        private const string PriceControl = "the handover price control became the game's general amount "
+                                          + "box in 0.4.6; Price is SelectedAmount and SetPrice is "
+                                          + "SetAmount, same values (AmountSelector.cs)";
 
         /// <summary>NPCMovement is a component, so its path starts at its own back-reference to the NPC -
         /// the same one its surviving getters use.</summary>
@@ -356,6 +362,21 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                     "the same RectTransform, renamed when the button got its own container "
                   + "(StorageMenu.cs:24)"),
             NowCalled(Inv, "get_PickpocketIntObj", 0, "get__interactable", Pickpocketed),
+
+            // The price control kept its two members and renamed both when it stopped being about prices.
+            NowCalled(Amount, "SetPrice", 1, "SetAmount", PriceControl),
+            NowCalled(Amount, "get_Price", 0, "get_SelectedAmount", PriceControl),
+
+            NowCalled(CompassElement, "get_Transform", 0, "get_TargetTransform",
+                    "CompassManager.cs:32 until 0.4.5f2 was a public Transform field; 0.4.6 makes it a "
+                  + "property the constructor fills from the same argument (CompassManager.cs:27-34)"),
+
+            NowCalled("Il2CppScheduleOne.Economy.Dealer", "GetProductCount", 3,
+                      "GetOrderableProductQuantity",
+                      "the same three parameters in the same order and the same int back, and Dealer.cs:625 "
+                    + "counts exactly what the old name says - the dealer's stock of one product within a "
+                    + "quality range. The rename is older than the version archive, so this is read from "
+                    + "the body rather than from a diff"),
 
             new Bridge
             {
