@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.9.3] - 2026-08-14
+
+### Fixed
+- Custom Commands Framework stops killing the game on startup. It reads every type in every loaded
+  assembly, and doing that to the game's generated ones ends the process with no error at all.
+
 ## [0.9.2] - 2026-08-14
 
 ### Fixed
