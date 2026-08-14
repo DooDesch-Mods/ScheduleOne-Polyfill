@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.7.4] - 2026-08-14
+
+### Fixed
+- The management clipboard really works now. 0.7.0 gave the deleted NPC selector screen a stand-in without
+  the one property the mod reads off it, so it threw a different error instead.
+
 ## [0.7.3] - 2026-08-14
 
 ### Added

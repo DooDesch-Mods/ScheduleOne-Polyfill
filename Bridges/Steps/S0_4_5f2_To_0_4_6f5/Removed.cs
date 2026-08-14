@@ -69,6 +69,27 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                 TypeAttributes.Public | TypeAttributes.Class | TypeAttributes.BeforeFieldInit,
                 module.ImportReference(module.TypeSystem.Object));
 
+            // AN EMPTY TYPE IS NOT ENOUGH, and shipping one cost a release. The caller reads the property
+            // off the result, and the CLR resolves that method when the CALLER is compiled - the null check
+            // in front of it is not reached and does not protect it:
+            //
+            //     NPCSelector npcselector = instance.NPCSelector;
+            //     if (npcselector != null && npcselector.IsOpen) return true;
+            //
+            // gave MissingMethodException: 'Boolean NPCSelector.get_IsOpen()'. So the stand-in carries the
+            // member it stands in for, answering the same thing the null did: the screen is not open.
+            var isOpen = new MethodDefinition("get_IsOpen",
+                MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName,
+                module.TypeSystem.Boolean);
+            var il = isOpen.Body.GetILProcessor();
+            il.Emit(OpCodes.Ldc_I4_0);
+            il.Emit(OpCodes.Ret);
+            stub.Methods.Add(isOpen);
+
+            var property = new PropertyDefinition("IsOpen", PropertyAttributes.None,
+                                                  module.TypeSystem.Boolean) { GetMethod = isOpen };
+            stub.Properties.Add(property);
+
             module.Types.Add(stub);
             return stub;
         }
