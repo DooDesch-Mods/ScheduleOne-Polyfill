@@ -39,6 +39,7 @@ namespace Polyfill.ModFixes
 
             // Last, and that is not cosmetic: these read what other mods have patched, so they have to run
             // after every one of them has had its turn.
+            new StorageMenuClosedEvent(),
             new PatchesOnGrownOverloads(),
             new SplitScreenPatches(),
         };

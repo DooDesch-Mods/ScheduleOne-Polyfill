@@ -344,6 +344,18 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                     "the same RectTransform, renamed when the button got its own container "
                   + "(StorageMenu.cs:24)"),
             NowCalled(Inv, "get_PickpocketIntObj", 0, "get__interactable", Pickpocketed),
+
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = Storage,
+                OldName = "get_onClosed",
+                ParameterCount = 0,
+                Because = "StorageMenu.cs:35 until 0.4.5f2 was a UnityEvent the menu fired when it closed; "
+                        + "0.4.6 keeps a private Action instead, which nothing can subscribe to from "
+                        + "outside - so the event is put back and Polyfill fires it",
+                Emit = EmitStorageClosedEvent,
+            },
             NowCalled(Inv, "set_PickpocketIntObj", 1, "set__interactable", Pickpocketed),
 
             // A method that LOST an argument, which is the mirror of the three above and needs its own
@@ -1548,6 +1560,85 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             foreach (var candidate in text.Methods)
                 if (candidate.Name == "op_Equality" && candidate.Parameters.Count == 2)
                     return module.ImportReference(candidate);
+            return null;
+        }
+
+        /// <summary>
+        /// The storage menu's closing event, put back as something a mod can subscribe to.
+        /// </summary>
+        /// <remarks>
+        /// A TYPE CHANGE RATHER THAN A RENAME, which is why no rule reaches it: <c>public UnityEvent
+        /// onClosed</c> became <c>private Action _onClosedCallback</c>, set by whoever calls Open. A mod
+        /// that subscribes and unsubscribes around its own screen has nothing to hold on to any more:
+        /// <code>
+        /// storageMenu.onClosed.AddListener(closeAction);          // OverTheCounter, ManagerSpawner
+        /// storageMenu.Open(inventory.Cast&lt;IItemSlotOwner&gt;(), text, "");
+        /// </code>
+        /// and the missing member throws inside the coroutine, so the cleanup in <c>closeAction</c> never
+        /// runs and the NPC it was interacting with stays stuck. Reported exactly that way: "they became
+        /// unresponsive".
+        ///
+        /// A STATIC EVENT IS THE RIGHT SHAPE HERE, and only because of what StorageMenu is: it derives from
+        /// <c>Singleton&lt;StorageMenu&gt;</c>, so there is one for the whole game and one event cannot be
+        /// confused with another's. A per-instance one would need a table keyed by the native pointer,
+        /// because two interop wrappers around the same object are different managed objects and a managed
+        /// field on one is invisible to the other.
+        ///
+        /// Firing it is the other half, and it lives in <c>ModFixes/StorageMenuClosedEvent.cs</c>: the game
+        /// no longer has anything that would.
+        /// </remarks>
+        private static MethodDefinition EmitStorageClosedEvent(ModuleDefinition module, TypeDefinition menu)
+        {
+            var unityEvent = Referenced(module, "UnityEngine.Events.UnityEvent");
+            if (unityEvent == null) return null;
+
+            MethodDefinition constructor = null;
+            foreach (var candidate in unityEvent.Methods)
+                if (candidate.IsConstructor && candidate.Parameters.Count == 0 && !candidate.IsStatic)
+                    constructor = candidate;
+            if (constructor == null || Method(unityEvent, "Invoke", 0) == null) return null;
+
+            var type = module.ImportReference(unityEvent);
+
+            // Named so it cannot collide with anything the game or a mod declares, and so a reader of the
+            // assembly can see at a glance that it is not the game's.
+            var field = new FieldDefinition("<polyfill>onClosed",
+                FieldAttributes.Public | FieldAttributes.Static, type);
+            menu.Fields.Add(field);
+
+            var method = new MethodDefinition("get_onClosed",
+                MethodAttributes.Public | MethodAttributes.HideBySig, type);
+
+            var il = method.Body.GetILProcessor();
+            var ready = il.Create(OpCodes.Ret);
+
+            il.Emit(OpCodes.Ldsfld, field);
+            il.Emit(OpCodes.Dup);
+            il.Emit(OpCodes.Brtrue, ready);
+            il.Emit(OpCodes.Pop);
+            il.Emit(OpCodes.Newobj, module.ImportReference(constructor));
+            il.Emit(OpCodes.Dup);
+            il.Emit(OpCodes.Stsfld, field);
+            il.Append(ready);
+            return method;
+        }
+
+        /// <summary>A type from one of the assemblies this module already references.</summary>
+        private static TypeDefinition Referenced(ModuleDefinition module, string fullName)
+        {
+            var here = module.GetType(fullName);
+            if (here != null) return here;
+
+            foreach (var reference in module.AssemblyReferences)
+            {
+                try
+                {
+                    var assembly = module.AssemblyResolver?.Resolve(reference);
+                    var found = assembly?.MainModule?.GetType(fullName);
+                    if (found != null) return found;
+                }
+                catch { }
+            }
             return null;
         }
 
