@@ -5,8 +5,8 @@ All notable changes to this project are documented here.
 ## [0.7.4] - 2026-08-14
 
 ### Fixed
-- The management clipboard really works now. 0.7.0 gave the deleted NPC selector screen a stand-in without
-  the one property the mod reads off it, so it threw a different error instead.
+- Another fix for the management clipboard: the stand-in for the deleted NPC selector screen was missing
+  the one property the mod reads off it.
 
 ## [0.7.3] - 2026-08-14
 
@@ -17,8 +17,8 @@ All notable changes to this project are documented here.
 ## [0.7.2] - 2026-08-13
 
 ### Fixed
-- Bella's handover screen really does list your options now. 0.7.1 checked the wrong thing: the screen
-  reads the customer's favourite drug with no count check, and hers has none.
+- Another fix for Bella's handover screen: it reads the customer's favourite drug with no count check,
+  and hers has none.
 
 ## [0.7.1] - 2026-08-13
 
