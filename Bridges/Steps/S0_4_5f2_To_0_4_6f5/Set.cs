@@ -113,6 +113,30 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         private const string StationCanvas = "0.4.6 pulled the canvas off every station screen into the "
                                            + "shared StationInterface<T> base and renamed it _canvas";
 
+        private const string Avatar = "Il2CppScheduleOne.AvatarFramework.Avatar";
+        private const string Number = "System.Single";
+
+        private const string Pickpocketed = "NPCInventory.cs:40 until 0.4.5f2; the same InteractableObject "
+                                          + "under the name the private field carries now, which "
+                                          + "NPCInventory.cs:338-348 sets the pickpocket state on";
+
+        /// <summary>
+        /// Why dropping <c>bodyOnly</c> is exact for the value everybody passes.
+        /// </summary>
+        /// <remarks>
+        /// The flag meant "stop before the accessories": 0.4.5f2 returned early at Avatar.cs:305 when it was
+        /// true, and otherwise ran the accessory loop below it. 0.4.6 has no flag and always runs that loop
+        /// (Avatar.cs:292-297), so the two-argument form IS the old <c>bodyOnly: false</c> - the default,
+        /// and what a call that names it explicitly almost always passes.
+        ///
+        /// The difference is worth stating rather than burying: a caller that passed TRUE now gets the
+        /// accessories shaped as well. That is the game's own behaviour on this build and not something
+        /// invented here, but it is more than the old call did.
+        /// </remarks>
+        private const string ShapeKeys = "bodyOnly stopped the method before the accessory loop; 0.4.6 "
+                                       + "dropped the flag and always runs that loop, so the two-argument "
+                                       + "form is what passing false always did (Avatar.cs:292-297)";
+
         private const string NameSplit = "NPC.cs:63-69 until 0.4.5f2, now BasicInfo.cs:4-7";
         private const string Summon = "NPC.cs:116 until 0.4.5f2, now Interaction.cs:8 - and the game reads it "
                                     + "from there in NPCEnterableBuilding.cs:96";
@@ -294,6 +318,12 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             NowCalled("Il2CppScheduleOne.UI.StorageMenu", "get_CloseButton", 0, "get_CloseButtonContainer",
                     "the same RectTransform, renamed when the button got its own container "
                   + "(StorageMenu.cs:24)"),
+            NowCalled(Inv, "get_PickpocketIntObj", 0, "get__interactable", Pickpocketed),
+            NowCalled(Inv, "set_PickpocketIntObj", 1, "set__interactable", Pickpocketed),
+
+            // A method that LOST an argument, which is the mirror of the three above and needs its own
+            // shape: the old form has one parameter too many rather than one too few.
+            Dropped(Avatar, "ApplyShapeKeys", new[] { Number, Number }, "System.Boolean", ShapeKeys),
 
             // Methods that gained a trailing parameter. The old form is genuinely gone while the name is
             // not, so these are the only rules allowed to add an overload.
@@ -679,6 +709,93 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                 Because = because,
                 Emit = (module, type) => EmitWithDefaults(module, type, name, leading, defaults),
             };
+
+        /// <summary>
+        /// The method a mod calls, still there, having stopped taking an argument it used to.
+        /// </summary>
+        /// <remarks>
+        /// The mirror of <see cref="Defaulted"/>, and it needs its own shape rather than a flag on that one:
+        /// there the old call is missing an argument the new method wants, here it has one the new method
+        /// will not take. Same consequence for the mod - the exact signature it names is gone - and the
+        /// opposite repair.
+        ///
+        /// Only ever correct when the argument's meaning did not move somewhere else, which is a reading of
+        /// both bodies and belongs in <paramref name="because"/>.
+        /// </remarks>
+        /// <param name="kept">The parameter types the new method still takes, by full name.</param>
+        /// <param name="dropped">The type of the trailing parameter the old form carried.</param>
+        private static Bridge Dropped(string declaringType, string name, string[] kept, string dropped,
+                                      string because)
+        {
+            var old = new string[kept.Length + 1];
+            Array.Copy(kept, old, kept.Length);
+            old[kept.Length] = dropped;
+
+            return new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = declaringType,
+                OldName = name,
+                ParameterCount = old.Length,
+                ParameterTypes = old,
+                AllowOverload = true,
+                Because = because,
+                Emit = (module, type) => EmitWithoutTrailing(module, type, name, kept, dropped),
+            };
+        }
+
+        /// <summary>Emits the old signature, calls the shorter one, and lets the last argument fall away.</summary>
+        private static MethodDefinition EmitWithoutTrailing(ModuleDefinition module, TypeDefinition type,
+                                                            string name, string[] kept, string dropped)
+        {
+            MethodDefinition target = null;
+            foreach (var candidate in type.Methods)
+            {
+                if (candidate.Name != name || candidate.Parameters.Count != kept.Length) continue;
+                bool matches = true;
+                for (int i = 0; i < kept.Length; i++)
+                    if (candidate.Parameters[i].ParameterType.FullName != kept[i]) { matches = false; break; }
+                if (!matches) continue;
+                if (target != null) return null;              // more than one; choosing would be a guess
+                target = candidate;
+            }
+            if (target == null || target.HasGenericParameters) return null;
+
+            var extra = module.GetType(dropped) ?? Find(module, dropped);
+            if (extra == null) return null;
+
+            var method = new MethodDefinition(name,
+                MethodAttributes.Public | MethodAttributes.HideBySig
+                    | (target.IsStatic ? MethodAttributes.Static : 0),
+                module.ImportReference(target.ReturnType));
+
+            foreach (var parameter in target.Parameters)
+                method.Parameters.Add(new ParameterDefinition(parameter.Name, ParameterAttributes.None,
+                                          module.ImportReference(parameter.ParameterType)));
+            method.Parameters.Add(new ParameterDefinition("dropped", ParameterAttributes.None,
+                                      module.ImportReference(extra)));
+
+            var il = method.Body.GetILProcessor();
+            if (!target.IsStatic) il.Emit(OpCodes.Ldarg_0);
+            for (int i = 0; i < kept.Length; i++)
+                il.Emit(OpCodes.Ldarg, method.Parameters[i]);
+            il.Emit(target.IsStatic ? OpCodes.Call : OpCodes.Callvirt, module.ImportReference(target));
+            il.Emit(OpCodes.Ret);
+            return method;
+        }
+
+        /// <summary>A type by full name, from this module or anything it references.</summary>
+        private static TypeReference Find(ModuleDefinition module, string fullName)
+        {
+            switch (fullName)
+            {
+                case "System.Boolean": return module.TypeSystem.Boolean;
+                case "System.Single": return module.TypeSystem.Single;
+                case "System.Int32": return module.TypeSystem.Int32;
+                case "System.String": return module.TypeSystem.String;
+            }
+            return null;
+        }
 
         /// <summary>A method with the target's signature under the old name, whose body is one call.</summary>
         private static MethodDefinition EmitCall(ModuleDefinition module, TypeDefinition type,
