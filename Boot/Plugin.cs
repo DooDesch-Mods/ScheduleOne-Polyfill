@@ -109,6 +109,22 @@ namespace Polyfill.Boot
         }
 
         /// <summary>
+        /// The one moment where every mod assembly is loaded and none of them has run yet.
+        /// </summary>
+        /// <remarks>
+        /// A guard around another mod's startup code can only be installed here. OnPreModsLoaded is too
+        /// early - the assembly is not loaded, so its type cannot be found - and a ModFix is far too late,
+        /// because those run on the first frame the game can answer them and the call being guarded happens
+        /// during OnInitializeMelon. Plugins are melons too, and they are initialised before mods.
+        /// </remarks>
+        public override void OnInitializeMelon()
+        {
+            if (!Enabled || DryRun) return;
+            try { InteropTypeSweep.Install(LoggerInstance, Core.InteropIndex.LocateDirectory()); }
+            catch (Exception e) { LoggerInstance.Warning("[sweep] " + e.Message); }
+        }
+
+        /// <summary>
         /// Carry out an undo the player asked for from inside the game, and repair nothing this launch.
         /// </summary>
         /// <remarks>
