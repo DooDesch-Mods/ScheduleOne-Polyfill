@@ -10,7 +10,7 @@ using UnityEngine;
 namespace Polyfill.ModFixes
 {
     /// <summary>
-    /// Stop OverTheCounter's drifters from being cloned out of an employee.
+    /// Stop OverTheCounter's drifters and managers from being cloned out of an employee.
     /// </summary>
     /// <remarks>
     /// OverTheCounter spawns its own NPCs to deal to. It looks for the spawnable prefab named
@@ -38,6 +38,12 @@ namespace Polyfill.ModFixes
     /// This picks a better one: the first spawnable NPC prefab that is NOT an employee. If there is no such
     /// prefab it changes nothing and says so - a drifter cloned from the wrong thing is a bug, and one
     /// cloned from a guess is a worse bug.
+    ///
+    /// THE SAME SEARCH EXISTS TWICE. <c>ManagerSpawner</c> has its own private <c>GetBasePrefab</c> with the
+    /// same body, so patching only <c>NpcSpawner</c> left every hired manager cloned from a cleaner. Nobody
+    /// noticed while hiring was failing earlier for a different reason; the moment that was repaired, the
+    /// identical NullReferenceException came back as "the clipboard freezes on the manager". Both are
+    /// patched now, and the id still says drifter because turning a fix off by name has to keep working.
     /// </remarks>
     internal sealed class OverTheCounterDrifterPrefab : Fix
     {
@@ -45,11 +51,12 @@ namespace Polyfill.ModFixes
         internal override string Mod => "OverTheCounter";
         internal override string ModVersions => "2.0.10";
         internal override string GameVersions => "*";
-        internal override string What => "the drifters stop being cloned out of an employee and throwing every tick";
+        internal override string What
+            => "the drifters and the managers stop being cloned out of an employee and throwing every tick";
 
         internal override string StandsDownBecause
-            => "OverTheCounter's drifters may be cloned from an employee prefab, which throws a "
-             + "NullReferenceException in Employee.UpdateBehaviour on every tick.";
+            => "OverTheCounter's drifters and hired managers may be cloned from an employee prefab, which "
+             + "throws a NullReferenceException in Employee.UpdateBehaviour on every tick.";
 
         private static MelonLogger.Instance _log;
         private static NetworkObject _replacement;
@@ -60,16 +67,33 @@ namespace Polyfill.ModFixes
         {
             _log = log;
 
-            var spawner = Find("OverTheCounter.Logic.NpcSpawner");
-            if (spawner == null)
-            { log.Warning("[fix] otc-drifter-prefab: NpcSpawner is not where it was."); return false; }
+            // TWO CLASSES, THE SAME SEARCH, AND ONLY ONE WAS PATCHED. ManagerSpawner carries its own private
+            // GetBasePrefab with the same body as NpcSpawner's, so a manager was still being built out of an
+            // employee long after the drifters stopped being. It only became visible once hiring a manager
+            // worked at all, which took a separate repair - and then the same NullReferenceException came
+            // back under a different name.
+            int patched = 0;
+            foreach (string owner in new[] { "OverTheCounter.Logic.NpcSpawner",
+                                             "OverTheCounter.Logic.ManagerSpawner" })
+            {
+                var spawner = Find(owner);
+                if (spawner == null) continue;
 
-            var target = AccessTools.Method(spawner, "GetBasePrefab");
-            if (target == null)
-            { log.Warning("[fix] otc-drifter-prefab: GetBasePrefab is gone."); return false; }
+                var target = AccessTools.Method(spawner, "GetBasePrefab");
+                if (target == null) continue;
 
-            new HarmonyLib.Harmony("doodesch.polyfill.fixes").Patch(
-                target, postfix: new HarmonyMethod(typeof(OverTheCounterDrifterPrefab), nameof(Postfix)));
+                new HarmonyLib.Harmony("doodesch.polyfill.fixes").Patch(
+                    target, postfix: new HarmonyMethod(typeof(OverTheCounterDrifterPrefab), nameof(Postfix)));
+                patched++;
+            }
+
+            if (patched == 0)
+            { log.Warning("[fix] otc-drifter-prefab: neither spawner has a GetBasePrefab here."); return false; }
+
+            // The count is printed because one of the two is only reached when a manager is hired, which is
+            // not something a startup log can otherwise show.
+            log.Msg($"[fix] otc-drifter-prefab: watching {patched} prefab search(es) - the drifters and, "
+                  + "when you hire one, the manager.");
             return true;
         }
 

@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.9.2] - 2026-08-14
+
+### Fixed
+- Over The Counter's hired manager stops throwing every tick, which is what froze the clipboard when you
+  tried to give one a locker. It was being built out of a cleaner, same as the drifters were.
+
 ## [0.9.1] - 2026-08-14
 
 ### Fixed
