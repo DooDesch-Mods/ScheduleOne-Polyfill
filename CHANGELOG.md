@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here.
 
+## [0.9.1] - 2026-08-14
+
+### Fixed
+- Trees stop growing every time you reload. With Bigger Trees installed, each load multiplied the size
+  again instead of setting it, so dying and loading gave 2x, then 4x, then 8x.
+
+### Added
+- `HelpHarmonyFind` in MelonPreferences switches off the one layer that sits in front of another mod's
+  code, for ruling it out when something misbehaves. The repairs themselves stay.
+
 ## [0.9.0] - 2026-08-14
 
 ### Fixed

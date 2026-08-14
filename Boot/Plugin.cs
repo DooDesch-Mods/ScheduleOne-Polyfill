@@ -45,6 +45,21 @@ namespace Polyfill.Boot
         /// player at: it answers "what would you do to my game" without doing any of it.</summary>
         internal static bool DryRun { get; private set; }
 
+        /// <summary>
+        /// The one layer that sits in front of somebody else's code, and therefore the one with a switch.
+        /// </summary>
+        /// <remarks>
+        /// Everything else Polyfill does is additive and confined to the game's own assemblies. This is
+        /// not: it patches Harmony's own lookup, so every patch every mod registers passes through it. That
+        /// is worth doing - a patch aimed at a renamed type reaches nothing otherwise - and it is also the
+        /// first thing to rule out when a mod that used to work stops working, which needs a switch rather
+        /// than a downgrade.
+        ///
+        /// The repairs are independent of it: turning this off leaves every name Polyfill put back exactly
+        /// where it is, and only stops the lookup being helped.
+        /// </remarks>
+        internal static bool HelpHarmonyFind { get; private set; } = true;
+
         public override void OnPreInitialization()
         {
             Log = LoggerInstance;
@@ -73,7 +88,10 @@ namespace Polyfill.Boot
                 // After the writing, before the first mod's PatchAll - the only window where both halves
                 // of a renamed type can be dealt with. See DeclaredMethodFallback for why the stand-in
                 // class alone leaves every Harmony patch on that name unregistered.
-                if (!DryRun) DeclaredMethodFallback.Install(LoggerInstance);
+                if (!DryRun && HelpHarmonyFind) DeclaredMethodFallback.Install(LoggerInstance);
+                else if (!HelpHarmonyFind)
+                    LoggerInstance.Msg("[harmony] the lookup help is off in MelonPreferences, so a patch "
+                                     + "aimed at a type this game renamed will not find it.");
 
                 // Layer 2. Off under DryRun like everything else: it answers the same questions the same way,
                 // but it is still a change to a running game, and "repair nothing" has to mean nothing.
@@ -141,8 +159,15 @@ namespace Polyfill.Boot
                           ?? category.CreateEntry("DryRun", false, "Report only, repair nothing",
                               "Work out what is missing and write the report, but leave the game untouched. "
                               + "Type `polyfill` in the console to read it.")).Value;
+
+                HelpHarmonyFind = (category.GetEntry<bool>("HelpHarmonyFind")
+                                   ?? category.CreateEntry("HelpHarmonyFind", true,
+                                       "Point old patches at the right method",
+                                       "Lets a mod's patch find a method whose type this game renamed. Off "
+                                       + "if a mod misbehaves and you want to rule this out; the repairs "
+                                       + "themselves are unaffected.")).Value;
             }
-            catch { Enabled = true; DryRun = false; }
+            catch { Enabled = true; DryRun = false; HelpHarmonyFind = true; }
         }
     }
 }
