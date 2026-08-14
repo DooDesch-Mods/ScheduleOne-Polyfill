@@ -64,7 +64,10 @@ namespace Polyfill.ModFixes
                 // Up the base chain, because two of these five were renamed as well: the type the mod
                 // names is Polyfill's stand-in and Open lives on what it derives from. Patching the
                 // inherited MethodInfo patches the real one, which is the whole point.
-                var open = AccessTools.Method(type, "Open", new[] { entry.StationType() });
+                var station = AccessTools.TypeByName(entry.Station);
+                if (station == null) continue;
+
+                var open = AccessTools.Method(type, "Open", new[] { station });
                 var close = AccessTools.Method(type, "Close", Type.EmptyTypes);
                 if (open == null || close == null) continue;
 

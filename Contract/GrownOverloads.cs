@@ -27,9 +27,6 @@ namespace Polyfill.Contract
             internal string Station;      // the parameter the old method took first, by full name
             internal string StationName;  // and what it was called, because Harmony binds by name
             internal bool HasRemoveUi;    // four of the five carried a third argument
-
-            /// <summary>The station type at runtime, or null when this build does not have it.</summary>
-            internal Type StationType() => HarmonyLib.AccessTools.TypeByName(Station);
         }
 
         private const string Stations = "Il2CppScheduleOne.UI.Stations.";
