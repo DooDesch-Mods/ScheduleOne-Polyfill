@@ -153,6 +153,7 @@ namespace Polyfill.ModFixes
             if (baked == null || baked.Count == 0) return false;
 
             int resized = 0, trees = 0;
+            _largest = 0f;
             for (int i = 0; i < baked.Count; i++)
             {
                 int count = ScaleOne(baked[i], factor);
@@ -167,13 +168,39 @@ namespace Polyfill.ModFixes
                 return false;
             }
 
+            // The largest resulting size is printed, not just the factor: it is the number that would grow
+            // on every reload if this ever went back to scaling its own output, and one line in a log is a
+            // cheaper regression test than a memory of what the trees looked like last time.
             _log?.Msg($"[fix] biggertrees-instance-scale: {trees} tree(s) resized to {factor:0.##}x across "
-                    + $"{resized} level(s) of detail. `TreeScale` in MelonPreferences changes it.");
+                    + $"{resized} level(s) of detail, largest now {_largest:0.###}. `TreeScale` in "
+                    + "MelonPreferences changes it.");
             return true;
         }
 
         /// <summary>
-        /// Multiply the size of every instance in one level of detail. Returns how many were touched.
+        /// The sizes as the game shipped them, per level of detail, kept the first time one is touched.
+        /// </summary>
+        /// <remarks>
+        /// THE FACTOR IS APPLIED TO THE ORIGINAL, NEVER TO THE LAST RESULT, and the difference is the whole
+        /// of a reported bug: the trees grew every time you reloaded. Reported as "die, load the last save,
+        /// they are bigger again", and the arithmetic is exactly that - 2x, then 4x, then 8x.
+        ///
+        /// The two facts that make it happen are both easy to miss. <c>InstanceObjectData</c> is a
+        /// ScriptableObject, so the texture written into it OUTLIVES the map it was written for; and loading
+        /// a save builds a new terrain, whose instance id is not the one already dealt with, so the work
+        /// runs again - on top of its own output.
+        ///
+        /// Keeping the pristine pixels rather than a "done" flag also makes the setting live: change
+        /// <c>TreeScale</c> and load a save, and the size is the new multiple of the original rather than a
+        /// multiple of whatever it happened to be.
+        /// </remarks>
+        private static readonly Dictionary<int, Color[]> Original = new();
+
+        /// <summary>The biggest size written in the last pass, so a log line can show it did not creep.</summary>
+        private static float _largest;
+
+        /// <summary>
+        /// Set the size of every instance in one level of detail. Returns how many were touched.
         /// </summary>
         /// <remarks>
         /// Untouched pixels are left exactly as they are rather than written back at zero: an empty slot is
@@ -192,13 +219,27 @@ namespace Polyfill.ModFixes
                 var copy = Readable(source, width, height);
                 var pixels = copy.GetPixels();
 
+                // First sight of this level of detail is the one that defines its sizes. Every later run
+                // starts from that, so the result is the same whether a save is loaded once or five times.
+                int key = data.GetInstanceID();
+                if (!Original.TryGetValue(key, out var pristine) || pristine.Length != pixels.Length)
+                {
+                    // Copied element by element: GetPixels hands back an interop array, which is a wrapper
+                    // around native memory rather than a managed one, so it has no Clone of its own.
+                    pristine = new Color[pixels.Length];
+                    for (int i = 0; i < pixels.Length; i++) pristine[i] = pixels[i];
+                    Original[key] = pristine;
+                }
+
                 int occupied = 0;
                 for (int i = 0; i < pixels.Length; i++)
                 {
-                    var pixel = pixels[i];
-                    if (pixel.a <= 0f) continue;
+                    var pixel = pristine[i];
+                    if (pixel.a <= 0f) { pixels[i] = pixel; continue; }
                     occupied++;
-                    pixels[i] = new Color(pixel.r, pixel.g, pixel.b, pixel.a * factor);
+                    float sized = pixel.a * factor;
+                    if (sized > _largest) _largest = sized;
+                    pixels[i] = new Color(pixel.r, pixel.g, pixel.b, sized);
                 }
                 if (occupied == 0) return 0;
 
