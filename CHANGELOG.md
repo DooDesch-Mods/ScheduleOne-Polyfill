@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here.
 
+## [0.8.1] - 2026-08-14
+
+### Fixed
+- Hiring a manager in Over The Counter works again. It sets the NPC's pickpocket target, which 0.4.6 kept
+  under the name its private field carries now.
+- More Foot Patrols spawns its officers again. `ApplyShapeKeys` lost a flag, and what the flag switched off
+  is what 0.4.6 does either way.
+
 ## [0.8.0] - 2026-08-14
 
 ### Fixed
