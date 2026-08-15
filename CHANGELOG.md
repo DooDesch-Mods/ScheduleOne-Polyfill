@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.9.7] - 2026-08-15
+
+### Fixed
+- More Foot Patrols staffs its routes again. It cloned a police prefab this build no longer has; the
+  officers now come out of the police station, two held back for callouts.
+
 ## [0.9.6] - 2026-08-14
 
 ### Fixed
