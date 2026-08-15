@@ -1,0 +1,10 @@
+# polyfill-versiondb 1
+# from=0.4.6f12
+# to=0.4.6f13
+# counts=R:0 -:1 ?:4
+# op|kind|type|from|to|arity|origin|rule|confidence|note
+-|F|ScheduleOne.UI.Phone.Delivery.DeliveryApp|StatusDisplayPrefab||0|derived|removed|high|
+?|M|ScheduleOne.Quests.Quest_Botanists|OnMinPass||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.Quests.Quest_Chemists|OnMinPass||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.Quests.Quest_Cleaners|OnMinPass||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.Quests.Quest_Packagers|OnMinPass||0|derived|ambiguous|high|1->1 of that shape moved at once
