@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.9.9] - 2026-08-15
+
+### Fixed
+- Over The Counter can dress a drifter again. It writes a field 0.4.6 deleted, and the whole routine
+  stopped before its own error handling could run.
+
 ## [0.9.8] - 2026-08-15
 
 ### Fixed
