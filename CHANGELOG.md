@@ -9,6 +9,8 @@ All notable changes to this project are documented here.
   every spawnable civilian gets a turn, and the log names which ones your game has.
 - Giving an Over The Counter manager a route works again. The button did nothing because the panel
   named a UI class 0.4.6 removed, which stopped the whole method from running.
+- Ultimate Mod Menu no longer kills the game on startup with no message. It searched for game types in a
+  way that loads every type there is, which the game does not survive.
 
 ### Changed
 - `polyfillprobe` now calls static members too, so a repair like `Singleton<T>.Instance` can be
