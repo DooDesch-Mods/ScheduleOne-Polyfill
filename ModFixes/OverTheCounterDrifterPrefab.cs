@@ -59,7 +59,8 @@ namespace Polyfill.ModFixes
              + "throws a NullReferenceException in Employee.UpdateBehaviour on every tick.";
 
         private static MelonLogger.Instance _log;
-        private static NetworkObject _replacement;
+        private static readonly List<NetworkObject> _pool = new();
+        private static int _next;
         private static bool _searched;
         private static bool _said;
 
@@ -129,22 +130,48 @@ namespace Polyfill.ModFixes
             }
 
             Say($"[fix] otc-drifter-prefab: OverTheCounter asked for 'CivilianNPC', which this build does not "
-              + $"have, and fell back to '{found.name}' - an employee. Handed it '{better.gameObject.name}' "
-              + "instead, which is not one.");
+              + $"have, and fell back to '{found.name}' - an employee. Handed it one of {_pool.Count} "
+              + $"spawnable NPC prefab(s) instead, a different one each time: {Names()}.");
             __result = better;
         }
 
-        /// <summary>The first spawnable NPC prefab with no employee on it, or null.</summary>
+        /// <summary>
+        /// A spawnable NPC prefab that is not an employee - and a different one on each call.
+        /// </summary>
+        /// <remarks>
+        /// A DIFFERENT ONE EACH TIME, and that is the whole change. Handing back the first match meant every
+        /// customer in the shop was cloned from the same prefab, so a player with a dispensary full of
+        /// people reported them as all being the same character. OverTheCounter does randomise hair, clothes
+        /// and face layers on top (NpcSpawner.GenerateRandomAppearance), but the body it randomises is still
+        /// the one it was cloned from.
+        ///
+        /// AND THERE IS NO VANILLA CANDIDATE AT ALL. Measured on 0.4.6f13, the whole set of spawnable NPC
+        /// prefabs that are not employees is <c>S1API_MysteriousMan, S1API_BellaNPC, S1API_StaticNPC,
+        /// S1API_VicNPC</c> - four prefabs, every one of them registered by S1API. The reporter who saw a
+        /// shop full of the same character was looking at <c>S1API_BellaNPC</c>. So this repair works
+        /// because another mod happens to be installed, which is why the log names what it found rather
+        /// than saying it handed over "a prefab": without S1API there is nothing here to hand over, and the
+        /// fix says that instead of pretending.
+        /// </remarks>
         private static NetworkObject Replacement()
         {
-            if (_searched) return _replacement;
-            _searched = true;
+            if (!_searched)
+            {
+                _searched = true;
+                Gather();
+            }
 
+            if (_pool.Count == 0) return null;
+            return _pool[_next++ % _pool.Count];
+        }
+
+        private static void Gather()
+        {
             try
             {
                 var manager = InstanceFinder.NetworkManager;
                 var spawnable = manager?.SpawnablePrefabs;
-                if (spawnable == null) return null;
+                if (spawnable == null) return;
 
                 int count = spawnable.GetObjectCount();
                 for (int i = 0; i < count; i++)
@@ -158,11 +185,21 @@ namespace Polyfill.ModFixes
                     Employee employee = null;
                     try { npc = go.GetComponent<NPC>(); employee = go.GetComponent<Employee>(); } catch { }
 
-                    if (npc != null && employee == null) { _replacement = candidate; return _replacement; }
+                    if (npc != null && employee == null) _pool.Add(candidate);
                 }
             }
             catch (Exception e) { _log?.Warning("[fix] otc-drifter-prefab: " + e.Message); }
-            return null;
+        }
+
+        private static string Names()
+        {
+            var names = new List<string>();
+            foreach (var one in _pool)
+            {
+                try { names.Add(one.gameObject.name); } catch { }
+                if (names.Count == 8) { names.Add("..."); break; }
+            }
+            return string.Join(", ", names);
         }
 
         /// <summary>Once per launch. The mod asks for the prefab on every spawn and the answer never

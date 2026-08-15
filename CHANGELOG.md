@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.9.8] - 2026-08-15
+
+### Fixed
+- Over The Counter's customers stop all being the same person. They were cloned from one prefab; now
+  every spawnable civilian gets a turn, and the log names which ones your game has.
+
 ## [0.9.7] - 2026-08-15
 
 ### Fixed
