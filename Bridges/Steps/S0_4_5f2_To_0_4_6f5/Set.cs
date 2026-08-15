@@ -419,6 +419,28 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             // shape: the old form has one parameter too many rather than one too few.
             Dropped(Avatar, "ApplyShapeKeys", new[] { Number, Number }, "System.Boolean", ShapeKeys),
 
+            // A field 0.4.6 deleted whose WRITE was always the whole point. Avatar.InitialAvatarSettings
+            // held what an avatar looked like when it was built, and 0.4.6 removed it with no successor -
+            // Avatar keeps CurrentSettings and nothing else of the kind. Over The Counter still writes it
+            // when it dresses a drifter (DrifterInstance.cs:202), inside a try/catch that cannot help,
+            // because the method never compiles far enough to run its handler.
+            //
+            // Only the SETTER is put back, and that is the honest half. Nothing on this build reads the
+            // value, so accepting the write and dropping it costs the caller nothing. Answering a READ
+            // would be a different matter - there would be no value to give back, and a mod that stored
+            // something and got a lie in return is worse off than one that fails where it asked.
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = Avatar,
+                OldName = "set_InitialAvatarSettings",
+                ParameterCount = 1,
+                Because = "Avatar.cs until 0.4.5f2 kept the settings an avatar was built from; 0.4.6 dropped "
+                        + "the field and nothing reads it any more, so the write is accepted and discarded "
+                        + "- and no getter is offered, because there is nothing to give back",
+                Emit = EmitForgottenSetter,
+            },
+
             // One method that became two. See Contract/SplitScreens for why an EMPTY body is the right
             // one and where the other half of the repair lives.
             SplitInTwo(0), SplitInTwo(1), SplitInTwo(2), SplitInTwo(3), SplitInTwo(4),
@@ -1026,6 +1048,39 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         /// </remarks>
         /// <param name="kept">The parameter types the new method still takes, by full name.</param>
         /// <param name="dropped">The type of the trailing parameter the old form carried.</param>
+        /// <summary>
+        /// A setter for a field the game forgot: it takes the value and lets it go.
+        /// </summary>
+        /// <remarks>
+        /// The accessor gets its PropertyDefinition, for the reason Removed.cs records for the getter it
+        /// emits: a SpecialName method with no property beside it is a shape the metadata does not
+        /// otherwise contain.
+        ///
+        /// Refuses if the type already has a member of that name, which would mean the field is not gone
+        /// after all and this was written against the wrong build.
+        /// </remarks>
+        private static MethodDefinition EmitForgottenSetter(ModuleDefinition module, TypeDefinition type)
+        {
+            const string name = "set_InitialAvatarSettings";
+            foreach (var existing in type.Methods)
+                if (existing.Name == name) return null;
+
+            var settings = module.GetType("Il2CppScheduleOne.AvatarFramework.AvatarSettings");
+            if (settings == null) return null;
+
+            var setter = new MethodDefinition(name,
+                MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName,
+                module.TypeSystem.Void);
+            setter.Parameters.Add(new ParameterDefinition("value", ParameterAttributes.None,
+                                                          module.ImportReference(settings)));
+
+            setter.Body.GetILProcessor().Emit(OpCodes.Ret);
+
+            type.Properties.Add(new PropertyDefinition("InitialAvatarSettings", PropertyAttributes.None,
+                                                       module.ImportReference(settings)) { SetMethod = setter });
+            return setter;
+        }
+
         private static Bridge Dropped(string declaringType, string name, string[] kept, string dropped,
                                       string because)
         {
