@@ -55,6 +55,13 @@ namespace Polyfill.Core
             /// </remarks>
             internal string NestedIn;
 
+            /// <summary>Stand in for the target by taking over its native class instead of deriving from
+            /// it. See <see cref="FacadeTypes"/> for when that is the only shape that loads.</summary>
+            internal bool ByNativeClass;
+
+            /// <summary>The members a <see cref="ByNativeClass"/> stand-in has to answer itself.</summary>
+            internal List<FacadeTypes.Member> Answers;
+
             /// <summary>Identity of the repair, for deduplicating it across mods and for carrying its
             /// outcome back to every finding that asked for it.</summary>
             internal string Key => "T|" + InAssembly + "!" + (NestedIn ?? Namespace) + "." + Name;
@@ -255,6 +262,24 @@ namespace Polyfill.Core
                         //
                         // So the question is the NAME, not the assembly.
                         bool renamed = !string.Equals(forward.TargetFullName, Full(forward), StringComparison.Ordinal);
+                        if (renamed && forward.ByNativeClass)
+                        {
+                            var facade = FacadeTypes.TryAdd(module, forward.Namespace, forward.Name,
+                                                            forward.TargetFullName, forward.Answers,
+                                                            out string cannot);
+                            if (facade == null)
+                            {
+                                Refuse(result, forward, "it cannot inherit from what it became, and " + cannot);
+                                continue;
+                            }
+                            result.Applied.Add($"{forward.InAssembly}!{Full(forward)} -> a class around "
+                                             + forward.TargetFullName + "'s native class");
+                            result.Record(forward.Key, Contract.Outcome.Applied,
+                                          "a class around " + forward.TargetFullName + "'s native class");
+                            emittedForwards.Add(forward);
+                            added++;
+                            continue;
+                        }
                         if (renamed)
                         {
                             var shadow = ShadowTypes.TryAdd(module, forward.Namespace, forward.Name,

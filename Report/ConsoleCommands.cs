@@ -277,8 +277,22 @@ namespace Polyfill.Report
             Core.Log.Msg($"{typeName}::{memberName} exists -> returns {method.ReturnType.Name}, "
                        + $"{method.GetParameters().Length} parameter(s), declared on {method.DeclaringType.Name}");
 
-            if (method.GetParameters().Length != 0 || method.IsStatic)
-            { Core.Log.Msg("  not called: the probe only invokes zero-argument instance members."); return; }
+            if (method.GetParameters().Length != 0)
+            { Core.Log.Msg("  not called: the probe only invokes members that take nothing."); return; }
+
+            // A STATIC GETTER IS HALF OF WHAT POLYFILL REPAIRS, so refusing to call one left the more
+            // interesting half unverifiable. Singleton<T>.Instance is the case that made this matter: the
+            // type resolving proves the managed shape, and only the call proves the native class behind it.
+            if (method.IsStatic)
+            {
+                try
+                {
+                    object result = method.Invoke(null, null);
+                    Core.Log.Msg($"  CALLED as a static -> {(result ?? "null")}");
+                }
+                catch (Exception e) { Core.Log.Error("  call FAILED: " + (e.InnerException ?? e)); }
+                return;
+            }
 
             try
             {
