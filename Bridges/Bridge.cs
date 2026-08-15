@@ -19,6 +19,21 @@ namespace Polyfill.Bridges
     /// This is also the honest boundary of the whole project. A bridge is a person deciding that two
     /// different pieces of code mean the same thing. No amount of diffing produces that, and a wrong one is
     /// worse than a missing one, because it runs.
+    ///
+    /// BEFORE WRITING ONE, RUN THE DIFF. It compiling, emitting, booting and logging clean says nothing
+    /// about whether it does what the old member did - all four pass either way, which is how
+    /// <c>ManagementClipboard.Close(preserveState)</c> shipped mapped onto the half whose NAME matched and
+    /// took away the player's ability to move:
+    /// <code>
+    /// node Workspace/tools/bridgediff/bridgediff.mjs Clipboard
+    ///
+    /// !! ManagementClipboard.Close  ->  Close, CloseAndPreserveState, OnClose
+    ///    the old body did these and no candidate does:
+    ///      CanMove =   LockMouse()   SetCanLook()   SetDoFActive()
+    /// </code>
+    /// A line it reports lost is not automatically a bug - it may live in the caller now, be dead, or be
+    /// rebuilt by the bridge itself, which is what <c>Player.Activate</c> does. It IS something the
+    /// <see cref="Because"/> has to account for in words before the bridge ships.
     /// </remarks>
     internal sealed class Bridge
     {
