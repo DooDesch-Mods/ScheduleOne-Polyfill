@@ -7,6 +7,12 @@ All notable changes to this project are documented here.
 ### Fixed
 - Over The Counter's customers stop all being the same person. They were cloned from one prefab; now
   every spawnable civilian gets a turn, and the log names which ones your game has.
+- Giving an Over The Counter manager a route works again. The button did nothing because the panel
+  named a UI class 0.4.6 removed, which stopped the whole method from running.
+
+### Changed
+- `polyfillprobe` now calls static members too, so a repair like `Singleton<T>.Instance` can be
+  checked rather than only listed.
 
 ## [0.9.7] - 2026-08-15
 

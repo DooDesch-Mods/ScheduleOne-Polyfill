@@ -202,6 +202,20 @@ namespace Polyfill.Core
             return report;
         }
 
+        /// <summary>The bridge's answer list, in the shape the emitter takes. Null when there is none.</summary>
+        private static List<FacadeTypes.Member> Answers(Bridges.TypeRename renamed)
+        {
+            if (renamed?.Answers == null) return null;
+
+            var members = new List<FacadeTypes.Member>();
+            foreach (var answer in renamed.Answers)
+                members.Add(new FacadeTypes.Member
+                {
+                    Name = answer.Name, Returns = answer.Returns, Takes = answer.Takes,
+                });
+            return members;
+        }
+
         /// <summary>Every game type the mod names, and whether it is still there.</summary>
         private static HashSet<string> CheckTypes(ModuleDefinition module, InteropIndex index, ModReport report,
                                                   Dictionary<string, TypeDefinition> repaired)
@@ -262,6 +276,8 @@ namespace Polyfill.Core
                         NestedIn = Root(reference.DeclaringType)?.FullName,
                         TargetAssembly = became.Module.Assembly.Name.Name,
                         TargetFullName = became.FullName,
+                        ByNativeClass = renamed?.ByNativeClass ?? false,
+                        Answers = Answers(renamed),
                     };
                     _forwards.Add(forward);
                     repairKey = forward.Key;

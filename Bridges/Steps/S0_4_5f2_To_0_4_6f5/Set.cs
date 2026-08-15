@@ -84,6 +84,30 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                 Because = "the price control became the game's general amount box in 0.4.6 and moved out "
                         + "of the handover namespace; HandoverScreen.PriceSelector is an AmountSelector now",
             },
+
+            // The on-screen key hints. 0.4.6f5 replaced one Singleton that took a module name with a whole
+            // ScheduleOne.UI.Input namespace, where LoadModule takes an InputPromptsData looked up by id -
+            // so there is nothing to forward the old calls to, and nothing worth forwarding either, since
+            // what is lost is a row of key hints at the edge of the screen. What is NOT optional is the type
+            // existing: a mod that mentions it does not fail at the hint, it fails to compile the whole
+            // method, which is how Over The Counter lost the ability to give a manager a route at all.
+            new TypeRename
+            {
+                Assembly = "Assembly-CSharp",
+                OldFullName = "Il2CppScheduleOne.UI.InputPromptsCanvas",
+                NewFullName = "Il2CppScheduleOne.UI.Input.InputPromptsManager",
+                ByNativeClass = true,
+                Answers = new[]
+                {
+                    new Answer { Name = "LoadModule", Takes = new[] { "System.String" } },
+                    new Answer { Name = "UnloadModule" },
+                    new Answer { Name = "get_currentModuleLabel", Returns = "System.String" },
+                    new Answer { Name = "set_currentModuleLabel", Takes = new[] { "System.String" } },
+                },
+                Because = "InputPromptsCanvas is gone since 0.4.6f5 and InputPromptsManager took over, but "
+                        + "with LoadModule(InputPromptsData,..) instead of LoadModule(string) - so the name "
+                        + "is put back around the manager's native class and answers without doing anything",
+            },
         };
 
         private static TypeRename Pair(string oldFullName, string newFullName)

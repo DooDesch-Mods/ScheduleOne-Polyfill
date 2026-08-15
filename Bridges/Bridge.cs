@@ -135,8 +135,44 @@ namespace Polyfill.Bridges
         internal string NewFullName;
         internal string Because;
 
+        /// <summary>
+        /// Stand in for the target WITHOUT deriving from it, by taking over its native class instead.
+        /// </summary>
+        /// <remarks>
+        /// The ordinary stand-in derives from the type the old name became, which needs the two to be
+        /// substitutable. A self-referential base takes that away:
+        /// <c>Singleton&lt;T&gt; where T : Singleton&lt;T&gt;</c> means a stand-in deriving from
+        /// <c>InputPromptsManager</c> is a <c>Singleton&lt;InputPromptsManager&gt;</c>, so the mod's own
+        /// <c>Singleton&lt;InputPromptsCanvas&gt;</c> breaks the constraint and the CLR refuses the
+        /// constructed type before any of it runs - the same TypeLoadException, one step later.
+        ///
+        /// What works instead is to close the SAME generic base over the stand-in and hand it the native
+        /// class of the real type. A stand-in built that way carries no behaviour, so it is only honest
+        /// where the caller already treats the whole thing as optional. That is a judgement, which is why
+        /// it is set deliberately per rename and never inferred from the shape.
+        /// </remarks>
+        internal bool ByNativeClass;
+
+        /// <summary>Members a <see cref="ByNativeClass"/> stand-in has to answer, because it inherits none.</summary>
+        internal Answer[] Answers;
+
         /// <summary>Which step wrote it. Filled in by the set it belongs to; never by hand.</summary>
         internal BridgeSet Set;
+    }
+
+    /// <summary>
+    /// One member a <see cref="TypeRename.ByNativeClass"/> stand-in carries, and what it gives back.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately only three answers. A stand-in of this kind exists because the caller guards every use
+    /// of it, so the only replies worth emitting are the ones a guard reads: nothing at all, a null
+    /// reference, and zero. Anything richer would be a guess at behaviour the game no longer has.
+    /// </remarks>
+    internal sealed class Answer
+    {
+        internal string Name;
+        internal string Returns;          // full name, or null for void
+        internal string[] Takes;          // full names, or null for none
     }
 
     /// <summary>
