@@ -493,8 +493,9 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                 OldName = "Close",
                 ParameterCount = 1,
                 AllowOverload = true,
-                Because = "Close(preserveState) became two methods; the flag is now which one you call "
-                        + "(ManagementClipboard.cs:103-113)",
+                Because = "Close(preserveState) became two methods that differ by HOW they close, not by "
+                        + "the flag: only the popping one hands the player back their movement, so both "
+                        + "values write the flag and pop (ManagementClipboard.cs:103-113, 0.4.5f2 106-120)",
                 Emit = EmitClipboardClose,
             },
             new Bridge
@@ -1248,11 +1249,45 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         /// <c>CloseAndPreserveState()</c> keeps it, and both end in the same <c>OnClose()</c>. So the
         /// argument stops being data and becomes the branch.
         /// </remarks>
+        /// <summary>
+        /// <c>ManagementClipboard.Close(preserveState)</c> - set the flag, then pop the state.
+        /// </summary>
+        /// <remarks>
+        /// THE FIRST VERSION OF THIS CHOSE BY NAME AND COST THE PLAYER THEIR LEGS. 0.4.6 split the method
+        /// in two, and the halves are not the halves the flag suggests:
+        /// <code>
+        /// public void Close()                 { StatePreserved = false; State.PopFromDefaultParent(); }
+        /// public void CloseAndPreserveState() { StatePreserved = true;  OnClose(); }
+        /// </code>
+        /// <c>OnClose</c> is what <c>State.OnRemovedFromStack</c> is wired to (ManagementClipboard.cs:57),
+        /// so <c>Close()</c> reaches it by POPPING and <c>CloseAndPreserveState()</c> reaches it by calling
+        /// it directly and leaving the state on the stack. Everything that gives the player back to
+        /// themselves - <c>SetCanLook</c>, <c>LockMouse</c>, <c>CanMove</c> - hangs off the pop, and in
+        /// 0.4.5f2 it hung off Close itself (ManagementClipboard.cs:106-120), unconditionally:
+        /// <code>
+        /// public void Close(bool preserveState = false) {
+        ///     IsOpen = false; StatePreserved = preserveState;
+        ///     PlayerCamera.SetCanLook(true); PlayerCamera.LockMouse();
+        ///     PlayerMovement.CanMove = true; ...
+        /// </code>
+        /// Mapping <c>Close(true)</c> to <c>CloseAndPreserveState()</c> therefore hid the clipboard and
+        /// never handed control back. Over The Counter closes it that way whenever the route picker opens
+        /// (RouteEntitySelector.cs:44-46), so a player who assigned a route could not move afterwards, and
+        /// the screen said the clipboard was away while the game still had it on the stack.
+        ///
+        /// Both values now do what the one old method did: write the flag, then pop. The flag is written
+        /// through the backing field, because the property's setter is protected and the interop wrapper
+        /// exposes the field itself.
+        /// </remarks>
         private static MethodDefinition EmitClipboardClose(ModuleDefinition module, TypeDefinition clipboard)
         {
-            var close = Method(clipboard, "Close", 0);
-            var preserve = Method(clipboard, "CloseAndPreserveState", 0);
-            if (close == null || preserve == null) return null;
+            var preserved = Property(clipboard, "_StatePreserved_k__BackingField")
+                         ?? Property(clipboard, "StatePreserved");
+            var state = Property(clipboard, "State");
+            if (preserved?.SetMethod == null || state?.GetMethod == null) return null;
+
+            var pop = Method(state.PropertyType.Resolve(), "PopFromDefaultParent", 0);
+            if (pop == null) return null;
 
             var method = new MethodDefinition("Close", MethodAttributes.Public | MethodAttributes.HideBySig,
                                               module.TypeSystem.Void);
@@ -1260,18 +1295,22 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                                                           module.TypeSystem.Boolean));
 
             var il = method.Body.GetILProcessor();
-            var drop = il.Create(OpCodes.Ldarg_0);
-
-            il.Emit(OpCodes.Ldarg_1);
-            il.Emit(OpCodes.Brfalse_S, drop);
             il.Emit(OpCodes.Ldarg_0);
-            il.Emit(OpCodes.Call, module.ImportReference(preserve));
-            il.Emit(OpCodes.Ret);
-
-            il.Append(drop);
-            il.Emit(OpCodes.Call, module.ImportReference(close));
+            il.Emit(OpCodes.Ldarg_1);
+            il.Emit(OpCodes.Call, module.ImportReference(preserved.SetMethod));
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, module.ImportReference(state.GetMethod));
+            il.Emit(OpCodes.Callvirt, module.ImportReference(pop));
             il.Emit(OpCodes.Ret);
             return method;
+        }
+
+        private static PropertyDefinition Property(TypeDefinition type, string name)
+        {
+            if (type == null) return null;
+            foreach (var candidate in type.Properties)
+                if (candidate.Name == name) return candidate;
+            return null;
         }
 
         /// <summary>

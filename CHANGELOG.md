@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.9.12] - 2026-08-15
+
+### Fixed
+- You can move again after putting the manager clipboard away. It was hidden without being taken off the
+  input stack, so the game still had it open while the screen said otherwise.
+
 ## [0.9.11] - 2026-08-15
 
 ### Fixed
