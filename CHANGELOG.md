@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.9.10] - 2026-08-15
+
+### Fixed
+- Ultimate Mod Menu gets past its clipboard setup. 0.9.8 covered one of its two type searches, so the
+  crash moved from the police patches to the next feature instead of going away.
+
 ## [0.9.9] - 2026-08-15
 
 ### Fixed

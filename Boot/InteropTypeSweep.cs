@@ -50,6 +50,14 @@ namespace Polyfill.Boot
             internal string Type;
             internal string Method;
             internal string Mod;
+
+            /// <summary>The signature to bind to, for the searches. Null for the <see cref="Known"/> shape,
+            /// which is always <c>(Assembly)</c>.</summary>
+            internal Type[] Takes;
+
+            /// <summary>Which prefix answers it. Two searches can want the same metadata and hand it back
+            /// through different signatures.</summary>
+            internal string Answer;
         }
 
         /// <summary>
@@ -82,6 +90,14 @@ namespace Polyfill.Boot
         /// interop assembly holds. It only gets this far because its earlier, targeted lookups missed the
         /// <c>Il2Cpp</c> prefix, so the fallback is doing real work and has to keep doing it.
         /// </remarks>
+        /// <remarks>
+        /// ONE MOD CAN HAVE MORE THAN ONE OF THESE, and finding the first is no reason to stop looking.
+        /// Ultimate Mod Menu has two, in different namespaces, written differently and reached from
+        /// different features - guarding only <c>Core.ReflectionUtil</c> moved the death from
+        /// <c>InstallPolicePatches</c> to <c>InstallClipboardPatches</c> and looked, in a log, like a
+        /// different bug. When a crash report names one, grep the mod for the other spellings before
+        /// calling it fixed.
+        /// </remarks>
         private static readonly Sweep[] KnownSearches =
         {
             new Sweep
@@ -89,6 +105,16 @@ namespace Polyfill.Boot
                 Type = "UltimateModMenu.Core.ReflectionUtil",
                 Method = "FindTypeBySuffix",
                 Mod = "Ultimate Mod Menu",
+                Takes = new[] { typeof(string) },
+                Answer = nameof(Search),
+            },
+            new Sweep
+            {
+                Type = "UltimateModMenu.Workforce.GameTypeFinder",
+                Method = "Find",
+                Mod = "Ultimate Mod Menu",
+                Takes = new[] { typeof(string), typeof(string[]) },
+                Answer = nameof(FindByName),
             },
         };
 
@@ -138,18 +164,19 @@ namespace Polyfill.Boot
                     var type = AccessTools.TypeByName(search.Type);
                     if (type == null) continue;
 
-                    var target = AccessTools.Method(type, search.Method, new[] { typeof(string) });
+                    var target = AccessTools.Method(type, search.Method, search.Takes);
                     if (target == null)
                     {
-                        log.Warning($"[sweep] {search.Mod} has no {search.Method}(string) here, so its "
-                                  + "search over every loaded assembly is not guarded. If the game dies on "
-                                  + "startup with no message, that is where to look.");
+                        log.Warning($"[sweep] {search.Mod} has no {search.Type}.{search.Method} of that "
+                                  + "shape here, so its search over every loaded assembly is not guarded. "
+                                  + "If the game dies on startup with no message, that is where to look.");
                         continue;
                     }
 
-                    harmony.Patch(target, prefix: new HarmonyMethod(typeof(InteropTypeSweep), nameof(Search)));
-                    log.Msg($"[sweep] {search.Mod} searches for types by name without enumerating the "
-                          + "game's generated assemblies; doing that kills the process without a message.");
+                    harmony.Patch(target, prefix: new HarmonyMethod(typeof(InteropTypeSweep), search.Answer));
+                    log.Msg($"[sweep] {search.Mod} ({search.Method}) searches for types by name without "
+                          + "enumerating the game's generated assemblies; doing that kills the process "
+                          + "without a message.");
                 }
                 catch (Exception e)
                 {
@@ -194,6 +221,50 @@ namespace Polyfill.Boot
             return false;
         }
 
+        /// <summary>
+        /// The same answer for a search that asks by SIMPLE name, with a few full names to try first.
+        /// </summary>
+        /// <remarks>
+        /// The full-name pass is kept because the caller's own code does it and it is not the dangerous
+        /// part - <c>Assembly.GetType(name)</c> loads the one type asked for. Only the fallback, which
+        /// enumerates everything, is replaced.
+        ///
+        /// Simple name ONLY on the fallback, and that is not laziness: the caller compares
+        /// <c>t.Name</c>, and matching on the end of the full name instead would answer "NPC" with
+        /// "PoliceNPC" - a type it never asked for, handed back as if it had.
+        /// </remarks>
+        private static bool FindByName(string simpleName, string[] fullNames, ref Type __result)
+        {
+            __result = null;
+            try
+            {
+                foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+                    foreach (string full in fullNames ?? Array.Empty<string>())
+                    {
+                        try
+                        {
+                            var exact = assembly.GetType(full, false, true);
+                            if (exact != null) { __result = exact; return false; }
+                        }
+                        catch { }
+                    }
+
+                __result = InInterop(simpleName, null) ?? Elsewhere(simpleName, null);
+                Announce();
+            }
+            catch (Exception e) { _log?.Warning("[sweep] type search failed: " + e.Message); }
+
+            return false;
+        }
+
+        private static void Announce()
+        {
+            if (++_searched != 1) return;
+            _log?.Msg("[sweep] answered a mod's type search from the game's assembly metadata instead of "
+                    + "letting it load every type there is. Reading them that way is what takes the "
+                    + "process down.");
+        }
+
         /// <summary>The matching type in one of the interop assemblies, found in metadata and then loaded
         /// on its own.</summary>
         private static Type InInterop(string requested, string suffix)
@@ -232,8 +303,10 @@ namespace Polyfill.Boot
                 int dot = full.LastIndexOf('.');
                 string simple = dot < 0 ? full : full.Substring(dot + 1);
 
-                if (full.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)
-                    || simple.Equals(requested, StringComparison.OrdinalIgnoreCase)) return full;
+                // A null suffix means the caller compares simple names only. Testing the end of the full
+                // name there would answer "NPC" with "PoliceNPC".
+                if (suffix != null && full.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)) return full;
+                if (simple.Equals(requested, StringComparison.OrdinalIgnoreCase)) return full;
             }
             return null;
         }
@@ -276,9 +349,9 @@ namespace Polyfill.Boot
                 foreach (var type in types)
                 {
                     string full = type.FullName ?? type.Name;
-                    if (full.Equals(requested, StringComparison.OrdinalIgnoreCase)
-                        || full.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)
-                        || type.Name.Equals(requested, StringComparison.OrdinalIgnoreCase)) return type;
+                    if (full.Equals(requested, StringComparison.OrdinalIgnoreCase)) return type;
+                    if (suffix != null && full.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)) return type;
+                    if (type.Name.Equals(requested, StringComparison.OrdinalIgnoreCase)) return type;
                 }
             }
             return null;
