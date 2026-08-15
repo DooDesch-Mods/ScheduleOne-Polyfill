@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.9.11] - 2026-08-15
+
+### Fixed
+- Ultimate Mod Menu starts. Its third way of looking a type up killed the game too, and so did the way
+  Polyfill answered the first two.
+
 ## [0.9.10] - 2026-08-15
 
 ### Fixed

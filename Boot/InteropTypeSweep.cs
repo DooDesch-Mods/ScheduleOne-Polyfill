@@ -116,6 +116,14 @@ namespace Polyfill.Boot
                 Takes = new[] { typeof(string), typeof(string[]) },
                 Answer = nameof(FindByName),
             },
+            new Sweep
+            {
+                Type = "UltimateModMenu.Core.ReflectionUtil",
+                Method = "FindType",
+                Mod = "Ultimate Mod Menu",
+                Takes = new[] { typeof(string[]) },
+                Answer = nameof(FindByNames),
+            },
         };
 
         private static MelonLogger.Instance _log;
@@ -225,10 +233,6 @@ namespace Polyfill.Boot
         /// The same answer for a search that asks by SIMPLE name, with a few full names to try first.
         /// </summary>
         /// <remarks>
-        /// The full-name pass is kept because the caller's own code does it and it is not the dangerous
-        /// part - <c>Assembly.GetType(name)</c> loads the one type asked for. Only the fallback, which
-        /// enumerates everything, is replaced.
-        ///
         /// Simple name ONLY on the fallback, and that is not laziness: the caller compares
         /// <c>t.Name</c>, and matching on the end of the full name instead would answer "NPC" with
         /// "PoliceNPC" - a type it never asked for, handed back as if it had.
@@ -238,16 +242,11 @@ namespace Polyfill.Boot
             __result = null;
             try
             {
-                foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-                    foreach (string full in fullNames ?? Array.Empty<string>())
-                    {
-                        try
-                        {
-                            var exact = assembly.GetType(full, false, true);
-                            if (exact != null) { __result = exact; return false; }
-                        }
-                        catch { }
-                    }
+                foreach (string full in fullNames ?? Array.Empty<string>())
+                {
+                    __result = Named(full);
+                    if (__result != null) { Announce(); return false; }
+                }
 
                 __result = InInterop(simpleName, null) ?? Elsewhere(simpleName, null);
                 Announce();
@@ -255,6 +254,80 @@ namespace Polyfill.Boot
             catch (Exception e) { _log?.Warning("[sweep] type search failed: " + e.Message); }
 
             return false;
+        }
+
+        /// <summary>
+        /// A search that only ever asks for full names, one after another.
+        /// </summary>
+        /// <remarks>
+        /// This one has no <c>GetTypes()</c> in it at all, and it still killed the process:
+        /// <code>
+        /// at System.Reflection.RuntimeAssembly.GetType(QCallAssembly, String, Boolean, Boolean, ...)
+        /// at UltimateModMenu.Core.ReflectionUtil.FindType(System.String[])
+        /// </code>
+        /// The caller asks <c>assembly.GetType(name, throwOnError: false, ignoreCase: true)</c>, and the
+        /// third argument is the whole problem: a case-insensitive lookup cannot go straight to a name, it
+        /// has to walk the type table comparing - which on an interop assembly is the same landmine as
+        /// enumerating on purpose.
+        ///
+        /// TWO EARLIER VERSIONS OF THIS FILE CALLED IT THAT WAY THEMSELVES, in the pass that was documented
+        /// as "the safe part". The comparison belongs in managed code over names read from metadata, and
+        /// only the exact name that came back may be handed to the runtime.
+        /// </remarks>
+        private static bool FindByNames(string[] names, ref Type __result)
+        {
+            __result = null;
+            try
+            {
+                foreach (string name in names ?? Array.Empty<string>())
+                {
+                    __result = Named(name);
+                    if (__result != null) break;
+                }
+                Announce();
+            }
+            catch (Exception e) { _log?.Warning("[sweep] type search failed: " + e.Message); }
+
+            return false;
+        }
+
+        /// <summary>
+        /// One full name, resolved without ever asking the runtime to match case-insensitively.
+        /// </summary>
+        private static Type Named(string fullName)
+        {
+            if (string.IsNullOrEmpty(fullName)) return null;
+
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                try
+                {
+                    if (IsInterop(assembly))
+                    {
+                        // Case folded here, against names Cecil read out of the file, so the runtime only
+                        // ever sees a spelling it can look up directly.
+                        string exact = Exactly(assembly, fullName);
+                        if (exact == null) continue;
+
+                        var found = assembly.GetType(exact, false, false);
+                        if (found != null) return found;
+                        continue;
+                    }
+
+                    var elsewhere = assembly.GetType(fullName, false, true);
+                    if (elsewhere != null) return elsewhere;
+                }
+                catch { }
+            }
+            return null;
+        }
+
+        /// <summary>The metadata's own spelling of a full name, or null if this assembly has no such type.</summary>
+        private static string Exactly(Assembly assembly, string fullName)
+        {
+            foreach (string known in NamesOf(assembly))
+                if (known.Equals(fullName, StringComparison.OrdinalIgnoreCase)) return known;
+            return null;
         }
 
         private static void Announce()
@@ -278,7 +351,9 @@ namespace Polyfill.Boot
 
                 try
                 {
-                    var found = assembly.GetType(name, false, true);
+                    // Case-SENSITIVE, because the name came out of this assembly's own metadata and
+                    // ignoreCase makes the runtime walk the type table - see FindByNames.
+                    var found = assembly.GetType(name, false, false);
                     if (found != null) return found;
                 }
                 catch { }
@@ -290,13 +365,7 @@ namespace Polyfill.Boot
         /// request, or null.</summary>
         private static string NameIn(Assembly assembly, string requested, string suffix)
         {
-            if (!Names.TryGetValue(assembly, out var names))
-            {
-                names = ReadNames(assembly);
-                Names[assembly] = names;
-            }
-
-            foreach (string full in names)
+            foreach (string full in NamesOf(assembly))
             {
                 if (full.Equals(requested, StringComparison.OrdinalIgnoreCase)) return full;
 
@@ -309,6 +378,15 @@ namespace Polyfill.Boot
                 if (simple.Equals(requested, StringComparison.OrdinalIgnoreCase)) return full;
             }
             return null;
+        }
+
+        /// <summary>Every public type name in an assembly, read once out of its metadata.</summary>
+        private static List<string> NamesOf(Assembly assembly)
+        {
+            if (Names.TryGetValue(assembly, out var names)) return names;
+            names = ReadNames(assembly);
+            Names[assembly] = names;
+            return names;
         }
 
         private static readonly Dictionary<Assembly, List<string>> Names = new();
