@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.9.15] - 2026-08-16
+
+### Changed
+- The log names which character each Over The Counter customer was built from, for the first eight. Ask
+  for it if your customers all look alike.
+
 ## [0.9.14] - 2026-08-16
 
 ### Fixed
