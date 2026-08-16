@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.9.14] - 2026-08-16
+
+### Fixed
+- Suppliers open their sales page again and the GreenTab app takes input after you return from the main
+  menu. Both died in the same call Polyfill had written wrong.
+
 ## [0.9.13] - 2026-08-16
 
 ### Fixed

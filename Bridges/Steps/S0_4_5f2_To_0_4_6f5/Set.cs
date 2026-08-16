@@ -1374,6 +1374,36 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         /// no conversion. Emitted only when the shadow is actually in the module, which means only when the
         /// type repair above it succeeded.
         /// </remarks>
+        /// <summary>
+        /// A method on a GENERIC type, named the way a caller inside that same type has to name it.
+        /// </summary>
+        /// <remarks>
+        /// A MethodDefinition on a generic type is the OPEN form - <c>App`1::Exit</c>, with no argument for
+        /// T - and calling that is not a thing the runtime can do. It does not fail at write time or at
+        /// load: it fails on the call, as
+        /// <code>
+        /// InvalidOperationException: Could not execute the method because either the method itself
+        ///                            or the containing type is not fully instantiated.
+        ///    at Il2CppScheduleOne.UI.App`1.Exit(ExitAction action)
+        /// </code>
+        /// which cost the suppliers their sales page and the GreenTab app its buttons, both reported
+        /// against 0.9.13. The stand-in lives on the same generic type, so the target is named through that
+        /// type closed over its OWN parameters - <c>App&lt;!T&gt;::Exit</c> - which is what any method
+        /// written in C# inside a generic class compiles to.
+        ///
+        /// Nothing here noticed for two weeks because the bridge diff cannot read a generic type name out
+        /// of the archive, and reported this one as unreadable rather than as unchecked.
+        /// </remarks>
+        private static MethodReference Itself(ModuleDefinition module, TypeDefinition owner,
+                                              MethodDefinition target)
+        {
+            if (!owner.HasGenericParameters) return module.ImportReference(target);
+
+            var self = new GenericInstanceType(module.ImportReference(owner));
+            foreach (var parameter in owner.GenericParameters) self.GenericArguments.Add(parameter);
+            return module.ImportReference(Core.ShadowTypes.On(self, target));
+        }
+
         private static MethodDefinition EmitAppExit(ModuleDefinition module, TypeDefinition app)
         {
             var shadow = module.GetType(ExitActionOld);
@@ -1389,7 +1419,7 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             var il = method.Body.GetILProcessor();
             il.Emit(OpCodes.Ldarg_0);
             il.Emit(OpCodes.Ldarg_1);
-            il.Emit(OpCodes.Call, real);
+            il.Emit(OpCodes.Call, Itself(module, app, real));
             il.Emit(OpCodes.Ret);
             return method;
         }
