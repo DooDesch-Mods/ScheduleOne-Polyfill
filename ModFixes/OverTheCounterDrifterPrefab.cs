@@ -60,6 +60,7 @@ namespace Polyfill.ModFixes
 
         private static MelonLogger.Instance _log;
         private static readonly List<NetworkObject> _pool = new();
+        private static readonly List<NetworkObject> _baked = new();
         private static int _next;
         private static bool _searched;
         private static bool _said;
@@ -184,11 +185,58 @@ namespace Polyfill.ModFixes
                     NPC npc = null;
                     Employee employee = null;
                     try { npc = go.GetComponent<NPC>(); employee = go.GetComponent<Employee>(); } catch { }
+                    if (npc == null || employee != null) continue;
 
-                    if (npc != null && employee == null) _pool.Add(candidate);
+                    if (Baked(npc)) _baked.Add(candidate);
+                    else _pool.Add(candidate);
                 }
+
+                // A baked one is used only when there is nothing else. It is still an NPC and still not an
+                // employee, which is what the caller crashed without.
+                if (_pool.Count == 0) _pool.AddRange(_baked);
+                else if (_baked.Count > 0)
+                    _log?.Msg($"[fix] otc-drifter-prefab: skipped {_baked.Count} prefab(s) whose body is a "
+                            + "single baked layer - a customer cloned from one keeps that body whatever "
+                            + "OverTheCounter randomises on top.");
             }
             catch (Exception e) { _log?.Warning("[fix] otc-drifter-prefab: " + e.Message); }
+        }
+
+        /// <summary>
+        /// Is this prefab's body one baked layer rather than the layers an outfit is made of?
+        /// </summary>
+        /// <remarks>
+        /// A GUARD AND A DIAGNOSTIC, NOT A CONFIRMED REPAIR - and the difference is worth writing down,
+        /// because it was written expecting to be one.
+        ///
+        /// OverTheCounter randomises an appearance over whatever it cloned - gender, skin, height, hair,
+        /// face - by editing the settings object it finds on the clone and handing it back
+        /// (NpcSpawner.cs:543-634). What it never touches is <c>UseCombinedLayer</c>, and
+        /// <c>Avatar.ApplyBodyLayerSettings</c> checks that before anything else:
+        /// <code>
+        /// if (UseCombinedLayer &amp;&amp; settings.UseCombinedLayer &amp;&amp; settings.CombinedLayer != null)
+        /// {
+        ///     ... bodyMeshes[j].material = avatarLayer.CombinedMaterial;
+        ///     return;                                  // Avatar.cs:607-620
+        /// }
+        /// </code>
+        /// A base with a baked body would therefore keep it while the head changed, which is what "every
+        /// customer is the same two people" looks like.
+        ///
+        /// MEASURED, AND IT IS NOT THAT - at least not here. All four candidates on the machine this was
+        /// written on report <c>UseCombinedLayer</c> false, so this skips nothing and explains nothing
+        /// about the report that prompted it. It stays because a base that IS baked would defeat the
+        /// randomisation silently, and because the line it logs turns that into something visible instead
+        /// of something to guess at.
+        /// </remarks>
+        private static bool Baked(NPC npc)
+        {
+            try
+            {
+                var settings = npc.Avatar?.CurrentSettings;
+                return settings != null && settings.UseCombinedLayer && settings.CombinedLayer != null;
+            }
+            catch { return false; }
         }
 
         private static string Names()
