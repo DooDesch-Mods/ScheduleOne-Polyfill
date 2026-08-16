@@ -133,8 +133,26 @@ namespace Polyfill.ModFixes
             Say($"[fix] otc-drifter-prefab: OverTheCounter asked for 'CivilianNPC', which this build does not "
               + $"have, and fell back to '{found.name}' - an employee. Handed it one of {_pool.Count} "
               + $"spawnable NPC prefab(s) instead, a different one each time: {Names()}.");
+
+            // THE NEXT FEW BY NAME, and this is not chatter. "The customers are all the same two people"
+            // cannot be told apart from "the rotation works and something later overrides the look" by any
+            // amount of reading, and the difference decides whose bug it is. Eight lines in a log settle
+            // it; nothing available here does.
+            if (_handed < 8)
+            {
+                _handed++;
+                try
+                {
+                    _log?.Msg($"[fix] otc-drifter-prefab: handover {_handed} -> {better.gameObject.name}"
+                            + (_handed == 8 ? " (further handovers are not logged)" : ""));
+                }
+                catch { }
+            }
+
             __result = better;
         }
+
+        private static int _handed;
 
         /// <summary>
         /// A spawnable NPC prefab that is not an employee - and a different one on each call.
