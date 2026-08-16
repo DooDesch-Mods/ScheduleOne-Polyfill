@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.9.13] - 2026-08-16
+
+### Fixed
+- Over The Counter's manager panel goes away when you put the clipboard down, instead of staying up and
+  overlapping the next employee's panel.
+
 ## [0.9.12] - 2026-08-15
 
 ### Fixed

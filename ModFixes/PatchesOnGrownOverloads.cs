@@ -60,7 +60,7 @@ namespace Polyfill.ModFixes
                 var real = Find(type, entry.Name, entry.OldParameters, exact: false);
                 if (standIn == null || real == null || standIn == real) continue;
 
-                moved += Move(standIn, real, log);
+                moved += Move(standIn, real, Id, log);
             }
 
             if (moved == 0) return false;
@@ -99,25 +99,30 @@ namespace Polyfill.ModFixes
             return found;
         }
 
-        /// <summary>Copy every prefix, postfix and finalizer from one method onto another.</summary>
-        private static int Move(MethodInfo standIn, MethodInfo real, MelonLogger.Instance log)
+        /// <summary>Copy every prefix and postfix from one method onto another.</summary>
+        /// <remarks>
+        /// Shared with <see cref="PatchesOnSplitMethods"/>, which is the same repair for a method the game
+        /// SPLIT rather than grew. The two differ only in how the real method is found; what happens to the
+        /// patches afterwards is identical, and having written it twice would have meant fixing it twice.
+        /// </remarks>
+        internal static int Move(MethodInfo standIn, MethodInfo real, string id, MelonLogger.Instance log)
         {
             HarmonyLib.Patches info;
             try { info = HarmonyLib.Harmony.GetPatchInfo(standIn); }
-            catch (Exception e) { log.Warning("[fix] patches-on-grown-overloads: " + e.Message); return 0; }
+            catch (Exception e) { log.Warning($"[fix] {id}: " + e.Message); return 0; }
             if (info == null) return 0;
 
             var harmony = new HarmonyLib.Harmony("doodesch.polyfill.repoint");
             int moved = 0;
 
-            foreach (var patch in info.Prefixes) moved += One(harmony, real, patch, prefix: true, log);
-            foreach (var patch in info.Postfixes) moved += One(harmony, real, patch, prefix: false, log);
+            foreach (var patch in info.Prefixes) moved += One(harmony, real, patch, prefix: true, id, log);
+            foreach (var patch in info.Postfixes) moved += One(harmony, real, patch, prefix: false, id, log);
 
             return moved;
         }
 
         private static int One(HarmonyLib.Harmony harmony, MethodInfo real, HarmonyLib.Patch patch,
-                               bool prefix, MelonLogger.Instance log)
+                               bool prefix, string id, MelonLogger.Instance log)
         {
             // Polyfill's own patches are not moved. Nothing here patches a stand-in, so this can only
             // fire if a later version does - and a repair re-applying itself is the kind of loop that is
@@ -138,13 +143,13 @@ namespace Polyfill.ModFixes
                               prefix: prefix ? method : null,
                               postfix: prefix ? null : method);
 
-                log.Msg($"[fix] patches-on-grown-overloads: {patch.owner} -> "
+                log.Msg($"[fix] {id}: {patch.owner} -> "
                       + $"{real.DeclaringType?.Name}.{real.Name}({real.GetParameters().Length} args)");
                 return 1;
             }
             catch (Exception e)
             {
-                log.Warning($"[fix] patches-on-grown-overloads: could not move {patch.owner}'s patch: "
+                log.Warning($"[fix] {id}: could not move {patch.owner}'s patch: "
                           + e.Message);
                 return 0;
             }

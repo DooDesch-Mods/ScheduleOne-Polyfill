@@ -42,6 +42,7 @@ namespace Polyfill.ModFixes
             // after every one of them has had its turn.
             new StorageMenuClosedEvent(),
             new PatchesOnGrownOverloads(),
+            new PatchesOnSplitMethods(),
             new SplitScreenPatches(),
         };
 
