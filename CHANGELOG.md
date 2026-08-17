@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.9.18] - 2026-08-17
+
+### Fixed
+- Despawning an NPC stops filling your log with errors. The game asks one list of schedule actions
+  whether they should start without checking they still exist.
+
 ## [0.9.17] - 2026-08-17
 
 ### Fixed
