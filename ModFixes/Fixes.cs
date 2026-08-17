@@ -37,6 +37,7 @@ namespace Polyfill.ModFixes
             new OverTheCounterHandover(),
             new ThmButtonCodes(),
             new BiggerTreesScale(),
+            new ScheduleActionsSurviveDeath(),
             new MoreFootPatrolsOfficerPool(),
 
             // Last, and that is not cosmetic: these read what other mods have patched, so they have to run
