@@ -54,6 +54,12 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                                           + "StationInterface<T> base and renamed the four that still said "
                                           + "Canvas; same members, same namespace, one word different";
 
+        private const string StationOwner = "the screen's own station was called after the station "
+                                          + "(PackagingStationCanvas.PackagingStation, "
+                                          + "MixingStationCanvas.MixingStation) and 0.4.6 calls both Station "
+                                          + "- the other five screens kept theirs, so this is two names and "
+                                          + "not a pattern";
+
         /// <summary>
         /// Types the game renamed outright, which no name match can follow.
         /// </summary>
@@ -414,6 +420,13 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                 Emit = EmitStorageClosedEvent,
             },
             NowCalled(Inv, "set_PickpocketIntObj", 1, "set__interactable", Pickpocketed),
+
+            // Two station screens renamed the property that hands out the station they belong to, and the
+            // other five did not - Press, Oven, Cauldron, Rack and ChemistryStation all kept their names.
+            // So this is a pair of facts rather than a rule, and guessing the rule would rename five
+            // members that never moved.
+            NowCalled(Stations + "PackagingStationCanvas", "get_PackagingStation", 0, "get_Station", StationOwner),
+            NowCalled(Stations + "MixingStationInterface", "get_MixingStation", 0, "get_Station", StationOwner),
 
             // A method that LOST an argument, which is the mirror of the three above and needs its own
             // shape: the old form has one parameter too many rather than one too few.
