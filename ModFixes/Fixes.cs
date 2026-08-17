@@ -33,6 +33,7 @@ namespace Polyfill.ModFixes
             new OverTheCounterDrifterPrefab(),
             new OverTheCounterButtonCodes(),
             new OverTheCounterClipboard(),
+            new OverTheCounterStalePanel(),
             new OverTheCounterHandover(),
             new ThmButtonCodes(),
             new BiggerTreesScale(),
