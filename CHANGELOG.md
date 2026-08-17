@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.9.16] - 2026-08-17
+
+### Fixed
+- Instant Pack works again. The packaging and mixing screens renamed the property that hands out the
+  station they belong to, and mods that ask for the old name got nothing.
+
 ## [0.9.15] - 2026-08-16
 
 ### Changed

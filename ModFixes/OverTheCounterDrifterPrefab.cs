@@ -205,6 +205,21 @@ namespace Polyfill.ModFixes
                     try { npc = go.GetComponent<NPC>(); employee = go.GetComponent<Employee>(); } catch { }
                     if (npc == null || employee != null) continue;
 
+                    // MEASURED BECAUSE A DUPLICATE GUID DISPLACES ITS OWNER SILENTLY. A clone inherits
+                    // the prefab's BakedGUID, NPC.Awake registers it, and GUIDManager.RegisterObject
+                    // logs one warning and then hands the id to the newcomer - after which save data
+                    // keyed on it loads onto the wrong NPC. Reported as a manager wearing another
+                    // character's position and, after a restart, their inventory.
+                    try
+                    {
+                        string baked = npc.BakedGUID;
+                        if (!string.IsNullOrEmpty(baked))
+                            _log?.Warning($"[fix] otc-drifter-prefab: '{go.name}' carries a baked GUID "
+                                        + $"({baked}); every copy of it claims that id and displaces "
+                                        + "whoever held it.");
+                    }
+                    catch { }
+
                     if (Baked(npc)) _baked.Add(candidate);
                     else _pool.Add(candidate);
                 }
