@@ -146,11 +146,40 @@ namespace Polyfill.Core
             string name = Decorate(spec.MethodName, spec.MethodType);
             int argumentCount = spec.ArgumentTypes?.Count ?? -1;
 
+            // HOW MANY, not "is there one". A patch that names no argument types is bound by Harmony
+            // through a lookup that throws AmbiguousMatchException the moment two methods share the name,
+            // and the throw comes out of PatchAll - so the mod loses that patch class AND every one after
+            // it. Measured on Deal Optimizer: 0.4.5f2 had one ChangeQuantity(int), 0.4.6 has a float and a
+            // string one, and the mod stops patching at that line. Counting was the whole difference
+            // between reporting this and calling it present.
+            MethodDefinition found = null;
+            int matches = 0;
             foreach (var method in declaring.Methods)
             {
                 if (method.Name != name) continue;
                 if (argumentCount >= 0 && method.Parameters.Count != argumentCount) continue;
-                Names(method, patches, site, report);     // the target is there; is it still spelled right
+                matches++;
+                found ??= method;
+            }
+
+            if (matches > 1 && argumentCount < 0)
+            {
+                report.Findings.Add(new Finding
+                {
+                    Kind = "harmony-target",
+                    Scope = declaring.Module?.Assembly?.Name?.Name ?? "",
+                    Symbol = (under ?? declaring.FullName) + "::" + name,
+                    Reason = $"this build has {matches} methods called {name} and the patch names no "
+                           + "parameters, so Harmony cannot tell which one is meant. It throws out of "
+                           + "PatchAll, which costs this patch class and every one after it",
+                    Site = site,
+                });
+                return;
+            }
+
+            if (found != null)
+            {
+                Names(found, patches, site, report);      // the target is there; is it still spelled right
                 return;
             }
 

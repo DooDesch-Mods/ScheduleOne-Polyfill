@@ -89,6 +89,7 @@ namespace Polyfill.Boot
                 // of a renamed type can be dealt with. See DeclaredMethodFallback for why the stand-in
                 // class alone leaves every Harmony patch on that name unregistered.
                 if (!DryRun && HelpHarmonyFind) DeclaredMethodFallback.Install(LoggerInstance);
+                if (!DryRun) PatchClassIsolation.Install(LoggerInstance);
                 else if (!HelpHarmonyFind)
                     LoggerInstance.Msg("[harmony] the lookup help is off in MelonPreferences, so a patch "
                                      + "aimed at a type this game renamed will not find it.");
