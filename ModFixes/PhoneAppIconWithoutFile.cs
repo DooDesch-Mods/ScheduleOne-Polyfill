@@ -1,4 +1,3 @@
-using System.Reflection;
 using HarmonyLib;
 using MelonLoader;
 
@@ -25,9 +24,9 @@ namespace Polyfill.ModFixes
     /// </code>
     /// The throw comes out of registration, so the whole app is gone rather than the icon.
     ///
-    /// This makes the null behave like the missing file two lines below it: no icon, a line in the log,
-    /// and an app the player can open. It is the same repair S1API wants upstream, applied where a
-    /// player can have it today.
+    /// This makes the null behave like the missing file the very next line checks for: no icon, a line
+    /// in the log, and an app the player can open. It is the same repair S1API wants upstream,
+    /// applied where a player can have it today.
     ///
     /// NOT VERSION-SPECIFIC, and that is why the window is open: nothing about this changed with the
     /// game. Any app pairing a sprite with a null file name meets it on any build.
@@ -56,13 +55,15 @@ namespace Polyfill.ModFixes
             var phoneApp = AccessTools.TypeByName("S1API.PhoneApp.PhoneApp");
             if (phoneApp == null) return false;                       // S1API is not installed
 
-            // Two parameters and a bool back, checked rather than assumed: this is a private method of
-            // somebody else's library, and binding a patch to a different one would be worse than not
-            // binding at all.
+            // Shape AND parameter name, checked rather than assumed: this is a private method of somebody
+            // else's library, Harmony binds a prefix argument BY NAME, and a rename would arrive as a patch
+            // that will not compile rather than as a null here.
             var target = AccessTools.Method(phoneApp, "ChangeAppIconImage");
+            var parameters = target?.GetParameters();
             if (target == null || target.ReturnType != typeof(bool)
-                || target.GetParameters().Length != 2
-                || target.GetParameters()[1].ParameterType != typeof(string))
+                || parameters.Length != 2
+                || parameters[1].ParameterType != typeof(string)
+                || parameters[1].Name != "filename")
             {
                 log.Warning("[fix] phoneapp-icon-without-file: S1API's icon loader is not the two-argument "
                           + "method this knows, so an app with no icon file still fails to register.");

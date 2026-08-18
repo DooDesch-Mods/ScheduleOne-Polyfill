@@ -303,9 +303,10 @@ jobs:
           path: "Polyfill_${{ steps.version-check.outputs.version }}_debug.zip"
 
       # Nexus is installed through Vortex, whose Schedule 1 extension deploys relative to the game root and
-      # maps loose non-.md files at the archive root to a bare "mods" path - which lands a FILE named "mods"
-      # in the game folder, replacing the real Mods DIRECTORY and wiping other mods. So Nexus gets its own
-      # archive with the payload in folders and none of the Thunderstore-only files.
+      # maps loose non-.md, non-.dll files at the archive root to a bare "mods" path - which lands a FILE
+      # named "mods" in the game folder, replacing the real Mods DIRECTORY and wiping other mods. So Nexus
+      # gets its own archive: the mod under mods/, the docs as .md the extension skips, and none of the
+      # Thunderstore-only manifest.json or icon.png.
       #
       # THE PLUGIN GOES AT THE ARCHIVE ROOT, and it is not a style choice. A player reported the boot file
       # landing in bepinex/plugins, and the extension says why (index.js:395 and 415):
