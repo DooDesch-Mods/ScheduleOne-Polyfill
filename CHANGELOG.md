@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented here.
 
+## [0.9.20] - 2026-08-19
+
+### Fixed
+- The GreenTab app comes back after a trip to the main menu instead of failing to register, which took
+  the whole app down rather than its icon.
+- Unicorn's Custom Seeds can put its seeds in a supplier's shop again. Reading the list was bridged and
+  writing it back was not.
+- Installing through Vortex puts the plugin in the game's Plugins folder instead of bepinex/plugins.
+
 ## [0.9.19] - 2026-08-18
 
 ### Fixed
