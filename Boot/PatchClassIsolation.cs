@@ -12,7 +12,7 @@ namespace Polyfill.Boot
     /// Everything after it in the assembly is never applied, and the log says only which class failed -
     /// so the visible symptom is a mod that loads, prints "Initialized", and does almost nothing.
     ///
-    /// MEASURED ON DEAL OPTIMIZER, twice in one afternoon. Its first class patches
+    /// MEASURED ON DEAL OPTIMIZER, and twice over: its first class patches
     /// <c>CounterofferInterface.ChangePrice</c>, which 0.4.6 deleted; with that repaired, the very next
     /// class patches <c>ChangeQuantity</c>, which 0.4.6 turned into two overloads, so Harmony cannot tell
     /// which one is meant and throws again. Both times the mod lost seven further patch classes that had
@@ -46,10 +46,10 @@ namespace Polyfill.Boot
                 }
 
                 // The type the class processor is working on, for the log line. Private, and worth reading
-                // by hand rather than guessing from the exception text: the message names the PATCH method,
-                // and what the player needs is the class that stopped.
-                _container = AccessTools.Field(typeof(PatchClassProcessor), "containerType")
-                             ?? AccessTools.Field(typeof(PatchClassProcessor), "container");
+                // rather than taking from the exception text: that message names the PATCH method, and what
+                // the player needs is the class that stopped. Null on a Harmony that renamed it, which the
+                // log line handles.
+                _container = AccessTools.Field(typeof(PatchClassProcessor), "containerType");
 
                 new HarmonyLib.Harmony(Id).Patch(target,
                     finalizer: new HarmonyMethod(typeof(PatchClassIsolation), nameof(Isolate)));

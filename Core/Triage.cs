@@ -453,8 +453,7 @@ namespace Polyfill.Core
                         Reason = "the method is here and hands back "
                                + (method.ReturnType?.Name ?? "something else") + " from where that type "
                                + "moved to, so a call naming the old one does not resolve",
-                        Hint = key == null ? "" : "the same method, declared to hand back the name the mod "
-                                                + "knows",
+                        Hint = key == null ? "" : "the same method, declared to hand back the name the mod knows",
                         RepairKey = key,
                     });
                 }

@@ -281,18 +281,14 @@ namespace Polyfill.Report
             if (matches.Count == 0)
             { Core.Log.Warning($"{typeName}::{memberName} does NOT exist at runtime."); return; }
 
-            if (matches.Count > 1)
-            {
-                Core.Log.Msg($"{typeName}::{memberName} exists {matches.Count} times:");
-                foreach (var one in matches)
-                    Core.Log.Msg($"  -> returns {one.ReturnType.Name}, {one.GetParameters().Length} "
-                               + $"parameter(s), declared on {one.DeclaringType.Name}");
-            }
+            Core.Log.Msg(matches.Count == 1
+                ? $"{typeName}::{memberName} exists:"
+                : $"{typeName}::{memberName} exists {matches.Count} times:");
+            foreach (var one in matches)
+                Core.Log.Msg($"  returns {one.ReturnType.Name}, {one.GetParameters().Length} parameter(s), "
+                           + $"declared on {one.DeclaringType.Name}");
 
             var method = matches[0];
-
-            Core.Log.Msg($"{typeName}::{memberName} exists -> returns {method.ReturnType.Name}, "
-                       + $"{method.GetParameters().Length} parameter(s), declared on {method.DeclaringType.Name}");
 
             if (method.GetParameters().Length != 0)
             { Core.Log.Msg("  not called: the probe only invokes members that take nothing."); return; }

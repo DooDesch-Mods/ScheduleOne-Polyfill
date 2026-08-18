@@ -489,7 +489,7 @@ namespace Polyfill.Core
                                     member.OldName, member.ParameterCount, member.ParameterTypes)
                 : null;
 
-            if (rule == null && !member.SameNameNewReturn || rule != null && !rule.AllowOverload)
+            if (rule == null ? !member.SameNameNewReturn : !rule.AllowOverload)
                 foreach (var existing in type.Methods)
                     if (existing.Name == member.OldName)
                     { Refuse(result, member, label, "the name is already taken here"); return false; }
