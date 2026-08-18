@@ -307,15 +307,22 @@ jobs:
       # in the game folder, replacing the real Mods DIRECTORY and wiping other mods. So Nexus gets its own
       # archive with the payload in folders and none of the Thunderstore-only files.
       #
-      # UNVERIFIED for this mod: that extension is known to misroute a UserLibs/ folder into MelonLoader/, and
-      # nobody has tested what it does with plugins/. Until somebody installs this through Vortex and confirms
-      # Polyfill.Boot.dll lands in the game's Plugins folder, the Nexus page tells players to install by hand -
-      # see Workspace/docs/Polyfill/release/UPLOAD.md.
-      - name: Create Nexus/Vortex ZIP (payload in folders so the Schedule 1 Vortex extension installs cleanly)
+      # THE PLUGIN GOES AT THE ARCHIVE ROOT, and it is not a style choice. A player reported the boot file
+      # landing in bepinex/plugins, and the extension says why (index.js:395 and 415):
+      #
+      #     const bepinexPluginsIdx = lowerSegments.indexOf('plugins');
+      #     if (bepinexPluginsIdx !== -1) dest = path.join('bepinex', 'plugins', ...)
+      #
+      # The name says bepinex; the test matches ANY folder called plugins, and it runs before every
+      # MelonLoader branch. So a folder named plugins/ is the one thing this archive must not contain.
+      # A loose .dll instead falls through to the loader check further down, which reads the assembly,
+      # finds MelonPlugin in it, and lands it in the game's own Plugins folder - which is correct.
+      # Mods/ has no such problem: `modsIdx` maps it to mods/ as written.
+      - name: Create Nexus/Vortex ZIP (payload placed the way the Schedule 1 Vortex extension routes it)
         run: |
-          mkdir -p nexus/mods nexus/plugins
+          mkdir -p nexus/mods
           cp release/Mods/Polyfill.dll nexus/mods/
-          cp release/Plugins/Polyfill.Boot.dll nexus/plugins/
+          cp release/Plugins/Polyfill.Boot.dll nexus/
           for f in README.md CHANGELOG.md LICENSE.md; do
             [ -f "release/$f" ] && cp "release/$f" nexus/ || true
           done
