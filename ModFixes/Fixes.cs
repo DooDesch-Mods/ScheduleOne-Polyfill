@@ -35,6 +35,7 @@ namespace Polyfill.ModFixes
             new OverTheCounterClipboard(),
             new OverTheCounterStalePanel(),
             new OverTheCounterHandover(),
+            new PhoneAppIconWithoutFile(),
             new ThmButtonCodes(),
             new BiggerTreesScale(),
             new ScheduleActionsSurviveDeath(),
