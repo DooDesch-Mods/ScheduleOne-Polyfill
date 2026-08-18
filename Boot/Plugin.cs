@@ -89,10 +89,14 @@ namespace Polyfill.Boot
                 // of a renamed type can be dealt with. See DeclaredMethodFallback for why the stand-in
                 // class alone leaves every Harmony patch on that name unregistered.
                 if (!DryRun && HelpHarmonyFind) DeclaredMethodFallback.Install(LoggerInstance);
-                if (!DryRun) PatchClassIsolation.Install(LoggerInstance);
                 else if (!HelpHarmonyFind)
                     LoggerInstance.Msg("[harmony] the lookup help is off in MelonPreferences, so a patch "
                                      + "aimed at a type this game renamed will not find it.");
+
+                // Not behind HelpHarmonyFind: that switch is about putting Polyfill in front of another
+                // mod's LOOKUP. This changes nothing about what a patch resolves to - it only stops one
+                // class that will not bind from ending the mod's whole registration.
+                if (!DryRun) PatchClassIsolation.Install(LoggerInstance);
 
                 // Layer 2. Off under DryRun like everything else: it answers the same questions the same way,
                 // but it is still a change to a running game, and "repair nothing" has to mean nothing.
