@@ -212,6 +212,9 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         private static readonly string[] NpcSpeed = { "npc", "NPCData", "Movement" };
         private static readonly string[] SupplierData = { "SupplierData" };
 
+        private const string ShopListings = "the same PhoneShopInterface.Listing[]; 0.4.6 keeps it on "
+                                          + "SupplierNPCData and Supplier.SupplierData is the way in";
+
         private const string LobbyType = "Il2CppScheduleOne.Networking.Lobby";
 
         /// <summary>The interop array wrapper, by simple name - see <c>StructArray</c> for why not by its
@@ -337,10 +340,14 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             Moved(Movement, "WalkSpeed", Write, NpcSpeed, "WalkSpeed", Speed),
             Moved(Movement, "RunSpeed", Write, NpcSpeed, "SprintSpeed", Speed),
 
+            // Read AND write. A mod that adds to a supplier's shop does it by assigning the array back,
+            // and the write lands where the game reads it from: SupplierData is this supplier's own
+            // runtime copy (NPC.cs:3072 takes GetRuntimeData, NPCData.cs:79 copies per instance), and
+            // the order screen reads DeliveryShopListings live (Supplier.cs:420).
             Moved("Il2CppScheduleOne.Economy.Supplier", "OnlineShopItems", Read, SupplierData,
-                  "DeliveryShopListings",
-                  "the same PhoneShopInterface.Listing[]; 0.4.6 keeps it on SupplierNPCData and "
-                + "Supplier.SupplierData is the way in"),
+                  "DeliveryShopListings", ShopListings),
+            Moved("Il2CppScheduleOne.Economy.Supplier", "OnlineShopItems", Write, SupplierData,
+                  "DeliveryShopListings", ShopListings),
 
             // The station screens that KEPT their name still lost this one to the new shared base.
             FromBase(Stations + "PackagingStationCanvas", "Canvas", "_canvas", StationCanvas),
