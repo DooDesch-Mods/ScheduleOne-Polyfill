@@ -425,6 +425,27 @@ namespace Polyfill.Core
                 if (returns != null && repaired.ContainsKey(returns)
                     && !string.Equals(returns, method.ReturnType?.FullName, StringComparison.Ordinal))
                 {
+                    // AND IT IS REPAIRABLE, which it was not until the stand-in existed. The forward for a
+                    // renamed member already knows how to hand its answer back under the old name - it
+                    // declares the stand-in as the return type and rebuilds the shell around the same
+                    // pointer. Here the NAME did not change at all, only what it hands back, so the same
+                    // forward is asked for under the name it already has. Reported alone, this was the one
+                    // finding that named a candidate and never used it: Deal Optimizer's street-deal
+                    // postfix reads HandoverScreen.PriceSelector and lost its whole method to it.
+                    string key = kindPrefix.Length == 0
+                        ? Collect(new InteropAugmentor.MemberForward
+                        {
+                            InAssembly = scope,
+                            DeclaringType = declaring.FullName,
+                            OldName = wanted.Name,
+                            NewName = method.Name,
+                            ParameterCount = wanted.Parameters?.Count ?? 0,
+                            ParameterTypes = ParameterTypes(wanted),
+                            SameNameNewReturn = true,
+                            Rule = "return type",
+                        })
+                        : null;
+
                     report.Findings.Add(new Finding
                     {
                         Kind = kindPrefix + "member", Scope = scope,
@@ -432,6 +453,8 @@ namespace Polyfill.Core
                         Reason = "the method is here and hands back "
                                + (method.ReturnType?.Name ?? "something else") + " from where that type "
                                + "moved to, so a call naming the old one does not resolve",
+                        Hint = key == null ? "" : "the same method, declared to hand back the name the mod knows",
+                        RepairKey = key,
                     });
                 }
                 return;                                                      // still there, unchanged

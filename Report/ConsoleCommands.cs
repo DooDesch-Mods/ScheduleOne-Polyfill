@@ -268,14 +268,27 @@ namespace Polyfill.Report
             }
             if (type == null) { Core.Log.Warning($"type {typeName} not found at runtime."); return; }
 
-            var method = type.GetMethod(memberName, System.Reflection.BindingFlags.Public
+            // Collected by hand rather than through GetMethod(name), which THROWS on a name carried by more
+            // than one method - and Polyfill makes that happen on purpose: a member the game kept but now
+            // hands a renamed type back from is repaired by declaring the old return type beside it. The
+            // probe that reports on that repair must not be the first thing it breaks.
+            var matches = new List<System.Reflection.MethodInfo>();
+            foreach (var candidate in type.GetMethods(System.Reflection.BindingFlags.Public
                 | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance
-                | System.Reflection.BindingFlags.Static);
-            if (method == null)
+                | System.Reflection.BindingFlags.Static))
+                if (candidate.Name == memberName) matches.Add(candidate);
+
+            if (matches.Count == 0)
             { Core.Log.Warning($"{typeName}::{memberName} does NOT exist at runtime."); return; }
 
-            Core.Log.Msg($"{typeName}::{memberName} exists -> returns {method.ReturnType.Name}, "
-                       + $"{method.GetParameters().Length} parameter(s), declared on {method.DeclaringType.Name}");
+            Core.Log.Msg(matches.Count == 1
+                ? $"{typeName}::{memberName} exists:"
+                : $"{typeName}::{memberName} exists {matches.Count} times:");
+            foreach (var one in matches)
+                Core.Log.Msg($"  returns {one.ReturnType.Name}, {one.GetParameters().Length} parameter(s), "
+                           + $"declared on {one.DeclaringType.Name}");
+
+            var method = matches[0];
 
             if (method.GetParameters().Length != 0)
             { Core.Log.Msg("  not called: the probe only invokes members that take nothing."); return; }

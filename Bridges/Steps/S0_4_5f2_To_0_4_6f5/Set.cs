@@ -308,6 +308,7 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             Moved(Npc, "ID", Write, BasicInfo, "ID", NameSplit),
             Moved(Npc, "FirstName", Write, BasicInfo, "FirstName", NameSplit),
             Moved(Npc, "LastName", Write, BasicInfo, "LastName", NameSplit),
+            Moved(Npc, "hasLastName", Write, BasicInfo, "HasLastName", NameSplit),
             Moved(Npc, "MugshotSprite", Write, Appearance, "Mugshot",
                   "NPC.cs:71 until 0.4.5f2, now Appearance.Mugshot"),
             Moved(Npc, "CanBeSummoned", Write, Interaction, "CanBeSummoned", Summon),
@@ -323,6 +324,13 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             // "DealOptimizer generates errors over and over and the interface is blank", which is exactly
             // what a MissingMethodException in the mod's Subscribe() looks like from the outside.
             Moved(Counteroffer, "PriceInput", Read, PriceSelector, "_inputField", PriceBox),
+
+            // And the screen stopped MOVING the price as well: the box it holds does that now, and it does
+            // it the same way. Both add the delta to what is showing and clamp it.
+            Onto(Counteroffer, "ChangePrice", 1, PriceSelector, "ChangeAmount",
+                 "CounterofferInterface.cs:196-200 until 0.4.5f2 clamped price + change into its own field "
+               + "and wrote the box; AmountSelector.cs:56 is that line with the bounds the box carries "
+               + "(ChangeAmount -> SetAmount(SelectedAmount + change))"),
 
             // Walk and run speed became read-only views over the NPC's data object. Writing one wrote the
             // value the getter still reads, so the write goes to the same place.
@@ -811,6 +819,75 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             il.Append(giveUp);
             il.Emit(OpCodes.Pop);
             if (!write) EmitDefault(method, il, returnType);
+            il.Emit(OpCodes.Ret);
+
+            method.Body.InitLocals = true;
+            return method;
+        }
+
+        /// <summary>
+        /// A method whose WORK moved onto something the type holds: the old name is put back and hands the
+        /// call on as <c>this.A.B.Target(args)</c>.
+        /// </summary>
+        /// <remarks>
+        /// The sibling of <see cref="Moved"/> for the case where what moved is not a value but a verb. Same
+        /// walk, same null guard, and the parameters are taken from the DESTINATION for the same reason -
+        /// a rule cannot claim a signature this build does not have.
+        /// </remarks>
+        private static Bridge Onto(string declaringType, string oldName, int parameterCount,
+                                   string[] hops, string target, string because)
+            => new()
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = declaringType,
+                OldName = oldName,
+                ParameterCount = parameterCount,
+                Because = because,
+                Emit = (module, type) => EmitOnto(module, type, oldName, hops, target, parameterCount),
+            };
+
+        private static MethodDefinition EmitOnto(ModuleDefinition module, TypeDefinition owner, string oldName,
+                                                 string[] hops, string target, int parameterCount)
+        {
+            var steps = new List<MethodDefinition>();
+            var current = owner;
+            foreach (string hop in hops)
+            {
+                var step = Getter(current, hop);
+                if (step == null) return null;
+                steps.Add(step);
+                current = step.ReturnType?.Resolve();
+                if (current == null) return null;
+            }
+
+            var destination = MethodUp(current, target, parameterCount);
+            if (destination == null || destination.HasGenericParameters) return null;
+
+            var method = new MethodDefinition(oldName, MethodAttributes.Public | MethodAttributes.HideBySig,
+                                              module.ImportReference(destination.ReturnType));
+            foreach (var parameter in destination.Parameters)
+                method.Parameters.Add(new ParameterDefinition(parameter.Name, ParameterAttributes.None,
+                                                              module.ImportReference(parameter.ParameterType)));
+
+            var il = method.Body.GetILProcessor();
+            var giveUp = il.Create(OpCodes.Nop);
+
+            il.Emit(OpCodes.Ldarg_0);
+            for (int i = 0; i < steps.Count; i++)
+            {
+                il.Emit(i == 0 ? OpCodes.Call : OpCodes.Callvirt, module.ImportReference(steps[i]));
+                il.Emit(OpCodes.Dup);
+                il.Emit(OpCodes.Brfalse, giveUp);
+            }
+
+            foreach (var parameter in method.Parameters) il.Emit(OpCodes.Ldarg, parameter);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(destination));
+            il.Emit(OpCodes.Ret);
+
+            // a hop was null: drop it and do nothing rather than throwing
+            il.Append(giveUp);
+            il.Emit(OpCodes.Pop);
+            if (method.ReturnType.FullName != "System.Void") EmitDefault(method, il, method.ReturnType);
             il.Emit(OpCodes.Ret);
 
             method.Body.InitLocals = true;

@@ -83,6 +83,24 @@ namespace Polyfill.Core
             internal string[] ParameterTypes;
 
             /// <summary>
+            /// The name is already here and only what it hands back is wrong.
+            /// </summary>
+            /// <remarks>
+            /// Every other forward puts a name back that is gone, so finding the name already taken means
+            /// the repair was a mistake. This one is the exception: the game kept the name and changed the
+            /// return type under it, and the CLR matches a call on the whole signature, so a second method
+            /// of the same name is exactly what makes the old call resolve. C# cannot declare that pair;
+            /// IL can, and a caller naming either one finds it.
+            ///
+            /// The cost is named rather than hidden: reflection BY NAME ALONE on that type
+            /// (<c>GetMethod("get_X")</c>, and AccessTools with no parameter list) becomes ambiguous and
+            /// comes back null. That is why this is never speculative - it is only ever asked for by a mod
+            /// whose call does not resolve today, so the choice is an ambiguous lookup against a method
+            /// that is already broken.
+            /// </remarks>
+            internal bool SameNameNewReturn;
+
+            /// <summary>
             /// Identity of the repair. The parameter count is part of it, and that is a fix rather than a
             /// detail: without it <c>Foo(int)</c> and <c>Foo(int, int)</c> are one key, the second is
             /// dropped as a duplicate, the mod that wanted it stays broken, and its report says "adaptable".
@@ -471,7 +489,7 @@ namespace Polyfill.Core
                                     member.OldName, member.ParameterCount, member.ParameterTypes)
                 : null;
 
-            if (rule == null || !rule.AllowOverload)
+            if (rule == null ? !member.SameNameNewReturn : !rule.AllowOverload)
                 foreach (var existing in type.Methods)
                     if (existing.Name == member.OldName)
                     { Refuse(result, member, label, "the name is already taken here"); return false; }
@@ -541,6 +559,15 @@ namespace Polyfill.Core
             // of the other class around the same pointer IS the same object.
             var shadow = ShadowTypes.Shadowing(module, target.ReturnType);
             var returns = shadow ?? target.ReturnType;
+
+            // A recast with nothing to recast to would be a second method identical to the first, and two
+            // of those are worse than the mismatch: a call can no longer be resolved to either.
+            if (member.SameNameNewReturn && shadow == null)
+            {
+                Refuse(result, member, label, "nothing stands in for what it hands back, so putting the "
+                                            + "name back a second time would only duplicate it");
+                return false;
+            }
 
             if (ShadowTypes.BuriesAShadow(target.ReturnType))
             { Refuse(result, member, label, "it hands back a renamed type wrapped in a list or an array, "
