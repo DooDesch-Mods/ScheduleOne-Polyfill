@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented here.
 
+## [0.9.19] - 2026-08-18
+
+### Fixed
+- The Heisenberg mod delivers Heisenberg again instead of a standard chemist: the flag that says an NPC
+  has a last name moved in 0.4.6 and nothing had put it back.
+- Deal Optimizer works on counteroffers and street deals again, and no longer throws at startup.
+- One patch a mod cannot bind no longer costs it every patch after that one - Deal Optimizer lost seven
+  working ones to a single dead target.
+
+### Added
+- A method that kept its name and now hands back a renamed type is repaired instead of only listed.
+- The report names a patched method the game split into two overloads, which Harmony refuses to choose
+  between.
+
 ## [0.9.18] - 2026-08-17
 
 ### Fixed
