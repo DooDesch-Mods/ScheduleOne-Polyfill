@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.9.21] - 2026-08-21
+
+### Fixed
+- Enhanced PD stops logging an error every second. 0.4.6 moved the player lookups off Player onto
+  PlayerManager, and the mod asks the old address once per raid tick.
+
 ## [0.9.20] - 2026-08-19
 
 ### Fixed
