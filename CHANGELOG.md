@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here.
 
+## [0.9.23] - 2026-08-21
+
+### Fixed
+- A patch a mod cannot bind no longer blocks every later patch of that same method. Harmony keeps the
+  failed entry, and 0.9.19 left it there.
+- Tweakables can raise how often a customer orders again, and GraphicsMOD's lighting option switches the
+  sun instead of doing nothing.
+
 ## [0.9.22] - 2026-08-21
 
 ### Fixed
