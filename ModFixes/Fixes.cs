@@ -46,6 +46,7 @@ namespace Polyfill.ModFixes
             new StorageMenuClosedEvent(),
             new PatchesOnGrownOverloads(),
             new PatchesOnSplitMethods(),
+            new PatchesOnNarrowedOverloads(),
             new SplitScreenPatches(),
         };
 
