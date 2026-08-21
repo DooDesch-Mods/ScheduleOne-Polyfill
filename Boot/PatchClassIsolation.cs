@@ -24,6 +24,13 @@ namespace Polyfill.Boot
     ///
     /// This does not make a broken patch work. It stops a broken patch from taking working ones with it,
     /// which is the difference between a mod with one dead feature and a mod that does nothing.
+    ///
+    /// AND IT HAS TO TAKE THE FAILED ENTRY BACK OUT, which the first version did not. Harmony registers a
+    /// patch into the target's shared PatchInfo BEFORE it builds the wrapper, so a class that throws
+    /// during the build leaves its entry behind. Every later patch of that same method - by any mod, or
+    /// by Polyfill itself - rebuilds the wrapper, meets the same bad entry, and fails the same way.
+    /// Measured: Tweakables' postfix asks for <c>__result</c> on a method 0.4.6 made void, and afterwards
+    /// a relay of ours could not attach to that method under any signature at all.
     /// </remarks>
     internal static class PatchClassIsolation
     {
@@ -82,9 +89,64 @@ namespace Polyfill.Boot
             catch { }
 
             var reason = __exception.InnerException ?? __exception;
+            int removed = 0;
+            try { removed = TakeBackOut(_container?.GetValue(__instance) as Type); } catch { }
+
             _log?.Warning($"[harmony] {where} did not bind and was skipped: {reason.Message} "
-                        + "The mod's remaining patch classes were applied.");
+                        + "The mod's remaining patch classes were applied."
+                        + (removed > 0 ? $" {removed} half-registered patch(es) were taken back out." : ""));
             return null;
+        }
+
+        /// <summary>
+        /// Remove what the failed class managed to register, so it cannot poison the next patch.
+        /// </summary>
+        /// <remarks>
+        /// Found by walking the patched methods rather than by resolving the class's target: resolving is
+        /// exactly what failed a moment ago - an ambiguous name, a missing method - so asking the same
+        /// question again answers nothing. Harmony already knows which methods carry a patch, and every
+        /// entry names the method that supplied it, so the failed class's entries are the ones whose patch
+        /// method it declares.
+        ///
+        /// Removed one at a time by patch method, never by owner id: a mod may hold a working patch on the
+        /// same method from another class, and taking that away to tidy up would break something that was
+        /// never broken.
+        /// </remarks>
+        private static int TakeBackOut(Type container)
+        {
+            if (container == null) return 0;
+
+            int removed = 0;
+            var harmony = new HarmonyLib.Harmony(Id);
+
+            foreach (var original in HarmonyLib.Harmony.GetAllPatchedMethods())
+            {
+                Patches info;
+                try { info = HarmonyLib.Harmony.GetPatchInfo(original); }
+                catch { continue; }
+                if (info == null) continue;
+
+                foreach (var patch in Everything(info))
+                {
+                    if (patch.PatchMethod?.DeclaringType != container) continue;
+                    try { harmony.Unpatch(original, patch.PatchMethod); removed++; }
+                    catch (Exception e)
+                    {
+                        _log?.Warning($"[harmony] {container.FullName}: its half-registered patch on "
+                                    + $"{original.Name} could not be taken back out: {e.Message}");
+                    }
+                }
+            }
+
+            return removed;
+        }
+
+        private static IEnumerable<Patch> Everything(Patches info)
+        {
+            foreach (var patch in info.Prefixes) yield return patch;
+            foreach (var patch in info.Postfixes) yield return patch;
+            foreach (var patch in info.Transpilers) yield return patch;
+            foreach (var patch in info.Finalizers) yield return patch;
         }
     }
 }

@@ -38,6 +38,7 @@ namespace Polyfill.ModFixes
             new PhoneAppIconWithoutFile(),
             new ThmButtonCodes(),
             new BiggerTreesScale(),
+            new GraphicsModSunToggle(),
             new ScheduleActionsSurviveDeath(),
             new MoreFootPatrolsOfficerPool(),
 
@@ -47,6 +48,7 @@ namespace Polyfill.ModFixes
             new PatchesOnGrownOverloads(),
             new PatchesOnSplitMethods(),
             new PatchesOnNarrowedOverloads(),
+            new PatchesOnResultTurnedArgument(),
             new SplitScreenPatches(),
         };
 
