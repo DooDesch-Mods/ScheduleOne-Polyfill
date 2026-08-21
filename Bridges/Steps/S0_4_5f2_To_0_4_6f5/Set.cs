@@ -217,6 +217,12 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
 
         private const string LobbyType = "Il2CppScheduleOne.Networking.Lobby";
 
+        private const string Blackjack = "Il2CppScheduleOne.Casino.UI.BlackjackInterface";
+        private static readonly string[] BetPanel = { "BetPanel" };
+        private const string BetMoved = "the betting half of the blackjack screen became CasinoGameBetPanel, "
+                                      + "which every casino game shares; BlackjackInterface.BetPanel is the "
+                                      + "way in (CasinoGameBetPanel.cs:20, 38, 103)";
+
         private const string PlayerManager = "Il2CppScheduleOne.PlayerScripts.PlayerManager";
         private const string PlayerLookups = "0.4.6 moved the player lookups off Player onto PlayerManager "
                                            + "with the same names, parameters and return type; the game's "
@@ -354,6 +360,14 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             Moved("Il2CppScheduleOne.Economy.Supplier", "OnlineShopItems", Write, SupplierData,
                   "DeliveryShopListings", ShopListings),
 
+            // The blackjack table kept its screen and moved the betting half of it into a panel every
+            // casino game now shares. The slider, the handler on its onValueChanged and the label refresh
+            // all went together, so all three are reached through the panel the screen holds.
+            Moved(Blackjack, "BetSlider", Read, BetPanel, "_betSlider", BetMoved),
+            Onto(Blackjack, "BetSliderChanged", 1, BetPanel, "BetSliderChanged", BetMoved,
+                 new[] { "newValue" }),
+            Onto(Blackjack, "RefreshDisplayedBet", 0, BetPanel, "RefreshDisplayedBet", BetMoved),
+
             // "Which player is that" was five statics on Player and is five statics on PlayerManager now.
             // Nothing about them changed except where they live, so each is put back where it was called.
             Elsewhere(PlayerType, "GetPlayer", new[] { "System.String" }, PlayerManager, PlayerLookups),
@@ -429,7 +443,7 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             NowCalled(Inv, "get_PickpocketIntObj", 0, "get__interactable", Pickpocketed),
 
             // The price control kept its two members and renamed both when it stopped being about prices.
-            NowCalled(Amount, "SetPrice", 1, "SetAmount", PriceControl),
+            NowCalled(Amount, "SetPrice", 1, "SetAmount", PriceControl, new[] { "price" }),
             NowCalled(Amount, "get_Price", 0, "get_SelectedAmount", PriceControl),
 
             NowCalled(CompassElement, "get_Transform", 0, "get_TargetTransform",
@@ -921,8 +935,12 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         /// walk, same null guard, and the parameters are taken from the DESTINATION for the same reason -
         /// a rule cannot claim a signature this build does not have.
         /// </remarks>
+        /// <param name="keptArgumentNames">What the parameters were CALLED before, when the method that
+        /// took over renamed them. Harmony binds by name, so a stand-in carrying the new names is one a
+        /// patch written against the old ones cannot bind to.</param>
         private static Bridge Onto(string declaringType, string oldName, int parameterCount,
-                                   string[] hops, string target, string because)
+                                   string[] hops, string target, string because,
+                                   string[] keptArgumentNames = null)
             => new()
             {
                 Assembly = "Assembly-CSharp",
@@ -930,11 +948,13 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                 OldName = oldName,
                 ParameterCount = parameterCount,
                 Because = because,
-                Emit = (module, type) => EmitOnto(module, type, oldName, hops, target, parameterCount),
+                Emit = (module, type) => EmitOnto(module, type, oldName, hops, target, parameterCount,
+                                                  keptArgumentNames),
             };
 
         private static MethodDefinition EmitOnto(ModuleDefinition module, TypeDefinition owner, string oldName,
-                                                 string[] hops, string target, int parameterCount)
+                                                 string[] hops, string target, int parameterCount,
+                                                 string[] keptArgumentNames = null)
         {
             var steps = new List<MethodDefinition>();
             var current = owner;
@@ -952,9 +972,15 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
 
             var method = new MethodDefinition(oldName, MethodAttributes.Public | MethodAttributes.HideBySig,
                                               module.ImportReference(destination.ReturnType));
-            foreach (var parameter in destination.Parameters)
-                method.Parameters.Add(new ParameterDefinition(parameter.Name, ParameterAttributes.None,
+            for (int i = 0; i < destination.Parameters.Count; i++)
+            {
+                var parameter = destination.Parameters[i];
+                string name = keptArgumentNames != null && i < keptArgumentNames.Length
+                    ? keptArgumentNames[i]
+                    : parameter.Name;
+                method.Parameters.Add(new ParameterDefinition(name, ParameterAttributes.None,
                                                               module.ImportReference(parameter.ParameterType)));
+            }
 
             var il = method.Body.GetILProcessor();
             var giveUp = il.Create(OpCodes.Nop);
@@ -991,8 +1017,12 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         /// each one was read out of both versions of the method that USES the value, so the claim is not
         /// "these names look alike" but "these two lines compute the same thing".
         /// </remarks>
+        /// <param name="keptArgumentNames">What the parameters were CALLED before, when that changed too.
+        /// Harmony binds a patch's arguments by name, so a stand-in that takes its names from the new
+        /// method is one a patch written against the old one cannot bind to - measured on Tweakables,
+        /// which patches SetPrice(price) and met a stand-in whose parameter had become amount.</param>
         private static Bridge NowCalled(string declaringType, string oldName, int parameterCount,
-                                    string newName, string because)
+                                    string newName, string because, string[] keptArgumentNames = null)
             => new()
             {
                 Assembly = "Assembly-CSharp",
@@ -1000,7 +1030,8 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                 OldName = oldName,
                 ParameterCount = parameterCount,
                 Because = because,
-                Emit = (module, type) => EmitCall(module, type, oldName, newName, parameterCount),
+                Emit = (module, type) => EmitCall(module, type, oldName, newName, parameterCount,
+                                                  keptArgumentNames),
             };
 
         /// <summary>
@@ -1334,7 +1365,8 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
 
         /// <summary>A method with the target's signature under the old name, whose body is one call.</summary>
         private static MethodDefinition EmitCall(ModuleDefinition module, TypeDefinition type,
-                                                 string oldName, string newName, int parameterCount)
+                                                 string oldName, string newName, int parameterCount,
+                                                 string[] keptArgumentNames = null)
         {
             var target = Method(type, newName, parameterCount);
             if (target == null || target.HasGenericParameters) return null;
@@ -1344,9 +1376,15 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                     | (target.IsStatic ? MethodAttributes.Static : 0),
                 module.ImportReference(target.ReturnType));
 
-            foreach (var parameter in target.Parameters)
-                method.Parameters.Add(new ParameterDefinition(parameter.Name, ParameterAttributes.None,
+            for (int i = 0; i < target.Parameters.Count; i++)
+            {
+                var parameter = target.Parameters[i];
+                string name = keptArgumentNames != null && i < keptArgumentNames.Length
+                    ? keptArgumentNames[i]
+                    : parameter.Name;
+                method.Parameters.Add(new ParameterDefinition(name, ParameterAttributes.None,
                                                               module.ImportReference(parameter.ParameterType)));
+            }
 
             var il = method.Body.GetILProcessor();
             if (!target.IsStatic) il.Emit(OpCodes.Ldarg_0);
