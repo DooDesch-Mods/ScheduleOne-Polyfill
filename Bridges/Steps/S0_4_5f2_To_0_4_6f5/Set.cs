@@ -217,6 +217,11 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
 
         private const string LobbyType = "Il2CppScheduleOne.Networking.Lobby";
 
+        private const string PlayerManager = "Il2CppScheduleOne.PlayerScripts.PlayerManager";
+        private const string PlayerLookups = "0.4.6 moved the player lookups off Player onto PlayerManager "
+                                           + "with the same names, parameters and return type; the game's "
+                                           + "own callers went with them (Supplier.cs:236 is one)";
+
         /// <summary>The interop array wrapper, by simple name - see <c>StructArray</c> for why not by its
         /// full one.</summary>
         private const string StructArrayName = "Il2CppStructArray`1";
@@ -348,6 +353,21 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                   "DeliveryShopListings", ShopListings),
             Moved("Il2CppScheduleOne.Economy.Supplier", "OnlineShopItems", Write, SupplierData,
                   "DeliveryShopListings", ShopListings),
+
+            // "Which player is that" was five statics on Player and is five statics on PlayerManager now.
+            // Nothing about them changed except where they live, so each is put back where it was called.
+            Elsewhere(PlayerType, "GetPlayer", new[] { "System.String" }, PlayerManager, PlayerLookups),
+            Elsewhere(PlayerType, "GetPlayer", new[] { "Il2CppFishNet.Connection.NetworkConnection" },
+                      PlayerManager, PlayerLookups),
+            Elsewhere(PlayerType, "GetPlayerByName", new[] { "System.String" }, PlayerManager, PlayerLookups),
+            Elsewhere(PlayerType, "GetRandomPlayer", new[] { "System.Boolean", "System.Boolean" },
+                      PlayerManager, PlayerLookups),
+
+            // GetClosestPlayer moved with them and is NOT here. Its third parameter is an interop list, and
+            // naming that type would put the game's own surface into a plugin that runs before the game
+            // exists - the build refuses the assembly over it, rightly. Arity alone cannot stand in: 0.4.6
+            // added a second three-argument overload taking a single Player, so a count would pick blind.
+            // No mod has asked for it; the day one does, it needs a rule that matches without naming the type.
 
             // The station screens that KEPT their name still lost this one to the new shared base.
             FromBase(Stations + "PackagingStationCanvas", "Canvas", "_canvas", StationCanvas),
@@ -829,6 +849,66 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             il.Emit(OpCodes.Ret);
 
             method.Body.InitLocals = true;
+            return method;
+        }
+
+        /// <summary>
+        /// A static that kept its name and signature and moved to another type.
+        /// </summary>
+        /// <remarks>
+        /// The parameter types are named rather than counted, because the set that moved carries two pairs
+        /// of same-arity overloads - <c>GetPlayer(string)</c> beside <c>GetPlayer(NetworkConnection)</c> -
+        /// and picking by count would pick whichever the metadata lists first.
+        /// </remarks>
+        private static Bridge Elsewhere(string declaringType, string name, string[] parameters,
+                                        string nowOn, string because)
+            => new()
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = declaringType,
+                OldName = name,
+                ParameterCount = parameters.Length,
+                ParameterTypes = parameters,
+                AllowOverload = true,
+                Because = because,
+                Emit = (module, type) => EmitElsewhere(module, type, name, parameters, nowOn),
+            };
+
+        private static MethodDefinition EmitElsewhere(ModuleDefinition module, TypeDefinition owner,
+                                                      string name, string[] parameters, string nowOn)
+        {
+            var host = module.GetType(nowOn);
+            if (host == null) return null;
+
+            MethodDefinition target = null;
+            foreach (var candidate in host.Methods)
+            {
+                if (candidate.Name != name || !candidate.IsStatic
+                    || candidate.Parameters.Count != parameters.Length) continue;
+
+                bool matches = true;
+                for (int i = 0; i < parameters.Length; i++)
+                    if (candidate.Parameters[i].ParameterType.FullName != parameters[i])
+                    { matches = false; break; }
+                if (!matches) continue;
+
+                if (target != null) return null;              // two that fit; choosing would be a guess
+                target = candidate;
+            }
+            if (target == null || target.HasGenericParameters) return null;
+
+            var method = new MethodDefinition(name,
+                MethodAttributes.Public | MethodAttributes.Static | MethodAttributes.HideBySig,
+                module.ImportReference(target.ReturnType));
+
+            foreach (var parameter in target.Parameters)
+                method.Parameters.Add(new ParameterDefinition(parameter.Name, ParameterAttributes.None,
+                                                              module.ImportReference(parameter.ParameterType)));
+
+            var il = method.Body.GetILProcessor();
+            foreach (var parameter in method.Parameters) il.Emit(OpCodes.Ldarg, parameter);
+            il.Emit(OpCodes.Call, module.ImportReference(target));
+            il.Emit(OpCodes.Ret);
             return method;
         }
 
