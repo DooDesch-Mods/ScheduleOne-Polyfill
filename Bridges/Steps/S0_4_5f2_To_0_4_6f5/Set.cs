@@ -362,10 +362,12 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             Elsewhere(PlayerType, "GetPlayerByName", new[] { "System.String" }, PlayerManager, PlayerLookups),
             Elsewhere(PlayerType, "GetRandomPlayer", new[] { "System.Boolean", "System.Boolean" },
                       PlayerManager, PlayerLookups),
-            Elsewhere(PlayerType, "GetClosestPlayer",
-                      new[] { "UnityEngine.Vector3", "System.Single",
-                              "Il2CppSystem.Collections.Generic.List`1<Il2CppScheduleOne.PlayerScripts.Player>" },
-                      PlayerManager, PlayerLookups),
+
+            // GetClosestPlayer moved with them and is NOT here. Its third parameter is an interop list, and
+            // naming that type would put the game's own surface into a plugin that runs before the game
+            // exists - the build refuses the assembly over it, rightly. Arity alone cannot stand in: 0.4.6
+            // added a second three-argument overload taking a single Player, so a count would pick blind.
+            // No mod has asked for it; the day one does, it needs a rule that matches without naming the type.
 
             // The station screens that KEPT their name still lost this one to the new shared base.
             FromBase(Stations + "PackagingStationCanvas", "Canvas", "_canvas", StationCanvas),
