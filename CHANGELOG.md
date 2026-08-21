@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here.
 
+## [0.9.22] - 2026-08-21
+
+### Fixed
+- Deal Optimizer re-evaluates a counteroffer after you change the quantity. The method kept its name and
+  swapped its argument type, which Harmony can neither choose nor bind.
+- Tweakables can patch the handover price box and the blackjack bet slider again. Polyfill's stand-ins
+  carried the new argument names, and a patch binds by name.
+
+### Added
+- The blackjack bet slider, its handler and the bet label are reachable on the screen again, after 0.4.6
+  moved them into the panel every casino game shares.
+
 ## [0.9.21] - 2026-08-21
 
 ### Fixed
