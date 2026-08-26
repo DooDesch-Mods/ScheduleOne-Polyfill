@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.9.26] - 2026-08-26
+
+### Fixed
+- Absorbent Soil and NACops are no longer listed as broken. Both work on this version - the report was
+  wrong about them, not the mods.
+
 ## [0.9.25] - 2026-08-26
 
 ### Fixed
