@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here.
 
+## [0.9.24] - 2026-08-26
+
+### Fixed
+- Tweakables' phone app opens again. A type Polyfill puts back under its old name now carries the
+  same native class, which is what a delegate conversion asks for.
+- A supplier who walks to a meetup but never opens his shop now opens it, instead of needing a shove.
+- GraphicsMOD's lighting option switches the sun again instead of doing nothing.
+
 ## [0.9.23] - 2026-08-21
 
 ### Fixed
