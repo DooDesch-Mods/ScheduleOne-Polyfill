@@ -397,11 +397,8 @@ namespace Polyfill.Core
                         case string text:
                             strings.Add(text);
                             break;
-                        case CustomAttributeArgument[] array:
-                            var types = new List<TypeReference>();
-                            foreach (var element in array)
-                                if (element.Value is TypeReference elementType) types.Add(elementType);
-                            if (types.Count > 0) spec.ArgumentTypes ??= types;
+                        case CustomAttributeArgument[] array when IsTypeArray(argument.Type):
+                            spec.ArgumentTypes ??= TypesIn(array);
                             break;
                         case int enumValue when argument.Type?.Name == "MethodType":
                             spec.MethodType ??= enumValue;
@@ -435,12 +432,35 @@ namespace Polyfill.Core
                 case "methodType" when named.Argument.Value is int value:
                     spec.MethodType ??= value; break;
                 case "argumentTypes" when named.Argument.Value is CustomAttributeArgument[] array:
-                    var types = new List<TypeReference>();
-                    foreach (var element in array)
-                        if (element.Value is TypeReference elementType) types.Add(elementType);
-                    if (types.Count > 0) spec.ArgumentTypes ??= types;
+                    spec.ArgumentTypes ??= TypesIn(array);
                     break;
             }
         }
+
+        /// <summary>
+        /// An EMPTY argument list is an answer, and reading it as silence cost two mods a release.
+        /// </summary>
+        /// <remarks>
+        /// <c>[HarmonyPatch(typeof(SaveManager), "Save", new Type[] { })]</c> names the parameterless
+        /// overload as precisely as any other list names its own. The old reading kept the list only when
+        /// it had entries, so an empty one left the spec saying "no types given" - and this class then
+        /// reported the two <c>Save</c> overloads as an ambiguity the mod had in fact resolved. Absorbent
+        /// Soil and NACops were both published as blocked on that basis, and neither was.
+        ///
+        /// The array has to be a <c>Type[]</c> to count: a <c>HarmonyPatch</c> constructor also takes
+        /// <c>ArgumentType[]</c> for by-ref and out variations, and an empty one of those says nothing
+        /// about arity at all.
+        /// </remarks>
+        private static bool IsTypeArray(TypeReference arrayType)
+            => (arrayType as ArrayType)?.ElementType?.FullName == "System.Type";
+
+        private static List<TypeReference> TypesIn(CustomAttributeArgument[] array)
+        {
+            var types = new List<TypeReference>();
+            foreach (var element in array)
+                if (element.Value is TypeReference elementType) types.Add(elementType);
+            return types;
+        }
+
     }
 }
