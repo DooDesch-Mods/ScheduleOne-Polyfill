@@ -692,13 +692,17 @@ namespace Polyfill.Core
             log.Msg($"[triage] checked {typeRefs} type references, {memberRefs} member references and "
                   + $"{harmony} Harmony targets.");
 
+            // COUNTED AS FOUND, NOT AS FIXED, and the wording has to say so. This line runs before the
+            // repair does, so a hint is a candidate and nothing more; reading it as "8 of 9 repaired"
+            // is exactly the mistake it invited, and it cost a day of looking for a fault in a mod
+            // whose repair had in fact been refused. What actually happened is in `polyfill`.
             foreach (var report in reports)
             {
                 if (report.Verdict == "clean") continue;
                 int withHint = 0;
                 foreach (var finding in report.Findings) if (!string.IsNullOrEmpty(finding.Hint)) withHint++;
                 log.Warning($"[triage]   {report.Name ?? report.AssemblyName} {report.Version} - "
-                          + $"{report.Findings.Count} missing, {withHint} with a candidate on this machine");
+                          + $"{report.Findings.Count} missing, {withHint} with something to try");
             }
 
             if (reports.Count > 0)
