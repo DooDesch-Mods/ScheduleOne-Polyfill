@@ -308,10 +308,19 @@ namespace Polyfill.Core
                                 Refuse(result, forward, "its name changed, and " + why);
                                 continue;
                             }
-                            result.Applied.Add($"{forward.InAssembly}!{Full(forward)} -> a class deriving from "
-                                             + forward.TargetFullName);
-                            result.Record(forward.Key, Contract.Outcome.Applied,
-                                          "a class deriving from " + forward.TargetFullName);
+                            // Partial is not the same as applied, and the difference is one mod feature.
+                            // A shadow with no native class of its own is a working NAME - held, passed,
+                            // cast - that cannot become an Il2Cpp delegate. Saying only "applied" here
+                            // sent the last such failure to the mod author instead of to us.
+                            string incomplete = ShadowTypes.WithoutAClass.TryGetValue(
+                                (forward.Namespace.Length == 0 ? "" : forward.Namespace + ".") + forward.Name,
+                                out string partial) ? partial : null;
+
+                            string what = "a class deriving from " + forward.TargetFullName
+                                        + (incomplete == null ? "" : ", but without its native class: " + incomplete);
+
+                            result.Applied.Add($"{forward.InAssembly}!{Full(forward)} -> {what}");
+                            result.Record(forward.Key, Contract.Outcome.Applied, what);
                             emittedForwards.Add(forward);
                             added++;
                             continue;

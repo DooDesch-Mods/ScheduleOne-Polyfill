@@ -117,8 +117,10 @@ namespace Polyfill.Core
         /// all without naming a thing from the running game.
         ///
         /// Timing is interop's own: the store's static constructor runs the constructor of the type it is
-        /// keyed on, and reading the base's entry runs the base's. The first question about either name
-        /// therefore fills both, in that order, with nothing of ours left to schedule.
+        /// keyed on, and reading the base's entry runs the base's. So the first question asked THROUGH
+        /// THE SHADOW fills both, in that order, with nothing of ours left to schedule. Asked through the
+        /// base first, only the base is filled and the shadow copies it whenever it is first asked - the
+        /// same value either way, since the copy happens after the base's own write.
         ///
         /// Not found means the shadow stays as it was: usable as a name, and a delegate through it still
         /// refused. That is where every shadow stood before this, and the failure says so itself.
@@ -126,8 +128,15 @@ namespace Polyfill.Core
         private static void CarryTheClassPointer(ModuleDefinition module, TypeDefinition shadow,
                                                  TypeDefinition target)
         {
-            var store = ClassPointerField(target);
-            if (store == null) return;
+            var store = ClassPointerField(target, out string why);
+            if (store == null)
+            {
+                // Said out loud, because the shadow still gets made and still reports success. The name
+                // works, casts work, and the one thing that does not is the delegate - which is a runtime
+                // exception in the mod's own log, hours later, with nothing pointing back to here.
+                WithoutAClass[shadow.FullName] = why;
+                return;
+            }
 
             // Imported, both of them. The store lives in another assembly, so a field reference built
             // by hand is "declared in another module" and Cecil throws at WRITE time - long after the
@@ -149,14 +158,34 @@ namespace Polyfill.Core
             shadow.Attributes &= ~TypeAttributes.BeforeFieldInit;   // the entry must be there before the read
         }
 
-        /// <summary>The store entry the generated type assigns for itself, or null if it assigns none.</summary>
-        private static FieldReference ClassPointerField(TypeDefinition target)
+        /// <summary>
+        /// The store entry the generated type assigns for itself, or null if that cannot be told apart.
+        /// </summary>
+        /// <remarks>
+        /// FAIL CLOSED, in both directions. "A one-argument generic static of type IntPtr keyed on this
+        /// type" is a shape, not a name, and a second thing with that shape would be written to just as
+        /// happily - so the match has to be the ONLY one, and the type holding it has to look like what
+        /// it claims to be: a static class of one parameter, holding exactly one public static IntPtr
+        /// beside a public static Type. Anything else, and no pointer is carried and the caller says so.
+        ///
+        /// The alternative was to name the interop store outright, which is both more brittle - interop
+        /// is free to rename its own machinery - and impossible here, since the plugin's CI gate refuses
+        /// that name anywhere in the assembly that runs before interop exists.
+        /// </remarks>
+        private static FieldReference ClassPointerField(TypeDefinition target, out string why)
         {
+            why = null;
+
             MethodDefinition cctor = null;
             foreach (var method in target.Methods)
                 if (method.IsConstructor && method.IsStatic) { cctor = method; break; }
-            if (cctor?.Body == null) return null;
+            if (cctor?.Body == null)
+            {
+                why = "it has no static constructor to read a native class out of";
+                return null;
+            }
 
+            FieldReference found = null;
             foreach (var instruction in cctor.Body.Instructions)
             {
                 if (instruction.OpCode != OpCodes.Stsfld) continue;
@@ -165,9 +194,39 @@ namespace Polyfill.Core
                 if (keyed.GenericArguments.Count != 1) continue;
                 if (keyed.GenericArguments[0].FullName != target.FullName) continue;
                 if (field.FieldType.FullName != "System.IntPtr") continue;
-                return field;
+                if (!LooksLikeAStore(keyed)) continue;
+
+                if (found != null && found.FullName != field.FullName)
+                {
+                    why = "it writes to more than one store this could be, and picking one would be a guess";
+                    return null;
+                }
+                found = field;
             }
-            return null;
+
+            if (found == null) why = "it does not put its native class anywhere this can read";
+            return found;
+        }
+
+        /// <summary>Is this the one static holder per type, rather than something else shaped like it?</summary>
+        private static bool LooksLikeAStore(GenericInstanceType keyed)
+        {
+            TypeDefinition definition;
+            try { definition = keyed.ElementType.Resolve(); }
+            catch { return false; }
+
+            if (definition == null || !definition.IsAbstract || !definition.IsSealed) return false;
+            if (definition.GenericParameters.Count != 1) return false;
+
+            int pointers = 0;
+            bool alongsideAType = false;
+            foreach (var field in definition.Fields)
+            {
+                if (!field.IsStatic || !field.IsPublic) continue;
+                if (field.FieldType.FullName == "System.IntPtr") pointers++;
+                else if (field.FieldType.FullName == "System.Type") alongsideAType = true;
+            }
+            return pointers == 1 && alongsideAType;
         }
 
         /// <summary>The same store, keyed on another type.</summary>
@@ -190,7 +249,18 @@ namespace Polyfill.Core
         private static readonly Dictionary<string, TypeDefinition> Made
             = new(StringComparer.Ordinal);
 
-        internal static void Begin() => Made.Clear();
+        /// <summary>
+        /// Shadows that carry no native class, and why - a partial repair, reported as one.
+        /// </summary>
+        /// <remarks>
+        /// These still work as a name: a mod can hold one, pass it, cast it. What they cannot do is
+        /// become an Il2Cpp delegate, and that failure surfaces in the mod's log with nothing pointing
+        /// back here. So it is said at the time it is decided, not left for whoever reads the crash.
+        /// </remarks>
+        internal static readonly Dictionary<string, string> WithoutAClass
+            = new(StringComparer.Ordinal);
+
+        internal static void Begin() { Made.Clear(); WithoutAClass.Clear(); }
 
         /// <summary>The shadow standing in for <paramref name="type"/>, if this pass made one.</summary>
         internal static TypeDefinition Shadowing(ModuleDefinition module, TypeReference type)
