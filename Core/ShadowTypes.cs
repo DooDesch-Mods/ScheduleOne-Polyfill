@@ -85,8 +85,97 @@ namespace Polyfill.Core
             }
             else module.Types.Add(shadow);
 
+            // AFTER the shadow is in the module, not before. A reference to a type with no scope yet
+            // throws inside Cecil's importer, and the whole assembly is then left untouched - every
+            // repair in it lost to a line that was only meant to add one.
+            CarryTheClassPointer(module, shadow, target);
+
             Made[target.FullName] = shadow;
             return shadow;
+        }
+
+        /// <summary>
+        /// Give the shadow the same native class as the type it stands in for.
+        /// </summary>
+        /// <remarks>
+        /// Inheritance is enough to PASS the object around: the shadow is the real thing under a second
+        /// name, so a parameter, a field or a cast all work with no conversion at all. It is not enough
+        /// when something asks the shadow WHICH native class it is - and interop asks exactly that
+        /// whenever a managed delegate has to become an Il2Cpp one:
+        /// <code>
+        /// DelegateSupport.ConvertDelegate&lt;ExitDelegate&gt;(new Action&lt;ExitAction&gt;(OnExit));
+        ///   ArgumentException: Parameter type at 0 has mismatched native type pointers;
+        ///                      types: ScheduleOne.ExitAction != Il2CppScheduleOne.DevUtilities.ExitAction
+        /// </code>
+        /// That is Tweakables on 0.9.20, and the shape of it is general: every interop type carries its
+        /// native class in a store keyed by the managed type, and a type we invented has an empty entry.
+        ///
+        /// So the entry is filled from the base type's, and the store is FOUND rather than named. The
+        /// generated type already assigns it in its own static constructor, so that instruction is read
+        /// out of the module and its key swapped for the shadow. Nothing here spells out an interop type,
+        /// which is why it survives interop renaming its own machinery - and why the plugin can do it at
+        /// all without naming a thing from the running game.
+        ///
+        /// Timing is interop's own: the store's static constructor runs the constructor of the type it is
+        /// keyed on, and reading the base's entry runs the base's. The first question about either name
+        /// therefore fills both, in that order, with nothing of ours left to schedule.
+        ///
+        /// Not found means the shadow stays as it was: usable as a name, and a delegate through it still
+        /// refused. That is where every shadow stood before this, and the failure says so itself.
+        /// </remarks>
+        private static void CarryTheClassPointer(ModuleDefinition module, TypeDefinition shadow,
+                                                 TypeDefinition target)
+        {
+            var store = ClassPointerField(target);
+            if (store == null) return;
+
+            // Imported, both of them. The store lives in another assembly, so a field reference built
+            // by hand is "declared in another module" and Cecil throws at WRITE time - long after the
+            // line that made it, and once again at the cost of every repair in the assembly.
+            var mine = module.ImportReference(
+                new FieldReference(store.Name, store.FieldType, Keyed(module, store.DeclaringType, shadow)));
+
+            var cctor = new MethodDefinition(".cctor",
+                MethodAttributes.Private | MethodAttributes.Static | MethodAttributes.HideBySig
+                    | MethodAttributes.SpecialName | MethodAttributes.RTSpecialName,
+                module.TypeSystem.Void);
+
+            var il = cctor.Body.GetILProcessor();
+            il.Emit(OpCodes.Ldsfld, module.ImportReference(store));
+            il.Emit(OpCodes.Stsfld, mine);
+            il.Emit(OpCodes.Ret);
+
+            shadow.Methods.Add(cctor);
+            shadow.Attributes &= ~TypeAttributes.BeforeFieldInit;   // the entry must be there before the read
+        }
+
+        /// <summary>The store entry the generated type assigns for itself, or null if it assigns none.</summary>
+        private static FieldReference ClassPointerField(TypeDefinition target)
+        {
+            MethodDefinition cctor = null;
+            foreach (var method in target.Methods)
+                if (method.IsConstructor && method.IsStatic) { cctor = method; break; }
+            if (cctor?.Body == null) return null;
+
+            foreach (var instruction in cctor.Body.Instructions)
+            {
+                if (instruction.OpCode != OpCodes.Stsfld) continue;
+                if (instruction.Operand is not FieldReference field) continue;
+                if (field.DeclaringType is not GenericInstanceType keyed) continue;
+                if (keyed.GenericArguments.Count != 1) continue;
+                if (keyed.GenericArguments[0].FullName != target.FullName) continue;
+                if (field.FieldType.FullName != "System.IntPtr") continue;
+                return field;
+            }
+            return null;
+        }
+
+        /// <summary>The same store, keyed on another type.</summary>
+        private static GenericInstanceType Keyed(ModuleDefinition module, TypeReference store, TypeReference on)
+        {
+            var made = new GenericInstanceType(module.ImportReference(((GenericInstanceType)store).ElementType));
+            made.GenericArguments.Add(on);
+            return made;
         }
 
         /// <summary>
