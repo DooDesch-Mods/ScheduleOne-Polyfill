@@ -62,7 +62,7 @@ namespace Polyfill.Core
         /// False under DryRun and when the injection window is already shut. The decisions are still made -
         /// the analysis needs them to read the right file - but nothing on disk is touched.
         /// </param>
-        internal static InteropOriginals Take(string directory, bool mayAct, MelonLogger.Instance log)
+        internal static InteropOriginals Take(string directory, bool mayAct, Contract.ILog log)
         {
             var originals = new InteropOriginals(directory) { Generator = GeneratorIdentity.Read() };
             var stamp = StampFile.Read();
@@ -136,7 +136,7 @@ namespace Polyfill.Core
             return names;
         }
 
-        private void DecideOne(string assembly, StampFile.Stamp stamp, bool mayAct, MelonLogger.Instance log)
+        private void DecideOne(string assembly, StampFile.Stamp stamp, bool mayAct, Contract.ILog log)
         {
             string live = Live(assembly);
             string backup = live + InteropAugmentor.BackupSuffix;
@@ -233,7 +233,7 @@ namespace Polyfill.Core
             Set(assembly, Origin.Reuse, backup);
         }
 
-        private void Summarise(StampFile.Stamp stamp, bool mayAct, MelonLogger.Instance log)
+        private void Summarise(StampFile.Stamp stamp, bool mayAct, Contract.ILog log)
         {
             int reseeded = 0, reused = 0, refused = 0;
             foreach (var origin in _origin.Values)

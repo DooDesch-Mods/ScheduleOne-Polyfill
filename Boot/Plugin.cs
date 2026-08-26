@@ -38,6 +38,9 @@ namespace Polyfill.Boot
     {
         internal static MelonLogger.Instance Log { get; private set; }
 
+        /// <summary>The same logger, behind the interface the analysis speaks. See MelonLog.</summary>
+        internal static Contract.ILog Say { get; private set; }
+
         /// <summary>Master switch. Off means MelonLoader's own behaviour, untouched.</summary>
         internal static bool Enabled { get; private set; } = true;
 
@@ -63,6 +66,7 @@ namespace Polyfill.Boot
         public override void OnPreInitialization()
         {
             Log = LoggerInstance;
+            Say = new MelonLog(LoggerInstance);
             ReadPreferences();
             // Nothing that touches Il2CppAssemblies belongs here: on the first launch after a game update
             // the generator has not run yet and the folder is stale or absent.
@@ -71,6 +75,7 @@ namespace Polyfill.Boot
         public override void OnPreModsLoaded()
         {
             Log = LoggerInstance;
+            Say = new MelonLog(LoggerInstance);
             if (!Enabled)
             {
                 LoggerInstance.Msg("switched off in MelonPreferences; your game is exactly as it would be "
@@ -82,7 +87,7 @@ namespace Polyfill.Boot
             {
                 Diagnostics.RecordInteropLoadState(LoggerInstance);
                 if (RestoreIfAsked()) return;
-                Core.AliasDb.Load(LoggerInstance);
+                Core.AliasDb.Load(Say);
                 ModScan.Run(LoggerInstance);
 
                 // After the writing, before the first mod's PatchAll - the only window where both halves
@@ -147,7 +152,7 @@ namespace Polyfill.Boot
             try { File.Delete(marker); } catch { }
 
             string interop = Core.InteropIndex.LocateDirectory();
-            int restored = interop == null ? 0 : Core.InteropAugmentor.Restore(interop, Log);
+            int restored = interop == null ? 0 : Core.InteropAugmentor.Restore(interop, Say);
 
             // Nothing the stamp records is true after this: the assemblies it describes are gone and the
             // ones in their place are MelonLoader's own again.

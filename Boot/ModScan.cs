@@ -43,7 +43,7 @@ namespace Polyfill.Boot
 
             if (Candidates.Count == 0) { log.Msg("[scan] no mods installed; nothing to do."); return; }
 
-            Core.Triage.Run(Candidates, log);
+            Core.Triage.Run(Candidates, new MelonLog(log));
         }
     }
 }

@@ -36,7 +36,7 @@ namespace Polyfill.Core
         /// the forwarder belongs in the game once, not once per mod.
         /// </remarks>
         private static Dictionary<string, string> Repair(string interopDirectory, InteropOriginals originals,
-                                                        MelonLogger.Instance log)
+                                                        Contract.ILog log)
         {
             var nothing = new Dictionary<string, string>(StringComparer.Ordinal);
             if (_forwards.Count == 0 && _members.Count == 0 && _renames.Count == 0) return nothing;
@@ -97,7 +97,7 @@ namespace Polyfill.Core
                 }
         }
 
-        internal static void Run(List<ModCandidate> candidates, MelonLogger.Instance log)
+        internal static void Run(List<ModCandidate> candidates, Contract.ILog log)
         {
             string interopDirectory = InteropIndex.LocateDirectory();
             if (interopDirectory == null)
@@ -164,7 +164,7 @@ namespace Polyfill.Core
             yield return MelonLoader.Utils.MelonEnvironment.OurRuntimeDirectory;
         }
 
-        private static ModReport Analyse(ModCandidate candidate, InteropIndex index, MelonLogger.Instance log)
+        private static ModReport Analyse(ModCandidate candidate, InteropIndex index, Contract.ILog log)
         {
             var report = new ModReport
             {
@@ -675,7 +675,7 @@ namespace Polyfill.Core
             return "(" + string.Join(", ", parts) + ")";
         }
 
-        private static void Summarise(List<ModReport> reports, MelonLogger.Instance log)
+        private static void Summarise(List<ModReport> reports, Contract.ILog log)
         {
             int clean = 0, adaptable = 0, blocked = 0;
             foreach (var report in reports)
