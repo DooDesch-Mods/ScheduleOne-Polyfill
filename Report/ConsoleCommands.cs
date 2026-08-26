@@ -40,6 +40,7 @@ namespace Polyfill.Report
             ["polyfillfixes"] = ListFixes,
             ["polyfillrestore"] = _ => Restore(),
             ["polyfillregen"] = _ => Regenerate(),
+            ["polyfillshare"] = Share,
             ["polyfillhelp"] = _ => Help(),
         };
 
@@ -510,6 +511,39 @@ namespace Polyfill.Report
 
             Core.Log.Msg("MelonLoader will build the game's generated assemblies again on the next launch, "
                        + "which takes a few minutes. Polyfill starts from those.");
+        }
+
+        /// <summary>
+        /// Turn sharing on or off, and say plainly what that means either way.
+        /// </summary>
+        /// <remarks>
+        /// The same switch the launch question sets, so a player who dismissed it - or was never asked
+        /// because the question had already run three times - is not locked out of either answer.
+        /// </remarks>
+        private static void Share(string argument)
+        {
+            string wanted = (argument ?? "").Trim().ToLowerInvariant();
+
+            if (wanted is "on" or "off")
+            {
+                bool on = wanted == "on";
+                Contract.Consent.Write(on, answered: true);
+                Core.Log.Msg(on
+                    ? "sharing on. Each launch sends the mod names, versions and findings from this "
+                    + "report - never your name, your paths or your save."
+                    : "sharing off. Nothing leaves this machine.");
+                return;
+            }
+
+            var state = Contract.Consent.Read();
+            Core.Log.Msg(state.Sharing ? "sharing is ON." : "sharing is OFF.");
+            Core.Log.Msg(state.Answered
+                ? "  you chose this. `polyfillshare on` / `off` changes it."
+                : $"  nobody has answered yet - asked on {state.Asked} launch(es).");
+            Core.Log.Msg("  what would be sent: mod name, version, author, game version, and per finding the "
+              + "symbol plus whether it was repaired.");
+            Core.Log.Msg("  what is never sent: your name, your Steam id, your file paths, your save, or which "
+              + "mods you run together.");
         }
 
         private static void Help()

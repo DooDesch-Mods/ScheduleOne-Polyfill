@@ -70,6 +70,11 @@ namespace Polyfill.Boot
             ReadPreferences();
             // Nothing that touches Il2CppAssemblies belongs here: on the first launch after a game update
             // the generator has not run yet and the folder is stale or absent.
+
+            // The one thing that belongs HERE and nowhere later: the sharing question. A modal dialog
+            // raised once the game is up can land behind a fullscreen surface and freeze it; at this
+            // point the process has no game window at all, so the dialog is the only window there is.
+            if (Enabled) FirstAsk.Once(LoggerInstance);
         }
 
         public override void OnPreModsLoaded()
