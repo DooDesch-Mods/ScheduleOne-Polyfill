@@ -5,20 +5,15 @@ All notable changes to this project are documented here.
 ## [0.9.25] - 2026-08-26
 
 ### Fixed
-- An Over The Counter manager can no longer take over a townsperson, with their face, name and
-  inventory. A saved manager slot held a network number that the game hands out again after a reload.
-
-### Changed
-- The startup line says how many symbols have something to try, instead of sounding like they were
-  already repaired.
+- Your Over The Counter manager stops turning into a townsperson - their face, their name, their stock.
+  If a manager is missing after you load a save, rejoin and they come back.
 
 ## [0.9.24] - 2026-08-26
 
 ### Fixed
-- Tweakables' phone app opens again. A type Polyfill puts back under its old name now carries the
-  same native class, which is what a delegate conversion asks for.
-- A supplier who walks to a meetup but never opens his shop now opens it, instead of needing a shove.
-- GraphicsMOD's lighting option switches the sun again instead of doing nothing.
+- The Tweakables app opens on your phone again instead of sitting there dead.
+- Suppliers show you their stock at the meetup. They used to just greet you until you shoved them.
+- GraphicsMOD's lighting option turns the sun off again.
 
 ## [0.9.23] - 2026-08-21
 
