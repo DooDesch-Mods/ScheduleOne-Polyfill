@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here.
 
+## [0.9.25] - 2026-08-26
+
+### Fixed
+- An Over The Counter manager can no longer take over a townsperson, with their face, name and
+  inventory. A saved manager slot held a network number that the game hands out again after a reload.
+
+### Changed
+- The startup line says how many symbols have something to try, instead of sounding like they were
+  already repaired.
+
 ## [0.9.24] - 2026-08-26
 
 ### Fixed
