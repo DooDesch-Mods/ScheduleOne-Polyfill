@@ -85,7 +85,10 @@ changed sits next to it as `<name>.dll.polyfill-orig`.
 - **A type that moved AND was renamed.** .NET type forwarding matches on the name, so it cannot follow
   `ScheduleOne.Weather.X` to `ScheduleOne.Core.Weather.X`.
 - **Removed with no successor.** A forwarder needs something to point at.
-- **Scene and prefab paths.** `transform.Find("UI/HUD/...")` compiles forever and returns null.
+- **Scene and prefab paths.** `transform.Find("UI/HUD/...")` compiles forever and returns null. No rule
+  can find these: they are strings, so nothing reports them and the mod simply does nothing. A named
+  repair for one mod is possible where the old effect is unambiguous - GraphicsMOD's lighting toggle is
+  one - but that is a hand-written fix per mod, never a rule that keeps paths working.
 
 Everything in that list shows up as a line in the report rather than as a crash.
 

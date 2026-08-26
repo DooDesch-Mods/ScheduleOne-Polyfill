@@ -205,11 +205,16 @@ namespace Polyfill.ModFixes
                     try { npc = go.GetComponent<NPC>(); employee = go.GetComponent<Employee>(); } catch { }
                     if (npc == null || employee != null) continue;
 
-                    // MEASURED BECAUSE A DUPLICATE GUID DISPLACES ITS OWNER SILENTLY. A clone inherits
+                    // A DUPLICATE GUID DISPLACES ITS OWNER IN THE REGISTRY, SILENTLY. A clone inherits
                     // the prefab's BakedGUID, NPC.Awake registers it, and GUIDManager.RegisterObject
-                    // logs one warning and then hands the id to the newcomer - after which save data
-                    // keyed on it loads onto the wrong NPC. Reported as a manager wearing another
-                    // character's position and, after a restart, their inventory.
+                    // logs one warning and then hands the id to the newcomer - so anything that looks
+                    // an NPC up by GUID afterwards finds the clone.
+                    //
+                    // WHAT IT DOES NOT EXPLAIN is a manager turning into a named character. That was
+                    // said here and it was too strong: NPCLoader finds a save record by NPC ID
+                    // (NPCLoader.cs:18), not by GUID, and OverTheCounter adopts an NPC by FishNet
+                    // ObjectId with no ID or prefab check at all (ManagerInstance.cs:1916-1954). A
+                    // clashing GUID is a real hazard and a separate one.
                     try
                     {
                         string baked = npc.BakedGUID;
