@@ -36,7 +36,7 @@ namespace Polyfill.Contract
             C("polyfillfixes",   "the per-mod fixes, and switch one off", "polyfillfixes off s1mapi-prefabs"),
             C("polyfillrestore", "undo every repair, restart to take effect", "polyfillrestore"),
             C("polyfillregen",   "have MelonLoader rebuild the game's generated assemblies", "polyfillregen"),
-            C("polyfillshare",   "share anonymous findings, or stop", "polyfillshare on"),
+            C("polyfillshare",   "share anonymous findings, or see what would be sent", "polyfillshare show"),
             C("polyfillhelp",    "list the polyfill commands", "polyfillhelp"),
         };
 

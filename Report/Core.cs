@@ -67,6 +67,12 @@ namespace Polyfill.Report
 
             _fixesRun = true;
             ModFixes.Fixes.Run(LoggerInstance);
+
+            // Sent from HERE and not from the plugin, and the reason is what gets sent. At plugin time
+            // the report says what was FOUND; by now every repair and every mod fix has run, so it says
+            // what actually happened. A list of findings without their outcomes would have told the
+            // compatibility index that a mod was broken on a machine where it works.
+            Share.Run(ReportReader.Report);
         }
     }
 }

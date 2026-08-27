@@ -535,15 +535,22 @@ namespace Polyfill.Report
                 return;
             }
 
+            if (wanted == "show")
+            {
+                // The payload itself, not a description of it. Anyone deciding whether to share should
+                // be able to read exactly what would leave their machine, in the form it leaves in.
+                foreach (string line in Report.Share.Body(ReportReader.Report).Split('\n'))
+                    if (line.Length > 0) Core.Log.Msg("  " + line);
+                return;
+            }
+
             var state = Contract.Consent.Read();
             Core.Log.Msg(state.Sharing ? "sharing is ON." : "sharing is OFF.");
             Core.Log.Msg(state.Answered
                 ? "  you chose this. `polyfillshare on` / `off` changes it."
                 : $"  nobody has answered yet - asked on {state.Asked} launch(es).");
-            Core.Log.Msg("  what would be sent: mod name, version, author, game version, and per finding the "
-              + "symbol plus whether it was repaired.");
-            Core.Log.Msg("  what is never sent: your name, your Steam id, your file paths, your save, or which "
-              + "mods you run together.");
+            Core.Log.Msg("  `polyfillshare show` prints exactly what would be sent - mod names, versions and "
+              + "findings, nothing about you or your save.");
         }
 
         private static void Help()
