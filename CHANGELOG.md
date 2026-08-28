@@ -2,6 +2,24 @@
 
 All notable changes to this project are documented here.
 
+## [0.10.0] - 2026-08-28
+
+### Added
+- Check whether a mod still works before you install it: polyfill.doomods.com lists what other players
+  reported for your game version.
+- Polyfill asks once, on your first launch, whether it may send what it found. Say no and nothing ever
+  leaves your PC.
+  - `polyfillshare show` prints exactly what would be sent, `polyfillshare on` and `off` change your mind.
+- Only mod names, versions and what Polyfill repaired are sent. Never your name, your save, your folders,
+  or which mods you run together.
+
+### For mod authors
+- `polyfill-check YourMod.dll --game 0.4.6f13` lists what a game update broke in your mod, with no game
+  and no MelonLoader installed.
+  - It agreed with the in-game report on all 44 mods the two were run against.
+- Your mod's page on the index names every member the game no longer has, and whether Polyfill bridged
+  it, refused it, or found nothing to point at.
+
 ## [0.9.26] - 2026-08-26
 
 ### Fixed
