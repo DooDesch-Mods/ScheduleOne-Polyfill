@@ -162,18 +162,23 @@ namespace Polyfill.Report
                 var category = MelonPreferences.GetCategory("Polyfill")
                                ?? MelonPreferences.CreateCategory("Polyfill");
 
-                var entry = category.GetEntry<string>("ShareInstallation");
-                if (entry != null && !string.IsNullOrEmpty(entry.Value)) return entry.Value;
+                // THE ENTRY IS CREATED FIRST, and that is the whole point. MelonPreferences loads the
+                // file before any of this runs, but it holds a saved value aside until something
+                // registers an entry for it - so GetEntry on its own returns null on every launch, and
+                // the old code read that as "no id yet" and rolled a fresh one. Every launch became a
+                // new installation, every count on the index counted launches instead of machines, and
+                // the file looked right afterwards because the new id had just overwritten the old.
+                var entry = category.GetEntry<string>("ShareInstallation")
+                            ?? category.CreateEntry("ShareInstallation", "", "Installation id",
+                                "A random number sent with a shared report so the index counts "
+                              + "installations rather than posts. Clear it to become a new "
+                              + "installation.");
 
-                string rolled = Guid.NewGuid().ToString("N");
-                if (entry == null)
-                    category.CreateEntry("ShareInstallation", rolled, "Installation id",
-                        "A random number sent with a shared report so the index counts installations "
-                      + "rather than posts. Clear it to become a new installation.");
-                else entry.Value = rolled;
+                if (!string.IsNullOrEmpty(entry.Value)) return entry.Value;
 
+                entry.Value = Guid.NewGuid().ToString("N");
                 MelonPreferences.Save();
-                return rolled;
+                return entry.Value;
             }
             catch
             {

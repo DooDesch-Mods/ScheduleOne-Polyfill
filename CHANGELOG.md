@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.11.1] - 2026-08-28
+
+### Fixed
+- polyfill.doomods.com counted every launch as a separate player. Your PC rolled a new id each time
+  the game started, so six sessions looked like six people.
+
 ## [0.11.0] - 2026-08-28
 
 ### Added

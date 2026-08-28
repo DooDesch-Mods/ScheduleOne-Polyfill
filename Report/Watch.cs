@@ -49,6 +49,7 @@ namespace Polyfill.Report
 
         private static bool _watching;
         private static DateTime _started;
+        private static DateTime _stopped;
 
         /// <summary>
         /// The converted delegate, held for as long as it is subscribed.
@@ -61,9 +62,25 @@ namespace Polyfill.Report
         /// </remarks>
         private static UnityEngine.Application.LogCallback _handler;
 
-        /// <summary>How long this session has been running. Zero until the watch starts.</summary>
-        internal static int Minutes =>
-            _watching ? (int)Math.Max(0, (DateTime.UtcNow - _started).TotalMinutes) : 0;
+        /// <summary>
+        /// How long this session has run, and it keeps that answer after the watch stops.
+        /// </summary>
+        /// <remarks>
+        /// It used to return zero whenever the watch was not running, which read as harmless and was
+        /// not: OnApplicationQuit calls End() and then reads this, so every report ever sent claimed a
+        /// session of zero minutes. The index drops anything under five, so no session was ever
+        /// counted and every mod stayed "not played yet" no matter how long anybody played. Nothing
+        /// in a log said so - the number was simply wrong.
+        /// </remarks>
+        internal static int Minutes
+        {
+            get
+            {
+                if (_started == default) return 0;
+                var until = _stopped == default ? DateTime.UtcNow : _stopped;
+                return (int)Math.Max(0, (until - _started).TotalMinutes);
+            }
+        }
 
         internal static IEnumerable<Trouble> Troubles => Seen.Values;
 
@@ -120,6 +137,8 @@ namespace Polyfill.Report
         internal static void End()
         {
             if (!_watching) return;
+            _stopped = DateTime.UtcNow;
+
             try { MelonLogger.ErrorCallbackHandler -= OnMelonError; } catch { }
             try
             {
@@ -244,7 +263,8 @@ namespace Polyfill.Report
         /// <summary>What to print for a player who types the console command.</summary>
         internal static string Describe()
         {
-            if (!_watching && Seen.Count == 0) return "Not watching this session.";
+            if (!_watching && Seen.Count == 0 && _started == default)
+                return "Not watching this session.";
             if (Seen.Count == 0) return $"No errors in {Minutes} minute(s) of play.";
 
             var text = new StringBuilder();
