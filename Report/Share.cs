@@ -33,8 +33,16 @@ namespace Polyfill.Report
         private const string Endpoint = "https://polyfill.doomods.com/api/report";
         private const int TimeoutSeconds = 10;
 
-        /// <summary>The format the service parses. Bumped when a column moves, never reused.</summary>
-        private const int Format = 1;
+        /// <summary>
+        /// The format the service parses. Bumped when a column moves, never reused.
+        /// </summary>
+        /// <remarks>
+        /// 2 added the session: how many minutes were played, an error count at the end of each M line, and
+        /// one E line per distinct error. The version is bumped rather than the columns quietly appended,
+        /// because a reader that guesses at an unfamiliar shape is how a wrong verdict gets published under
+        /// the right heading.
+        /// </remarks>
+        private const int Format = 2;
 
         private static bool _sent;
 
@@ -45,7 +53,7 @@ namespace Polyfill.Report
         /// Called after the report exists and every fix has run, so what is sent is what actually
         /// happened rather than what was found - the difference the report itself learned the hard way.
         /// </remarks>
-        internal static void Run(RunReport report)
+        internal static void Run(RunReport report, int minutes, IEnumerable<Watch.Trouble> troubles)
         {
             if (_sent || report == null) return;
             _sent = true;
@@ -53,7 +61,7 @@ namespace Polyfill.Report
             if (!Consent.Sharing) return;
             if (report.Mods.Count == 0) return;
 
-            string body = Body(report);
+            string body = Body(report, minutes, troubles);
 
             // Fire and forget: a launch waits for nothing here. The task is not awaited and its failure
             // is a log line, not a throw into whoever called us.
@@ -86,21 +94,28 @@ namespace Polyfill.Report
         /// tool, which matters most for the one file a player might want to look at before agreeing to
         /// send it. `polyfillshare` prints this, so nobody has to trust a description of it.
         /// </remarks>
-        internal static string Body(RunReport report)
+        internal static string Body(RunReport report, int minutes, IEnumerable<Watch.Trouble> troubles)
         {
             var text = new StringBuilder();
             text.Append("# polyfill-share ").Append(Format).Append('\n');
             text.Append("# game=").Append(report.Game).Append('\n');
             text.Append("# polyfill=").Append(Clean(DooDesch.ModVersion.Current)).Append('\n');
             text.Append("# install=").Append(Installation()).Append('\n');
+            text.Append("# minutes=").Append(Math.Max(0, minutes)).Append('\n');
 
             foreach (var mod in report.Mods)
             {
+                int errors = 0;
+                if (troubles != null)
+                    foreach (var trouble in troubles)
+                        if (trouble.Mod == mod.Display) errors += trouble.Count;
+
                 text.Append("M|").Append(Clean(mod.Display)).Append('|')
                     .Append(Clean(mod.Version)).Append('|')
                     .Append(Clean(mod.Author)).Append('|')
                     .Append(mod.Verdict).Append('|')
-                    .Append(mod.Findings.Count).Append('\n');
+                    .Append(mod.Findings.Count).Append('|')
+                    .Append(errors).Append('\n');
 
                 foreach (var finding in mod.Findings)
                 {
@@ -110,6 +125,17 @@ namespace Polyfill.Report
                         .Append(Clean(finding.Outcome ?? "none")).Append('\n');
                 }
             }
+
+            // What went wrong, per mod, WITHOUT the message. An exception's text is whatever the throwing
+            // code chose to put in it and can carry a path or a save name; the type and the top frame are
+            // code identifiers, and they are all that leaves.
+            if (troubles != null)
+                foreach (var trouble in troubles)
+                    text.Append("E|").Append(Clean(trouble.Mod)).Append('|')
+                        .Append(Clean(trouble.Kind)).Append('|')
+                        .Append(Clean(trouble.Frame)).Append('|')
+                        .Append(trouble.Count).Append('\n');
+
             return text.ToString();
         }
 

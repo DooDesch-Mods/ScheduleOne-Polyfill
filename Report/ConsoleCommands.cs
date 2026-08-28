@@ -539,7 +539,7 @@ namespace Polyfill.Report
             {
                 // The payload itself, not a description of it. Anyone deciding whether to share should
                 // be able to read exactly what would leave their machine, in the form it leaves in.
-                foreach (string line in Report.Share.Body(ReportReader.Report).Split('\n'))
+                foreach (string line in Report.Share.Body(ReportReader.Report, Watch.Minutes, Watch.Troubles).Split('\n'))
                     if (line.Length > 0) Core.Log.Msg("  " + line);
                 return;
             }

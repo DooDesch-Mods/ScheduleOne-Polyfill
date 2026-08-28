@@ -59,6 +59,20 @@ namespace Polyfill.Contract
 
         internal readonly List<Finding> Findings = new();
 
+        /// <summary>
+        /// The root namespaces this mod's own types live in.
+        /// </summary>
+        /// <remarks>
+        /// Written so the companion mod can tell WHOSE exception it just saw. Unity hands a stack trace as
+        /// plain text with no assembly on it, and the only thing in a frame that identifies an owner is the
+        /// type name - so the side that already opened every assembly with Cecil writes the namespaces down,
+        /// and the side that watches the log matches against them.
+        ///
+        /// Root only, and never one so short it would claim frames it does not own: a mod whose types sit
+        /// directly in the global namespace contributes nothing here rather than matching everything.
+        /// </remarks>
+        internal readonly List<string> Namespaces = new();
+
         internal string Display => !string.IsNullOrEmpty(Name) ? Name
                                  : !string.IsNullOrEmpty(AssemblyName) ? AssemblyName
                                  : System.IO.Path.GetFileName(Path ?? "");
@@ -137,6 +151,11 @@ namespace Polyfill.Contract
                         Escape(finding.Site), Escape(finding.Outcome), Escape(finding.OutcomeDetail)));
             }
 
+            foreach (var mod in Mods)
+                if (mod.Namespaces.Count > 0)
+                    text.AppendLine(string.Join("|", "N", Escape(mod.Path),
+                                                Escape(string.Join(",", mod.Namespaces))));
+
             foreach (string line in Dropped) text.AppendLine("D|" + Escape(line));
             return text.ToString();
         }
@@ -212,6 +231,11 @@ namespace Polyfill.Contract
                             Outcome = p.Length > 8 ? p[8] : Contract.Outcome.None,
                             OutcomeDetail = p.Length > 9 ? p[9] : "",
                         });
+                        break;
+
+                    case "N" when p.Length >= 3 && byPath.TryGetValue(p[1], out var named):
+                        foreach (string space in p[2].Split(','))
+                            if (!string.IsNullOrEmpty(space)) named.Namespaces.Add(space);
                         break;
 
                     case "D" when p.Length >= 2:

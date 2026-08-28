@@ -164,6 +164,39 @@ namespace Polyfill.Core
             yield return MelonLoader.Utils.MelonEnvironment.OurRuntimeDirectory;
         }
 
+        /// <summary>
+        /// Write down which namespaces belong to this mod, so an exception can be traced back to it.
+        /// </summary>
+        /// <remarks>
+        /// Root segment only - "BreedToSeed" rather than "BreedToSeed.Genetics.Tent" - because a stack frame
+        /// names a type and the cheapest reliable question to ask of it is which mod's root it starts with.
+        ///
+        /// TWO GUARDS, and both matter. A namespace shorter than four characters is dropped: "UI" or "App"
+        /// would claim frames from half the mods installed. And a type with no namespace at all contributes
+        /// nothing rather than an empty string, which would match every frame ever logged.
+        /// </remarks>
+        private static void CollectNamespaces(ModuleDefinition module, ModReport report)
+        {
+            var roots = new HashSet<string>(StringComparer.Ordinal);
+            try
+            {
+                foreach (var type in module.Types)
+                {
+                    string space = type.Namespace;
+                    if (string.IsNullOrEmpty(space)) continue;
+
+                    int dot = space.IndexOf('.');
+                    string root = dot > 0 ? space.Substring(0, dot) : space;
+                    if (root.Length < 4) continue;
+                    roots.Add(root);
+                }
+            }
+            catch { }                                    // a namespace list is a nicety, never a reason to fail
+
+            foreach (string root in roots) report.Namespaces.Add(root);
+            report.Namespaces.Sort(StringComparer.Ordinal);
+        }
+
         private static ModReport Analyse(ModCandidate candidate, InteropIndex index, Contract.ILog log)
         {
             var report = new ModReport
@@ -183,6 +216,8 @@ namespace Polyfill.Core
                     ReadingMode = ReadingMode.Deferred,
                     AssemblyResolver = index.Resolver,
                 });
+
+                CollectNamespaces(module, report);
 
                 var repaired = new Dictionary<string, TypeDefinition>(StringComparer.Ordinal);
                 var missingTypes = CheckTypes(module, index, report, repaired);

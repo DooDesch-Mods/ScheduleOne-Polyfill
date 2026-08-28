@@ -71,11 +71,29 @@ namespace Polyfill.Report
             _fixesRun = true;
             ModFixes.Fixes.Run(LoggerInstance);
 
-            // Sent from HERE and not from the plugin, and the reason is what gets sent. At plugin time
-            // the report says what was FOUND; by now every repair and every mod fix has run, so it says
-            // what actually happened. A list of findings without their outcomes would have told the
-            // compatibility index that a mod was broken on a machine where it works.
-            Share.Run(ReportReader.Report);
+            // From HERE and not from the plugin, because of what there is to watch. Every repair and every
+            // mod fix has run and the world exists, so from this frame on an exception is a statement about
+            // playing rather than about loading.
+            Watch.Begin(ReportReader.Report, LoggerInstance);
+        }
+
+        /// <summary>
+        /// Send the session when the player leaves, and not before.
+        /// </summary>
+        /// <remarks>
+        /// THIS IS WHAT MAKES THE REPORT WORTH ANYTHING. Sent at load it could only say "every name this
+        /// mod asks for exists", which is not the question anybody has - a mod that starts and then throws
+        /// on every interaction passes that test. Sent at the end it carries how long the session lasted
+        /// and what went wrong during it.
+        ///
+        /// A session that ends in a crash is lost, and that is accepted rather than worked around: the
+        /// alternative is a second message format and two halves to stitch together, for a case the next
+        /// launch reports anyway.
+        /// </remarks>
+        public override void OnApplicationQuit()
+        {
+            Watch.End();
+            Share.Run(ReportReader.Report, Watch.Minutes, Watch.Troubles);
         }
     }
 }
