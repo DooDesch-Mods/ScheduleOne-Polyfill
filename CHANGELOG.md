@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here.
 
+## [0.11.2] - 2026-08-28
+
+### Changed
+- The sharing question now names everything that is sent: mod authors, how long you played, and any
+  errors a mod threw. It said "mod names and versions only" and that was less than the truth.
+- `polyfillshare on` says the same, and points at `polyfillshare show` so you can read the exact text.
+
 ## [0.11.1] - 2026-08-28
 
 ### Fixed

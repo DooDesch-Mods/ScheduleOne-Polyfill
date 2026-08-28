@@ -65,8 +65,10 @@ namespace Polyfill.Boot
         /// </remarks>
         private const string Question =
             "Send anonymous telemetry to help fix broken mods?\n\n"
-          + "Which mods Polyfill repaired, and which it could not.\n"
-          + "Mod names and versions only - nothing about you or your save.";
+          + "Which mods Polyfill repaired, which it could not, and any errors\n"
+          + "they threw while you played.\n\n"
+          + "Mod names, versions and authors, how long you played, and a random\n"
+          + "number for this install. Never your name, your save or your folders.";
 
         /// <summary>
         /// Put the question on screen if it has not been answered, and record the answer.

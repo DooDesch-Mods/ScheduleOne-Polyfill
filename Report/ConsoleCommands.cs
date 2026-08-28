@@ -529,8 +529,10 @@ namespace Polyfill.Report
                 bool on = wanted == "on";
                 Contract.Consent.Write(on, answered: true);
                 Core.Log.Msg(on
-                    ? "sharing on. Each launch sends the mod names, versions and findings from this "
-                    + "report - never your name, your paths or your save."
+                    ? "sharing on. When you quit, this sends each mod's name, version and author, "
+                    + "what Polyfill found and repaired, how long you played, any errors a mod threw "
+                    + "and where, and a random number for this install - never your name, your paths "
+                    + "or your save. Type `polyfillshare show` to read the exact text first."
                     : "sharing off. Nothing leaves this machine.");
                 return;
             }
