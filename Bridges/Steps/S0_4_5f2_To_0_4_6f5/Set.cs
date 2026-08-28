@@ -258,6 +258,7 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
 
         private const string Emitter = "Il2CppScheduleOne.VoiceOver.VOEmitter";
         private const string Camera = "Il2CppScheduleOne.PlayerScripts.PlayerCamera";
+        private const string GameplayMenu = "Il2CppScheduleOne.UI.GameplayMenu";
         private const string Clipboard = "Il2CppScheduleOne.Tools.ManagementClipboard";
         private const string Customer = "Il2CppScheduleOne.Economy.CustomerData";
 
@@ -506,6 +507,23 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             // One method that became two. See Contract/SplitScreens for why an EMPTY body is the right
             // one and where the other half of the repair lives.
             SplitInTwo(0), SplitInTwo(1), SplitInTwo(2), SplitInTwo(3), SplitInTwo(4),
+
+            // The same split, on the pause menu, and it needs the OPPOSITE body. The five above are
+            // patch targets, so an empty method is the whole repair; the two mods missing this one CALL
+            // SetIsOpen, and an empty method would let them load and then do nothing at all - the failure
+            // that looks like the mod working. So this one forwards.
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = GameplayMenu,
+                OldName = "SetIsOpen",
+                ParameterCount = 1,
+                ParameterTypes = new[] { "System.Boolean" },
+                Because = "0.4.6 split GameplayMenu.SetIsOpen(bool) into Open() and Close(): 0.4.5f2 has "
+                        + "SetIsOpen and neither of them, 0.4.6f13 has both and no SetIsOpen "
+                        + "(GameplayMenu.cs:238,243)",
+                Emit = EmitGameplayMenuSetIsOpen,
+            },
 
             // Two static methods 0.4.6 deleted whose every line still exists. Rebuilt rather than pointed
             // somewhere, because there is nowhere to point: the game replaced the CALLS with a different
@@ -1214,6 +1232,49 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                         + "old name lands, and Polyfill calls it from both of them",
                 Emit = (module, type) => EmitSplitHook(module, type, entry),
             };
+        }
+
+        /// <summary>
+        /// SetIsOpen(bool), forwarding to whichever of Open and Close the argument asked for.
+        /// </summary>
+        /// <remarks>
+        /// A REAL BODY, unlike the five station screens above, and the difference is what the mod wanted
+        /// with it. Those mods PATCH SetIsOpen, so the signature existing is the entire repair and a body
+        /// would be dead code. The two mods missing this one CALL it, to shut the pause menu - so an
+        /// empty method would load cleanly and silently do nothing, which is worse than the
+        /// MissingMethodException it replaced: the mod looks fine and the menu simply never closes.
+        ///
+        /// The mapping is not a reading of anything. 0.4.5f2 carries SetIsOpen(bool) and neither Open nor
+        /// Close; 0.4.6f13 carries both and no SetIsOpen. true was open, false was closed.
+        ///
+        /// Refuses unless both halves are on this build, so a game that splits them differently again
+        /// gets nothing rather than a method calling something that is not there.
+        /// </remarks>
+        private static MethodDefinition EmitGameplayMenuSetIsOpen(ModuleDefinition module,
+                                                                  TypeDefinition type)
+        {
+            var open = MethodUp(type, "Open", 0);
+            var close = MethodUp(type, "Close", 0);
+            if (open == null || close == null) return null;
+
+            var method = new MethodDefinition("SetIsOpen",
+                MethodAttributes.Public | MethodAttributes.HideBySig, module.TypeSystem.Void);
+            method.Parameters.Add(new ParameterDefinition("o", ParameterAttributes.None,
+                                                          module.TypeSystem.Boolean));
+
+            var il = method.Body.GetILProcessor();
+            var closeIt = il.Create(OpCodes.Ldarg_0);
+
+            il.Emit(OpCodes.Ldarg_1);
+            il.Emit(OpCodes.Brfalse_S, closeIt);
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(open));
+            il.Emit(OpCodes.Ret);
+            il.Append(closeIt);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(close));
+            il.Emit(OpCodes.Ret);
+
+            return method;
         }
 
         /// <summary>The old signature, exact down to the parameter names, over an empty body.</summary>
