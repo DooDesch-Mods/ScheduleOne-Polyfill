@@ -1,3 +1,4 @@
+using MelonLoader;
 using System.Net.Http;
 using System.Text;
 using Polyfill.Contract;
@@ -85,6 +86,7 @@ namespace Polyfill.Report
             var text = new StringBuilder();
             text.Append("# polyfill-share ").Append(Format).Append('\n');
             text.Append("# game=").Append(report.Game).Append('\n');
+            text.Append("# install=").Append(Installation()).Append('\n');
 
             foreach (var mod in report.Mods)
             {
@@ -103,6 +105,50 @@ namespace Polyfill.Report
                 }
             }
             return text.ToString();
+        }
+
+        /// <summary>
+        /// A number that says which installation this is, and nothing else about it.
+        /// </summary>
+        /// <remarks>
+        /// Rolled once from the system's own random source and kept beside the answer to the sharing
+        /// question. It is not derived from the machine, the account, the save or the install path -
+        /// there is nothing in it to work backwards from.
+        ///
+        /// It exists because the index counts players and receives posts. Without it one machine
+        /// launching twenty times a day is twenty voices, and a machine posting in a loop decides what
+        /// the board says about somebody else's mod. With it, that machine is one voice however often
+        /// it speaks.
+        ///
+        /// It does link a player's own reports to each other, which is more than nothing, so the
+        /// site's About page names it rather than leaving it to be found.
+        /// </remarks>
+        private static string Installation()
+        {
+            try
+            {
+                var category = MelonPreferences.GetCategory("Polyfill")
+                               ?? MelonPreferences.CreateCategory("Polyfill");
+
+                var entry = category.GetEntry<string>("ShareInstallation");
+                if (entry != null && !string.IsNullOrEmpty(entry.Value)) return entry.Value;
+
+                string rolled = Guid.NewGuid().ToString("N");
+                if (entry == null)
+                    category.CreateEntry("ShareInstallation", rolled, "Installation id",
+                        "A random number sent with a shared report so the index counts installations "
+                      + "rather than posts. Clear it to become a new installation.");
+                else entry.Value = rolled;
+
+                MelonPreferences.Save();
+                return rolled;
+            }
+            catch
+            {
+                // No id beats a made-up one that changes every launch: the service then counts by
+                // address, which is coarse but at least stable.
+                return "";
+            }
         }
 
         /// <summary>
