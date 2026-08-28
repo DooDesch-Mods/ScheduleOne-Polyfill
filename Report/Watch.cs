@@ -86,18 +86,24 @@ namespace Polyfill.Report
             Owners.Sort((a, b) => b.Key.Length.CompareTo(a.Key.Length));
 
             if (Owners.Count == 0)
-            {
-                log.Msg("[watch] no mod namespaces in the report, so exceptions cannot be attributed. "
-                      + "Nothing is watched and nothing will be sent about errors.");
-                return;
-            }
+                log.Msg("[watch] no mod namespaces in the report, so only the errors MelonLoader "
+                      + "attributes itself will be counted.");
 
             try
             {
-                // IL2CPP exposes the event as add_/remove_ taking its own delegate type, and the implicit
-                // operator on LogCallback does the conversion from a managed Action.
+                // THE SOURCE THAT ACTUALLY FIRES. MelonLoader wraps every melon callback in try/catch and
+                // logs what it caught itself, so Unity never sees an unhandled exception from a mod and
+                // logMessageReceived never fires for one. Measured: a mod throwing from OnUpdate produced
+                // "[ERROR] [WatchProbe] System.NullReferenceException" in the log and nothing at all in
+                // the watcher. This callback also carries the melon's own name, which beats guessing it
+                // from a namespace.
+                MelonLogger.ErrorCallbackHandler += OnMelonError;
+
+                // Kept as well, for what MelonLoader does not catch: a throw from a coroutine or from an
+                // event the game itself invokes never passes through a melon callback.
                 _handler = new Action<string, string, UnityEngine.LogType>(OnLog);
                 UnityEngine.Application.add_logMessageReceived(_handler);
+
                 _watching = true;
                 _started = DateTime.UtcNow;
                 log.Msg($"[watch] watching this session for errors in {report.Mods.Count} mod(s).");
@@ -114,6 +120,7 @@ namespace Polyfill.Report
         internal static void End()
         {
             if (!_watching) return;
+            try { MelonLogger.ErrorCallbackHandler -= OnMelonError; } catch { }
             try
             {
                 if (_handler != null) UnityEngine.Application.remove_logMessageReceived(_handler);
@@ -121,6 +128,36 @@ namespace Polyfill.Report
             catch { }
             _handler = null;
             _watching = false;
+        }
+
+        /// <summary>
+        /// One error MelonLoader caught and logged, with the melon it belongs to already named.
+        /// </summary>
+        /// <remarks>
+        /// Only exceptions count. A mod that deliberately logs "could not reach the server" has not
+        /// crashed, and counting that as a failed session would mark the mods that handle their own
+        /// errors properly as the broken ones.
+        /// </remarks>
+        private static void OnMelonError(string melon, string text)
+        {
+            if (Seen.Count >= DistinctCap) return;
+            if (string.IsNullOrEmpty(melon) || string.IsNullOrEmpty(text)) return;
+            if (text.IndexOf("Exception", StringComparison.Ordinal) < 0) return;
+
+            try { Remember(melon.Trim(), Kind(text), TopFrame(text)); }
+            catch { }
+        }
+
+        /// <summary>The first stack line of a logged exception, which is where it was thrown.</summary>
+        private static string TopFrame(string text)
+        {
+            foreach (string line in text.Split('\n'))
+            {
+                string candidate = line.Trim();
+                if (candidate.StartsWith("at ", StringComparison.Ordinal))
+                    return Cut(candidate.Substring(3));
+            }
+            return "";
         }
 
         private static void OnLog(string message, string stackTrace, UnityEngine.LogType type)
@@ -154,10 +191,15 @@ namespace Polyfill.Report
 
             if (owner == null) return;                  // the game's own, or a mod we cannot name
 
-            string kind = Kind(message);
+            Remember(owner, Kind(message), Cut(frame));
+        }
+
+        /// <summary>Book one error against one mod, deduplicated and capped.</summary>
+        private static void Remember(string owner, string kind, string frame)
+        {
             // A separator that cannot appear in a namespace, a type name or a frame.
             const char Unit = (char)31;
-            string key = owner + Unit + kind + Unit + Cut(frame);
+            string key = owner + Unit + kind + Unit + frame;
 
             if (Seen.TryGetValue(key, out var already)) { already.Count++; return; }
 
@@ -165,7 +207,7 @@ namespace Polyfill.Report
             foreach (var trouble in Seen.Values) if (trouble.Mod == owner) forThisMod++;
             if (forThisMod >= PerModCap) return;
 
-            Seen[key] = new Trouble { Mod = owner, Kind = kind, Frame = Cut(frame), Count = 1 };
+            Seen[key] = new Trouble { Mod = owner, Kind = kind, Frame = frame, Count = 1 };
         }
 
         /// <summary>The exception's type name, and nothing else from the message.</summary>
