@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented here.
 
+## [0.11.0] - 2026-08-28
+
+### Added
+- polyfill.doomods.com now says whether a mod actually works, not just whether it starts. Polyfill
+  watches your session for errors and reports what it saw when you leave the game.
+- The list shows how long people played before answering, so a mod nobody has really used says so
+  instead of looking fine.
+
+### Changed
+- Reports go out when you quit, not while the game loads. A mod that starts and then breaks was
+  passing the old check.
+- Only the error type and the line it came from are sent. Never the error text, which can contain your
+  save name or a folder path.
+
 ## [0.10.1] - 2026-08-28
 
 ### Fixed
