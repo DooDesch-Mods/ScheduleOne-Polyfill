@@ -28,6 +28,19 @@ namespace Polyfill.Report
 
         private static RunReport _report = new();
 
+        /// <summary>
+        /// The whole parsed run, for the one caller that needs more than a projection of it.
+        /// </summary>
+        /// <remarks>
+        /// Everything else here hands out one field at a time, which is right for a console command.
+        /// The sender needs the run as a whole - it turns the same object into the payload - and giving
+        /// it the pieces would mean reassembling a report that already exists.
+        /// </remarks>
+        internal static RunReport Report
+        {
+            get { if (!Loaded) Load(); return _report; }
+        }
+
         internal static IReadOnlyList<ModReport> Mods
         {
             get { if (!Loaded) Load(); return _report.Mods; }

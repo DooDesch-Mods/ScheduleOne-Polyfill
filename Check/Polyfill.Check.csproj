@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The same analysis the plugin runs, from a command line, for someone with no game open.
+
+    A mod author finds out their mod broke when a player posts about it. This is the check that
+    happens before that: point it at a DLL and a game version and it says which names are gone, which
+    have a successor, and which Harmony targets will not bind. Nothing here loads the mod or the game -
+    it is Cecil over metadata, exactly as the plugin does it at startup.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>polyfill-check</AssemblyName>
+    <RootNamespace>Polyfill.Check</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Mono.Cecil" Version="0.11.5" />
+  </ItemGroup>
+
+  <!--
+    Linked, not copied. The checker and the plugin have to reach the same verdict or the checker is
+    worse than nothing: an author would fix what it names and still ship something broken. One source,
+    two front ends.
+  -->
+  <ItemGroup>
+    <Compile Include="../Contract/ILog.cs" Link="Contract/ILog.cs" />
+    <Compile Include="../Core/DumpIndex.cs" Link="Core/DumpIndex.cs" />
+  </ItemGroup>
+
+</Project>

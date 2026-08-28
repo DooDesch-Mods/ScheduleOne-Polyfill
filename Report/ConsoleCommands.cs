@@ -40,6 +40,7 @@ namespace Polyfill.Report
             ["polyfillfixes"] = ListFixes,
             ["polyfillrestore"] = _ => Restore(),
             ["polyfillregen"] = _ => Regenerate(),
+            ["polyfillshare"] = Share,
             ["polyfillhelp"] = _ => Help(),
         };
 
@@ -510,6 +511,46 @@ namespace Polyfill.Report
 
             Core.Log.Msg("MelonLoader will build the game's generated assemblies again on the next launch, "
                        + "which takes a few minutes. Polyfill starts from those.");
+        }
+
+        /// <summary>
+        /// Turn sharing on or off, and say plainly what that means either way.
+        /// </summary>
+        /// <remarks>
+        /// The same switch the launch question sets, so a player who dismissed it - or was never asked
+        /// because the question had already run three times - is not locked out of either answer.
+        /// </remarks>
+        private static void Share(string argument)
+        {
+            string wanted = (argument ?? "").Trim().ToLowerInvariant();
+
+            if (wanted is "on" or "off")
+            {
+                bool on = wanted == "on";
+                Contract.Consent.Write(on, answered: true);
+                Core.Log.Msg(on
+                    ? "sharing on. Each launch sends the mod names, versions and findings from this "
+                    + "report - never your name, your paths or your save."
+                    : "sharing off. Nothing leaves this machine.");
+                return;
+            }
+
+            if (wanted == "show")
+            {
+                // The payload itself, not a description of it. Anyone deciding whether to share should
+                // be able to read exactly what would leave their machine, in the form it leaves in.
+                foreach (string line in Report.Share.Body(ReportReader.Report).Split('\n'))
+                    if (line.Length > 0) Core.Log.Msg("  " + line);
+                return;
+            }
+
+            var state = Contract.Consent.Read();
+            Core.Log.Msg(state.Sharing ? "sharing is ON." : "sharing is OFF.");
+            Core.Log.Msg(state.Answered
+                ? "  you chose this. `polyfillshare on` / `off` changes it."
+                : $"  nobody has answered yet - asked on {state.Asked} launch(es).");
+            Core.Log.Msg("  `polyfillshare show` prints exactly what would be sent - mod names, versions and "
+              + "findings, nothing about you or your save.");
         }
 
         private static void Help()

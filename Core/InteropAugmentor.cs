@@ -157,7 +157,7 @@ namespace Polyfill.Core
         internal static Result Apply(string interopDirectory, List<TypeForward> types,
                                      List<MemberForward> members, List<ParameterRename> renames,
                                      InteropOriginals originals,
-                                     MelonLogger.Instance log)
+                                     Contract.ILog log)
         {
             var result = new Result();
             if (types.Count == 0 && members.Count == 0 && renames.Count == 0) return result;
@@ -212,7 +212,7 @@ namespace Polyfill.Core
         private static void ApplyTo(string livePath, List<TypeForward> forwards,
                                     List<MemberForward> members, List<ParameterRename> renames,
                                     InteropOriginals originals,
-                                    Result result, MelonLogger.Instance log)
+                                    Result result, Contract.ILog log)
         {
             string interop = Path.GetDirectoryName(livePath);
             string assembly = Path.GetFileNameWithoutExtension(livePath);
@@ -768,7 +768,7 @@ namespace Polyfill.Core
             => Contract.PolyfillPaths.RestorePending(userDataDirectory);
 
         /// <summary>Put every augmented assembly back the way MelonLoader generated it.</summary>
-        internal static int Restore(string interopDirectory, MelonLogger.Instance log)
+        internal static int Restore(string interopDirectory, Contract.ILog log)
         {
             int restored = 0;
             foreach (string backup in Directory.GetFiles(interopDirectory, "*" + BackupSuffix))

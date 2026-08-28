@@ -43,7 +43,7 @@ namespace Polyfill.Core
         /// ways that depend on where the file sits, and a database that silently fails to load is the exact
         /// failure this whole layer exists to prevent.
         /// </remarks>
-        internal static void Load(MelonLogger.Instance log)
+        internal static void Load(Contract.ILog log)
         {
             _game = GameVersionSource.Current;
             var files = new List<(string, IEnumerable<string>)>();
@@ -72,7 +72,7 @@ namespace Polyfill.Core
                    + $"{_db.Versions().First()} to {_db.Newest}{caption}");
         }
 
-        private static IEnumerable<(string, IEnumerable<string>)> Embedded(MelonLogger.Instance log)
+        private static IEnumerable<(string, IEnumerable<string>)> Embedded(Contract.ILog log)
         {
             var assembly = Assembly.GetExecutingAssembly();
             foreach (string name in assembly.GetManifestResourceNames())
@@ -93,7 +93,7 @@ namespace Polyfill.Core
         }
 
         /// <summary>Step files a player or a release asset has put in UserData. Same format, same checks.</summary>
-        private static IEnumerable<(string, IEnumerable<string>)> Loose(MelonLogger.Instance log)
+        private static IEnumerable<(string, IEnumerable<string>)> Loose(Contract.ILog log)
         {
             string folder;
             try
