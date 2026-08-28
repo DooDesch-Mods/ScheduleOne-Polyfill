@@ -50,6 +50,10 @@
        needs Cecil, this project has no Cecil. -->
   <ItemGroup>
     <Compile Include="../Core/GeneratorIdentity.cs" Link="Core/GeneratorIdentity.cs" />
+
+    <!-- The MelonPreferences store behind Contract/Consent.cs. It lives in Boot/ because Contract/ is
+         linked by the offline checker and the test suite, and neither has MelonLoader. -->
+    <Compile Include="../Boot/MelonConsentStore.cs" Link="Boot/MelonConsentStore.cs" />
   </ItemGroup>
 
   <Import Project="$(MSBuildThisFileDirectory)../../Workspace/build/Deploy.props" Condition="Exists('$(MSBuildThisFileDirectory)../../Workspace/build/Deploy.props')" />

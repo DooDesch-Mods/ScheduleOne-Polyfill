@@ -23,6 +23,9 @@ namespace Polyfill.Report
         public override void OnInitializeMelon()
         {
             Log = LoggerInstance;
+            // The mod is loaded in its own right on a machine where the plugin may have been removed,
+            // so it installs the store itself rather than assuming somebody else already did.
+            Polyfill.Boot.MelonConsentStore.Install();
             ConsoleCommands.DeclareForTools();
 
             // Two readings of one number. The plugin cannot ask Unity that early and the version it used is

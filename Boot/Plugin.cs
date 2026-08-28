@@ -67,6 +67,7 @@ namespace Polyfill.Boot
         {
             Log = LoggerInstance;
             Say = new MelonLog(LoggerInstance);
+            MelonConsentStore.Install();
             ReadPreferences();
             // Nothing that touches Il2CppAssemblies belongs here: on the first launch after a game update
             // the generator has not run yet and the folder is stale or absent.
