@@ -14,8 +14,13 @@ namespace Polyfill.Report
     /// nine places, each needing a conversation to reach the log line that was in the report all along.
     ///
     /// WHAT LEAVES THE MACHINE is fixed here and nowhere else, so it can be read in one screen: the
-    /// mod's name, version and author, the game version, and per finding the symbol and what happened
-    /// to it. That is the whole payload. There is deliberately no field for the player, the save, the
+    /// mod's name, version and author, the game version, the version of Polyfill that judged it, and
+    /// per finding the symbol and what happened to it. That is the whole payload.
+    ///
+    /// The Polyfill version is in there because a verdict is as much a statement about this build as
+    /// about the mod: the same mod on the same game reads "broken" under one release and "repaired"
+    /// under the next, and without knowing which release spoke, nothing downstream can tell a mod that
+    /// got fixed from a game that changed. There is deliberately no field for the player, the save, the
     /// install path, or which mods run together - the last one because a mod list is a fingerprint,
     /// and a set of mods narrow enough identifies a person as well as a name would.
     ///
@@ -86,6 +91,7 @@ namespace Polyfill.Report
             var text = new StringBuilder();
             text.Append("# polyfill-share ").Append(Format).Append('\n');
             text.Append("# game=").Append(report.Game).Append('\n');
+            text.Append("# polyfill=").Append(Clean(DooDesch.ModVersion.Current)).Append('\n');
             text.Append("# install=").Append(Installation()).Append('\n');
 
             foreach (var mod in report.Mods)

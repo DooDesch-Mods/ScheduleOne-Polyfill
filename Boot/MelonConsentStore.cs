@@ -21,30 +21,50 @@ namespace Polyfill.Boot
         /// <summary>Install it, once, as early as the assembly runs anything at all.</summary>
         internal static void Install() => Consent.Use(new MelonConsentStore());
 
-        public bool TryReadBool(string key, out bool value)
+        public bool TryReadBool(string key, out bool value) => Read(key, false, out value);
+
+        public bool TryReadInt(string key, out int value) => Read(key, 0, out value);
+
+        /// <summary>
+        /// Read one preference, registering it first so a saved value is actually applied.
+        /// </summary>
+        /// <remarks>
+        /// THE ENTRY HAS TO BE CREATED, not just looked up. MelonPreferences loads the file before
+        /// plugins run, but it holds a saved value aside until something registers an entry for it -
+        /// so <c>GetEntry</c> on its own returns null on the very launch where the answer is in the
+        /// file, and the reader concludes nobody has answered.
+        ///
+        /// That is not hypothetical. 0.10.0 asked at OnPreInitialization and only ever looked up, so
+        /// the answer never took: the dialog came back on every single launch, and no button could
+        /// stop it. Plugin.ReadPreferences had the pattern right the whole time, one file away.
+        /// </remarks>
+        private static bool Read<T>(string key, T fallback, out T value)
         {
-            value = false;
+            value = fallback;
             try
             {
-                var entry = MelonPreferences.GetCategory(Category)?.GetEntry<bool>(key);
-                if (entry == null) return false;
+                var category = MelonPreferences.GetCategory(Category)
+                               ?? MelonPreferences.CreateCategory(Category);
+                if (category == null) return false;
+
+                var entry = category.GetEntry<T>(key) ?? category.CreateEntry(key, fallback, key, Describe(key));
                 value = entry.Value;
                 return true;
             }
             catch { return false; }
         }
 
-        public bool TryReadInt(string key, out int value)
+        /// <summary>The description a key gets when this is the first thing to register it.</summary>
+        private static string Describe(string key)
         {
-            value = 0;
-            try
-            {
-                var entry = MelonPreferences.GetCategory(Category)?.GetEntry<int>(key);
-                if (entry == null) return false;
-                value = entry.Value;
-                return true;
-            }
-            catch { return false; }
+            if (key == Consent.SharingKey)
+                return "Send anonymous findings - which mod, which symbol, repaired or not. Never your "
+                     + "name, your paths or your save.";
+            if (key == Consent.AnsweredKey)
+                return "Whether the question has been answered. Clear this to be asked again.";
+            if (key == Consent.AskedKey)
+                return "How many launches have asked. After three, the question stops.";
+            return key;
         }
 
         public void Write<T>(string key, T value, string description)

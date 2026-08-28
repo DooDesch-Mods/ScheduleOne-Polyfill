@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here.
 
+## [0.10.1] - 2026-08-28
+
+### Fixed
+- The sharing question stops coming back. It appeared on every launch and no button could stop it -
+  the answer was written but never read back.
+
+### Changed
+- The compatibility list now says a mod "starts" rather than "works". Polyfill checks what a mod asks
+  the game for while it loads, which is not the same as playing it.
+- Reports say which Polyfill wrote them, so polyfill.doomods.com can show when a mod was fixed by an
+  update rather than by a game change.
+
 ## [0.10.0] - 2026-08-28
 
 ### Added
