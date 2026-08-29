@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented here.
 
+## [0.11.3] - 2026-08-29
+
+### Fixed
+- Overlay mods draw again. ClockOverlay and EZCrosshair threw an error every frame instead of drawing,
+  which filled the log and could take the game down with it.
+- Mods that open or close the sleep screen work again. 0.4.6 replaced the call they use, and Polyfill
+  now opens and closes it the way the game does.
+- Mods that close the pause menu close it. They loaded without complaining and then did nothing.
+
 ## [0.11.2] - 2026-08-28
 
 ### Changed
