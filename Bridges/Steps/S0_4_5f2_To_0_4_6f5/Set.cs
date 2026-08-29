@@ -509,6 +509,10 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             // one and where the other half of the repair lives.
             SplitInTwo(0), SplitInTwo(1), SplitInTwo(2), SplitInTwo(3), SplitInTwo(4),
 
+            // The same repair where the two replacements share no name with the old method, so the five
+            // above cannot describe it. See Contract/ReplacedMethods.
+            ReplacedByTwo(0), ReplacedByTwo(1),
+
             // The same split, on the pause menu, and it needs the OPPOSITE body. The five above are
             // patch targets, so an empty method is the whole repair; the two mods missing this one CALL
             // SetIsOpen, and an empty method would let them load and then do nothing at all - the failure
@@ -1350,6 +1354,77 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             il.Emit(OpCodes.Ret);
 
             return method;
+        }
+
+        /// <summary>
+        /// One entry of <see cref="Contract.ReplacedMethods"/> as a bridge: the old signature, empty.
+        /// </summary>
+        /// <remarks>
+        /// Empty on purpose and only safe because every entry there is a PATCH target. The half that
+        /// makes it worth having is ModFixes/PatchesOnReplacedMethods, which postfixes the methods the
+        /// game does call so they run this one. A stand-in without that half is a patch that registers
+        /// and never fires, which is the quietest way this project can fail.
+        /// </remarks>
+        private static Bridge ReplacedByTwo(int index)
+        {
+            var entry = Contract.ReplacedMethods.All[index];
+
+            return new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = entry.Type,
+                OldName = entry.OldName,
+                ParameterCount = entry.Parameters.Length,
+                ParameterTypes = entry.Parameters,
+                AllowOverload = true,
+                Because = entry.Because,
+                Emit = (module, type) => EmitReplacedHook(module, type, entry),
+            };
+        }
+
+        /// <summary>The old signature, names and all, over an empty body - and only where both
+        /// replacements are actually on this build.</summary>
+        /// <remarks>
+        /// The refusal matters more than the emission. If a later build renames one of the two
+        /// replacements, the relay can no longer call the stand-in, and emitting it anyway would leave a
+        /// mod resolving a method nothing reaches. Better the mod fails to load and says so.
+        /// </remarks>
+        private static MethodDefinition EmitReplacedHook(ModuleDefinition module, TypeDefinition type,
+                                                         Contract.ReplacedMethods.Entry entry)
+        {
+            foreach (var replacement in entry.Replacements)
+                if (MethodUp(type, replacement.Name, replacement.Parameters.Length) == null) return null;
+
+            var method = new MethodDefinition(entry.OldName,
+                MethodAttributes.Public | MethodAttributes.HideBySig, module.TypeSystem.Void);
+
+            for (int i = 0; i < entry.Parameters.Length; i++)
+            {
+                var parameterType = module.GetType(entry.Parameters[i]);
+                var reference = parameterType != null
+                    ? module.ImportReference(parameterType)
+                    : Named(module, entry.Parameters[i]);
+                if (reference == null) return null;
+
+                method.Parameters.Add(new ParameterDefinition(entry.ParameterNames[i],
+                                                              ParameterAttributes.None, reference));
+            }
+
+            method.Body.GetILProcessor().Emit(OpCodes.Ret);
+            return method;
+        }
+
+        /// <summary>The base-library types an entry can name, resolved without guessing.</summary>
+        private static TypeReference Named(ModuleDefinition module, string fullName)
+        {
+            switch (fullName)
+            {
+                case "System.Boolean": return module.TypeSystem.Boolean;
+                case "System.Int32": return module.TypeSystem.Int32;
+                case "System.Single": return module.TypeSystem.Single;
+                case "System.String": return module.TypeSystem.String;
+                default: return null;
+            }
         }
 
         /// <summary>The old signature, exact down to the parameter names, over an empty body.</summary>

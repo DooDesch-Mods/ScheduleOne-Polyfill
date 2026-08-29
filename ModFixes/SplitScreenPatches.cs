@@ -43,9 +43,12 @@ namespace Polyfill.ModFixes
              + "split that method in two and calls neither under the old name.";
 
         private static readonly Dictionary<MethodBase, MethodInfo> Hooks = new();
+        private static readonly HashSet<string> _complained = new();
+        private static MelonLogger.Instance _log;
 
         internal override bool Apply(MelonLogger.Instance log)
         {
+            _log = log;
             int wired = 0;
             var harmony = new HarmonyLib.Harmony("doodesch.polyfill.splitscreens");
 
@@ -149,7 +152,17 @@ namespace Polyfill.ModFixes
 
                 hook.Invoke(instance, values);
             }
-            catch { }
+            catch (Exception e)
+            {
+                // Once per screen, and said out loud. This method exists so a mod's patch stops failing
+                // silently; swallowing our own failure here would be the same bug one level down, and
+                // from the outside the two look identical - the mod is loaded, nothing throws, and the
+                // feature is simply absent.
+                if (_complained.Add(instance.GetType().Name + "/" + (open ? "Open" : "Close")))
+                    _log?.Warning("[fix] split-screen-patches: calling SetIsOpen on "
+                                + instance.GetType().Name + " threw " + e.GetType().Name + ": "
+                                + e.Message + ". A patch on it is not running.");
+            }
         }
     }
 }
