@@ -203,6 +203,10 @@ namespace Polyfill.Core
                 // parameter, so the count alone said "present" and pointed at whichever came first.
                 // The patch would then resolve nothing at runtime, and this pass had already reported
                 // the mod clean.
+                //
+                // Watched on 0.4.6f13 with a mod carrying nothing but this attribute. Before: no
+                // finding. After: the row below, and MelonLoader refusing the same patch class at
+                // startup with "Undefined target method" - the two agreeing is the point.
                 if (spec.ArgumentTypes == null) continue;
                 switch (Same(spec.ArgumentTypes, method))
                 {
