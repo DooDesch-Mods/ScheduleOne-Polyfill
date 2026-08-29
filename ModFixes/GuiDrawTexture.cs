@@ -23,14 +23,24 @@ namespace Polyfill.ModFixes
     ///
     /// NOTHING IS MISSING FROM THE GAME HERE, which is why the load check reads clean and no bridge
     /// applies: the method is present, it is a stub, and only calling it says so. The pieces it needs
-    /// are all still real - <c>GUI.CalculateScaledTextureRects</c> is the game's own scaling maths, and
-    /// <c>GUI.DrawTextureWithTexCoords</c> ends in <c>Graphics.Internal_DrawTexture</c>, a native call
-    /// that survived. Put together they are what <c>DrawTexture</c> did.
+    /// are all still real: <c>GUI.CalculateScaledTextureRects</c> is the game's own scaling maths, and
+    /// <c>GUI.Box</c> draws a style whose background is a texture.
+    ///
+    /// NOT <c>GUI.DrawTextureWithTexCoords</c>, which is the obvious replacement and was the first one
+    /// shipped. It does not throw, and it does not draw either - measured with a probe mod on
+    /// 2026-08-29 against a <c>GUI.Box</c> control in the same <c>OnGUI</c>, which rendered fine. That
+    /// left every overlay mod silent instead of crashing, which is the worse of the two.
     ///
     /// BORDERS ARE NOT DRAWN. The border colours and radii of the wider overloads have no equivalent in
     /// what is left, so a call carrying them gets the texture without its frame. That is a visible
     /// difference and it is said out loud in the log rather than passed off as a repair; a crosshair
     /// with no border still aims, and the mods reporting this pass none.
+    ///
+    /// AND IF IT CANNOT DRAW, IT GIVES THE EXCEPTION BACK. A fix that swallows the error without
+    /// restoring the function is worse than no fix: the mod loads, nothing throws, and the overlay is
+    /// simply not there - so the author is debugging an invisible feature instead of reading a stack
+    /// trace. On the first failure this says why, marks itself failed in <c>polyfillfixes</c> and in
+    /// the report, and steps aside so the original throws again as it did before Polyfill.
     ///
     /// The probe is the safety, not the version range. On a build where Unity ships the real method this
     /// fix finds no stub and does nothing, so it cannot replace a working implementation with a narrower
@@ -54,7 +64,14 @@ namespace Polyfill.ModFixes
 
         private static MelonLogger.Instance _log;
         private static bool _saidBorders;
-        private static bool _saidFailed;
+
+        /// <summary>Why this stopped standing in, or null while it is working.</summary>
+        /// <remarks>
+        /// Once set the prefix steps aside and the original throws again. Deliberate: the exception is
+        /// information, and a mod that draws nothing while reporting no error is a longer afternoon for
+        /// its author than a stack trace with a name in it.
+        /// </remarks>
+        private static string _gaveUp;
 
         internal override bool Apply(MelonLogger.Instance log)
         {
@@ -120,13 +137,27 @@ namespace Polyfill.ModFixes
             return false;
         }
 
-        /// <summary>Draw what the original would have drawn, out of the parts that still work.</summary>
+        /// <summary>Draw what the original would have drawn, or hand the exception back.</summary>
         private static bool Draw(Rect position, Texture image, ScaleMode scaleMode, bool alphaBlend,
                                  float imageAspect, Color leftColor, Vector4 borderWidths)
         {
+            // Already established that this build cannot be stood in for. Let the original throw, which
+            // is what it did before Polyfill and is at least true.
+            if (_gaveUp != null) return true;
+
+            if (image == null) return false;
+
             try
             {
-                if (image == null) return false;
+                // GUIStyle backgrounds are Texture2D. TryCast rather than `as`, which returns null for a
+                // live object across the interop boundary and would read as "no texture".
+                var texture = image.TryCast<Texture2D>();
+                if (texture == null)
+                {
+                    GiveUp("a mod drew a " + image.GetIl2CppType().Name + " rather than a Texture2D, and "
+                         + "the only drawing call left in this build takes a Texture2D");
+                    return true;
+                }
 
                 if (borderWidths != Vector4.zero && !_saidBorders)
                 {
@@ -151,25 +182,50 @@ namespace Polyfill.ModFixes
                                                      ref screenRect, ref sourceRect))
                     return false;
 
+                // Built per call rather than cached. A GUIStyle held across frames is an interop wrapper
+                // with nothing native behind it, and the next frame fails on a collected object - which
+                // is exactly how the first version of this fix went quiet.
+                var style = new GUIStyle();
+                style.normal.background = texture;
+                style.border = new RectOffset(0, 0, 0, 0);
+                style.padding = new RectOffset(0, 0, 0, 0);
+                style.margin = new RectOffset(0, 0, 0, 0);
+                style.overflow = new RectOffset(0, 0, 0, 0);
+
                 // The tint is the argument, and for every overload that does not take one the argument IS
                 // GUI.color - so restoring it afterwards makes those calls a no-op rather than a change.
                 var was = GUI.color;
                 GUI.color = leftColor;
-                try { GUI.DrawTextureWithTexCoords(screenRect, image, sourceRect, alphaBlend); }
+                try { GUI.Box(screenRect, GUIContent.none, style); }
                 finally { GUI.color = was; }
             }
             catch (Exception e)
             {
-                if (!_saidFailed)
-                {
-                    _saidFailed = true;
-                    _log?.Warning("[fix] gui-drawtexture: drawing failed and the image is missing rather "
-                                + "than the game dying: " + e.Message);
-                }
+                GiveUp("drawing through GUI.Box failed: " + e.GetType().Name + ": " + e.Message);
+                return true;
             }
 
-            // Never the original. It exists only to throw, and letting it run is the crash this repairs.
             return false;
+        }
+
+        /// <summary>
+        /// Stop standing in, say why, and make sure the report says so too.
+        /// </summary>
+        /// <remarks>
+        /// Three places have to agree, because a player reads one of them and an author reads another:
+        /// the log line, `polyfillfixes`, and the exported report. Leaving the state at "applied" while
+        /// nothing is drawn is the lie this whole method exists to prevent.
+        /// </remarks>
+        private static void GiveUp(string reason)
+        {
+            if (_gaveUp != null) return;
+            _gaveUp = reason;
+
+            _log?.Error("[fix] gui-drawtexture: standing down - " + reason + ". GUI.DrawTexture will "
+                      + "throw again from here on, which is what it did before Polyfill. An overlay that "
+                      + "is simply missing is harder to report than one that crashes, so this says it "
+                      + "rather than hiding it.");
+            Fixes.Record("gui-drawtexture", "failed: " + reason);
         }
     }
 }

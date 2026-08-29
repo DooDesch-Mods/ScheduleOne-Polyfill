@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here.
 
+## [0.11.4] - 2026-08-29
+
+### Fixed
+- Another fix for overlay mods: 0.11.3 stopped the crash but drew nothing, so a clock or a crosshair was
+  simply missing. The image is on screen now.
+- A repair that cannot do the job says so and steps aside, instead of leaving a mod loaded and silent.
+  `polyfillfixes` shows it as failed and the log gives the reason.
+
 ## [0.11.3] - 2026-08-29
 
 ### Fixed
