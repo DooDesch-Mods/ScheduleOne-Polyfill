@@ -65,7 +65,16 @@ namespace Polyfill.ModFixes
                 var type = AccessTools.TypeByName(entry.Type);
                 if (type == null) continue;               // the type is not on this build; not our business
 
-                var standIn = AccessTools.Method(type, entry.OldName, Types(entry.Parameters));
+                var wanted = Types(entry.Parameters);
+                if (wanted == null)
+                {
+                    Complain(entry.Type, "one of the parameter types " + entry.OldName + " takes is not "
+                                       + "on this build, so the stand-in cannot be identified without "
+                                       + "guessing which overload was meant.");
+                    continue;
+                }
+
+                var standIn = AccessTools.Method(type, entry.OldName, wanted);
                 if (standIn == null)
                 {
                     // The plugin refused, or a later build changed the shape. Either way the mod is broken
@@ -79,7 +88,15 @@ namespace Polyfill.ModFixes
 
                 foreach (var replacement in entry.Replacements)
                 {
-                    var real = AccessTools.Method(type, replacement.Name, Types(replacement.Parameters));
+                    var takes = Types(replacement.Parameters);
+                    if (takes == null)
+                    {
+                        Complain(entry.Type, "one of the parameter types " + replacement.Name + " takes "
+                                           + "is not on this build.");
+                        continue;
+                    }
+
+                    var real = AccessTools.Method(type, replacement.Name, takes);
                     if (real == null)
                     {
                         Complain(entry.Type, $"{replacement.Name} is not on this build, so a patch on "
@@ -107,6 +124,14 @@ namespace Polyfill.ModFixes
             return true;
         }
 
+        /// <summary>
+        /// The named types, or null when one of them is not on this build.
+        /// </summary>
+        /// <remarks>
+        /// Null has to be handled by the caller and never passed on. AccessTools.Method reads a null
+        /// parameter list as "any signature", so handing this straight through would quietly match an
+        /// overload nobody named - the exact class of mistake this whole file exists to stop.
+        /// </remarks>
         private static Type[] Types(string[] names)
         {
             var found = new Type[names.Length];
