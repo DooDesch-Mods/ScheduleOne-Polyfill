@@ -138,6 +138,41 @@ namespace Polyfill.Core
             return found;
         }
 
+        /// <summary>Could the two be lined up at all, and if so do they agree?</summary>
+        private enum Match { Yes, No, Unknown }
+
+        /// <summary>
+        /// Does this method take exactly the types the patch named?
+        /// </summary>
+        /// <remarks>
+        /// Compared on full names, which is what both sides carry: the patch's typeof() resolves through
+        /// the mod's own references and the candidate through the interop assembly, and for anything
+        /// either side can name - System.Int32, Il2CppScheduleOne.X - those spell the same.
+        ///
+        /// Unknown, not No, whenever a name is missing on either side. A wrong No here does not stay
+        /// inside Polyfill: it is published against somebody else's mod as a symbol the game no longer
+        /// has, and an author reading that would go looking for a rename that never happened.
+        /// </remarks>
+        private static Match Same(List<TypeReference> wanted, MethodDefinition method)
+        {
+            if (wanted.Count != method.Parameters.Count) return Match.No;
+
+            for (int i = 0; i < wanted.Count; i++)
+            {
+                string a = wanted[i]?.FullName;
+                string b = method.Parameters[i].ParameterType?.FullName;
+                if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b)) return Match.Unknown;
+                if (a != b) return Match.No;
+            }
+            return Match.Yes;
+        }
+
+        /// <summary>The names a patch asked for, for the line an author reads.</summary>
+        private static IEnumerable<string> Spelled(List<TypeReference> types)
+        {
+            foreach (var type in types) yield return type?.FullName ?? "?";
+        }
+
         /// <summary>The method half of the check, once the type it is on has been settled.</summary>
         /// <param name="under">The name the mod used, when that is not the type being searched.</param>
         private static void Verify(Spec spec, string site, InteropIndex index, ModReport report,
@@ -153,14 +188,49 @@ namespace Polyfill.Core
             // string one, and the mod stops patching at that line. Counting was the whole difference
             // between reporting this and calling it present.
             MethodDefinition found = null;
+            MethodDefinition exact = null;
             int matches = 0;
+            int comparable = 0;
             foreach (var method in declaring.Methods)
             {
                 if (method.Name != name) continue;
                 if (argumentCount >= 0 && method.Parameters.Count != argumentCount) continue;
                 matches++;
                 found ??= method;
+
+                // COUNTING IS NOT MATCHING once the patch says which types it means. Deal Optimizer
+                // names ChangeQuantity(int); 0.4.6 has a float one and a string one, both with one
+                // parameter, so the count alone said "present" and pointed at whichever came first.
+                // The patch would then resolve nothing at runtime, and this pass had already reported
+                // the mod clean.
+                if (spec.ArgumentTypes == null) continue;
+                switch (Same(spec.ArgumentTypes, method))
+                {
+                    case Match.Yes: exact ??= method; comparable++; break;
+                    case Match.No: comparable++; break;
+                    default: break;                     // a name we cannot line up; see Same
+                }
             }
+
+            // Only when every candidate could actually be compared. A spelling this does not know how to
+            // line up must not turn into "your method is gone" on somebody else's public listing.
+            if (spec.ArgumentTypes != null && matches > 0 && comparable == matches && exact == null)
+            {
+                report.Findings.Add(new Finding
+                {
+                    Kind = "harmony-target",
+                    Scope = declaring.Module?.Assembly?.Name?.Name ?? "",
+                    Symbol = (under ?? declaring.FullName) + "::" + name
+                           + "(" + string.Join(", ", Spelled(spec.ArgumentTypes)) + ")",
+                    Reason = $"this build has {matches} method(s) called {name} with that many parameters "
+                           + "and none of them takes those types, so the patch resolves nothing. Harmony "
+                           + "throws out of PatchAll, which costs this patch class and every one after it",
+                    Site = site,
+                });
+                return;
+            }
+
+            if (exact != null) found = exact;
 
             if (matches > 1 && argumentCount < 0)
             {
