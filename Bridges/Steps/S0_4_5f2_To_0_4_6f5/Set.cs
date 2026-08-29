@@ -259,6 +259,7 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         private const string Emitter = "Il2CppScheduleOne.VoiceOver.VOEmitter";
         private const string Camera = "Il2CppScheduleOne.PlayerScripts.PlayerCamera";
         private const string GameplayMenu = "Il2CppScheduleOne.UI.GameplayMenu";
+        private const string SleepCanvas = "Il2CppScheduleOne.UI.SleepCanvas";
         private const string Clipboard = "Il2CppScheduleOne.Tools.ManagementClipboard";
         private const string Customer = "Il2CppScheduleOne.Economy.CustomerData";
 
@@ -523,6 +524,24 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                         + "SetIsOpen and neither of them, 0.4.6f13 has both and no SetIsOpen "
                         + "(GameplayMenu.cs:238,243)",
                 Emit = EmitGameplayMenuSetIsOpen,
+            },
+
+            // The same split again, on the sleep screen, and the close half does NOT live on the type.
+            // 0.4.6 moved the teardown into the menu-stack system: OpenMenu() is the whole open path, and
+            // closing is popping the state - OnMenuClosed is what the stack calls back afterwards, not a
+            // way to close anything. Calling that directly would clear the flag and leave the screen
+            // registered, which is a player who cannot move and a menu that is not there.
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = SleepCanvas,
+                OldName = "SetIsOpen",
+                ParameterCount = 1,
+                ParameterTypes = new[] { "System.Boolean" },
+                Because = "0.4.6 replaced SleepCanvas.SetIsOpen(bool) with OpenMenu() and the menu stack: "
+                        + "0.4.5f2 has SetIsOpen and neither, 0.4.6f13 has OpenMenu, a MenuState field and "
+                        + "no SetIsOpen (SleepCanvas.cs:88,92)",
+                Emit = EmitSleepCanvasSetIsOpen,
             },
 
             // Two static methods 0.4.6 deleted whose every line still exists. Rebuilt rather than pointed
@@ -1272,6 +1291,62 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             il.Emit(OpCodes.Ret);
             il.Append(closeIt);
             il.Emit(OpCodes.Callvirt, module.ImportReference(close));
+            il.Emit(OpCodes.Ret);
+
+            return method;
+        }
+
+        /// <summary>
+        /// SetIsOpen(bool) on the sleep screen: OpenMenu() one way, the menu stack the other.
+        /// </summary>
+        /// <remarks>
+        /// The same shape as the pause menu above and a different close, because 0.4.6 did not split this
+        /// one in two - it moved half of it out of the class. 0.4.5f2 SetIsOpen(true) enabled the canvas,
+        /// added the screen, froze the camera and loaded an input module; SetIsOpen(false) undid all five.
+        /// 0.4.6 has OpenMenu() doing the whole open path through MenuState.PushToDefaultParent, and the
+        /// close is MenuState.PopFromDefaultParent - which is what the screen's own Exit does
+        /// (SleepCanvas.cs:88).
+        ///
+        /// NOT OnMenuClosed, which is the obvious-looking pair and is the wrong one. It is subscribed to
+        /// MenuState.OnRemovedFromStack (SleepCanvas.cs:79), so it is the callback the stack fires
+        /// afterwards: it clears the flag and hides the container without ever popping anything. A mod
+        /// calling SetIsOpen(false) would get a hidden menu, a screen still on the stack and a player who
+        /// cannot move - the kind of half-repair that is worse than the exception it replaced.
+        ///
+        /// Refuses unless OpenMenu, the MenuState field and PopFromDefaultParent are all on this build.
+        /// </remarks>
+        private static MethodDefinition EmitSleepCanvasSetIsOpen(ModuleDefinition module,
+                                                                 TypeDefinition type)
+        {
+            var open = MethodUp(type, "OpenMenu", 0);
+            if (open == null) return null;
+
+            FieldDefinition state = null;
+            foreach (var field in type.Fields)
+                if (field.Name == "MenuState") { state = field; break; }
+            if (state == null) return null;
+
+            TypeDefinition stateType = null;
+            try { stateType = state.FieldType.Resolve(); } catch { }
+            var pop = stateType == null ? null : MethodUp(stateType, "PopFromDefaultParent", 0);
+            if (pop == null) return null;
+
+            var method = new MethodDefinition("SetIsOpen",
+                MethodAttributes.Public | MethodAttributes.HideBySig, module.TypeSystem.Void);
+            method.Parameters.Add(new ParameterDefinition("open", ParameterAttributes.None,
+                                                          module.TypeSystem.Boolean));
+
+            var il = method.Body.GetILProcessor();
+            var closeIt = il.Create(OpCodes.Ldarg_0);
+
+            il.Emit(OpCodes.Ldarg_1);
+            il.Emit(OpCodes.Brfalse_S, closeIt);
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(open));
+            il.Emit(OpCodes.Ret);
+            il.Append(closeIt);
+            il.Emit(OpCodes.Ldfld, module.ImportReference(state));
+            il.Emit(OpCodes.Callvirt, module.ImportReference(pop));
             il.Emit(OpCodes.Ret);
 
             return method;
