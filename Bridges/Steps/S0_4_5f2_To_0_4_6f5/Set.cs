@@ -260,6 +260,15 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         private const string Camera = "Il2CppScheduleOne.PlayerScripts.PlayerCamera";
         private const string GameplayMenu = "Il2CppScheduleOne.UI.GameplayMenu";
         private const string SleepCanvas = "Il2CppScheduleOne.UI.SleepCanvas";
+        private const string DealerType = "Il2CppScheduleOne.Economy.Dealer";
+        private const string DealerDataType = "Il2CppScheduleOne.NPCs.Framework.DealerNPCData";
+        private const string DealerCut =
+            "0.4.6 moved the dealer's cut onto the data object the NPC carries: 0.4.5f2 had a "
+          + "serialized Cut field on Dealer defaulting to 0.2f, 0.4.6f13 has "
+          + "DealerNPCData.SalesCutPercentage with the same type and the same default, and the "
+          + "consumer line is the same expression with one identifier swapped - "
+          + "ChangeCash(payment * (1f - Cut)) became ChangeCash(payment * (1f - "
+          + "DealerData.SalesCutPercentage)) (Dealer.cs:132, DealerNPCData.cs:17)";
         private const string Clipboard = "Il2CppScheduleOne.Tools.ManagementClipboard";
         private const string Customer = "Il2CppScheduleOne.Economy.CustomerData";
 
@@ -512,6 +521,28 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             // The same repair where the two replacements share no name with the old method, so the five
             // above cannot describe it. See Contract/ReplacedMethods.
             ReplacedByTwo(0), ReplacedByTwo(1),
+
+            // A member that did not move within its type but onto the data object the NPC now carries.
+            // Two entries because a property is two methods and a mod may use either half.
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = DealerType,
+                OldName = "get_Cut",
+                ParameterCount = 0,
+                Because = DealerCut,
+                Emit = (module, type) => EmitDealerCut(module, type, setter: false),
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = DealerType,
+                OldName = "set_Cut",
+                ParameterCount = 1,
+                ParameterTypes = new[] { "System.Single" },
+                Because = DealerCut,
+                Emit = (module, type) => EmitDealerCut(module, type, setter: true),
+            },
 
             // The same split, on the pause menu, and it needs the OPPOSITE body. The five above are
             // patch targets, so an empty method is the whole repair; the two mods missing this one CALL
@@ -1425,6 +1456,67 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                 case "System.String": return module.TypeSystem.String;
                 default: return null;
             }
+        }
+
+        /// <summary>
+        /// Dealer.Cut, forwarding to the data object the dealer now carries.
+        /// </summary>
+        /// <remarks>
+        /// A REAL BODY, because mods read and write this rather than patching it. The hop is
+        /// <c>Dealer.DealerData</c>, a getter-only property returning <c>DealerNPCData</c>, whose
+        /// <c>SalesCutPercentage</c> is the same Single with the same 0.2f default.
+        ///
+        /// NULL-GUARDED, and that is not defensive habit. <c>DealerData</c> is <c>NPCData as
+        /// DealerNPCData</c> and <c>NPCData</c> is not assigned until <c>NPC.Awake</c> runs
+        /// (NPC.cs:3072), where the old field was readable from deserialization onward. It is also null
+        /// on an NPC built with a non-dealer data object. So the getter answers 0 and the setter does
+        /// nothing rather than throwing a NullReferenceException the mod never used to get.
+        ///
+        /// The write stays per-instance exactly as it was: NPC.Awake assigns
+        /// <c>_npcData.GetRuntimeData()</c>, which is a deep copy, so setting this changes one dealer and
+        /// does not leak into the shared asset or into other dealers.
+        /// </remarks>
+        private static MethodDefinition EmitDealerCut(ModuleDefinition module, TypeDefinition type,
+                                                      bool setter)
+        {
+            var data = module.GetType(DealerDataType);
+            var hop = MethodUp(type, "get_DealerData", 0);
+            if (data == null || hop == null) return null;
+
+            var reach = MethodUp(data, setter ? "set_SalesCutPercentage" : "get_SalesCutPercentage",
+                                 setter ? 1 : 0);
+            if (reach == null) return null;
+
+            var method = new MethodDefinition(setter ? "set_Cut" : "get_Cut",
+                MethodAttributes.Public | MethodAttributes.HideBySig,
+                setter ? module.TypeSystem.Void : module.TypeSystem.Single);
+            if (setter)
+                method.Parameters.Add(new ParameterDefinition("value", ParameterAttributes.None,
+                                                              module.TypeSystem.Single));
+
+            var il = method.Body.GetILProcessor();
+            var call = module.ImportReference(reach);
+
+            // The first instruction past the guard differs by half: the setter has a value to push, the
+            // getter goes straight to the call. Written out rather than folded into one expression -
+            // the branch target has to BE that instruction, and a clever one-liner cannot say which.
+            var reached = setter ? il.Create(OpCodes.Ldarg_1) : il.Create(OpCodes.Callvirt, call);
+
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(hop));
+            il.Emit(OpCodes.Dup);
+            il.Emit(OpCodes.Brtrue_S, reached);
+
+            // No data object yet, so answer the way the old field would have and change nothing.
+            il.Emit(OpCodes.Pop);
+            if (!setter) il.Emit(OpCodes.Ldc_R4, 0f);
+            il.Emit(OpCodes.Ret);
+
+            il.Append(reached);
+            if (setter) il.Emit(OpCodes.Callvirt, call);
+            il.Emit(OpCodes.Ret);
+
+            return method;
         }
 
         /// <summary>The old signature, exact down to the parameter names, over an empty body.</summary>
