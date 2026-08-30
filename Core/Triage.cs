@@ -617,7 +617,7 @@ namespace Polyfill.Core
             report.Findings.Add(new Finding
             {
                 Kind = kindPrefix + "member", Scope = scope,
-                Symbol = declaring.FullName + "::" + wanted.Name + Signature(wanted),
+                Symbol = declaring.FullName + "::" + wanted.Name + Signature(wanted, full: nameExists),
                 Reason = reason, Hint = hint, RepairKey = repairKey,
             });
         }
@@ -701,12 +701,27 @@ namespace Polyfill.Core
             return names;
         }
 
-        private static string Signature(MethodReference method)
+        /// <summary>
+        /// The parameter list, as the reader needs to see it.
+        /// </summary>
+        /// <remarks>
+        /// Short names read better and are right almost always. They are WRONG in the one case that
+        /// matters most: when the type still has a method of that name and the call does not resolve
+        /// anyway, because a parameter type moved namespace or came from the other branch. A mod naming
+        /// ScheduleOne.GameInput/ButtonCode and a game carrying Il2CppScheduleOne.GameInput/ButtonCode
+        /// both print as "ButtonCode", so the finding reads as a lie - the member is plainly there.
+        ///
+        /// It cost this project two separate investigations, both of which concluded the check was
+        /// producing false positives when it was the report that could not show the difference. So where
+        /// the name exists and the parameters are what differ, the full names are printed.
+        /// </remarks>
+        private static string Signature(MethodReference method, bool full = false)
         {
             var parts = new List<string>();
             if (method.HasParameters)
                 foreach (var parameter in method.Parameters)
-                    parts.Add(parameter.ParameterType?.Name ?? "?");
+                    parts.Add((full ? parameter.ParameterType?.FullName : parameter.ParameterType?.Name)
+                              ?? "?");
             return "(" + string.Join(", ", parts) + ")";
         }
 
