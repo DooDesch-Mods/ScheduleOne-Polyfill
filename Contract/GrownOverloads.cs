@@ -104,6 +104,15 @@ namespace Polyfill.Contract
             },
             new Entry
             {
+                Type = "Il2CppScheduleOne.UI.StorageMenu",
+                Name = "Open",
+                OldParameters = new[] { "Il2CppScheduleOne.Storage.StorageEntity" },
+                Because = "the third Open took the same trailing callback as its two siblings and was "
+                        + "missed when they were listed (0.4.5f2 Open_Public_Virtual_New_Void_"
+                        + "StorageEntity_0 against 0.4.6f13 ..._StorageEntity_Action_0)",
+            },
+            new Entry
+            {
                 Type = "Il2CppScheduleOne.Economy.CustomerData",
                 Name = "GetOrderDays",
                 OldParameters = new[] { "System.Single", "System.Single" },
