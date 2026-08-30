@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here.
 
+## [0.11.5] - 2026-08-30
+
+### Fixed
+- Polyfill stops listing a mod as broken when the game still has everything it asked for. It counted
+  how many arguments a mod named instead of checking which ones.
+- Mods that change the object and route pickers on the management clipboard work again. They loaded
+  without complaining and then did nothing.
+- Mods that open a storage screen from a container work again. Two of the three ways to open one were
+  repaired and the third was missed.
+
 ## [0.11.4] - 2026-08-29
 
 ### Fixed
