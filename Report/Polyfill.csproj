@@ -86,6 +86,8 @@
     <Reference Include="Il2CppFishNet.Runtime"><HintPath>$(GameManagedPath)/Il2CppFishNet.Runtime.dll</HintPath><Private>false</Private></Reference>
     <!-- Terrain is NOT in CoreModule. See S1MapiTerrainRepaint. -->
     <Reference Include="UnityEngine.TerrainModule"><HintPath>$(GameManagedPath)/UnityEngine.TerrainModule.dll</HintPath><Private>false</Private></Reference>
+    <!-- VerticalLayoutGroup and the rest of uGUI. See MediaPlayerAppLayout. -->
+    <Reference Include="UnityEngine.UI"><HintPath>$(GameManagedPath)/UnityEngine.UI.dll</HintPath><Private>false</Private></Reference>
     <!-- GUI and ScaleMode are here, not in CoreModule. See GuiDrawTexture. -->
     <Reference Include="UnityEngine.IMGUIModule"><HintPath>$(GameManagedPath)/UnityEngine.IMGUIModule.dll</HintPath><Private>false</Private></Reference>
   </ItemGroup>
