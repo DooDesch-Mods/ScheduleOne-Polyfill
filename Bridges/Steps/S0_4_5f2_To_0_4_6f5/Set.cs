@@ -272,6 +272,8 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
 
         private const string Emitter = "Il2CppScheduleOne.VoiceOver.VOEmitter";
         private const string Camera = "Il2CppScheduleOne.PlayerScripts.PlayerCamera";
+        private const string Packaging = "Il2CppScheduleOne.ObjectScripts.PackagingStation";
+        private const string Bool = "System.Boolean";
         private const string GameplayMenu = "Il2CppScheduleOne.UI.GameplayMenu";
         private const string SleepCanvas = "Il2CppScheduleOne.UI.SleepCanvas";
         private const string DealerType = "Il2CppScheduleOne.Economy.Dealer";
@@ -613,6 +615,51 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                 ParameterCount = 1,
                 Because = PlayerToggle,
                 Emit = (module, type) => EmitPlayerToggle(module, type, "Deactivate", on: false),
+            },
+
+            // The station's own open/close pair. 0.4.5f2 has Open() and Close(); 0.4.6f13 has Use() and
+            // OnEndUse() doing the same two jobs on the same type - Use pushes the state and opens the
+            // canvas where Open set the camera up and opened it, OnEndUse closes the canvas and releases
+            // the player user where Close did (PackagingStation.cs:405-424 against 0.4.5f2 :420-455).
+            //
+            // The version database could not pick this pair on its own: it saw two zero-argument methods
+            // become two others at once and marked both ambiguous rather than guessing. That is the right
+            // refusal for a derived rule, and exactly what a curated one is for.
+            //
+            // ONLY THE CALL. A mod that PATCHES Open is not helped by this and is not pretended to be:
+            // Tweakables' prefix returns false to suppress the vanilla open, and nothing written onto a
+            // name the game never calls can suppress anything.
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = Packaging,
+                OldName = "Close",
+                ParameterCount = 0,
+                Because = "0.4.6 renamed PackagingStation.Close() to OnEndUse(): both close the canvas and "
+                        + "release the player user, and it is the only zero-argument method on the type "
+                        + "that does (PackagingStation.cs:416)",
+                Emit = (module, type) => EmitSelfCall(module, type, "Close", "OnEndUse"),
+            },
+
+            // PlayerCamera.CloseInterface, whose every line still exists.
+            //
+            // 0.4.6 did not rename it. It replaced the MECHANISM: a screen pushes a State now and the
+            // stack undoes this on the way out, so there is no successor to point at - while the nine
+            // things the old body did are all still there, on types that all still exist. Rebuilt rather
+            // than dropped, the same argument as Player.Activate above.
+            //
+            // CompassManager moved to ScheduleOne.UI.Compass on the way; the rest kept their homes.
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = Camera,
+                OldName = "CloseInterface",
+                ParameterCount = 2,
+                ParameterTypes = new[] { "System.Single", Bool },
+                Because = "0.4.6 deleted PlayerCamera.CloseInterface(float, bool) along with the way "
+                        + "screens used to close; every line of its body still exists, so it is rebuilt "
+                        + "rather than pointed somewhere (0.4.5f2 PlayerCamera.cs:1157-1169)",
+                Emit = EmitCloseInterface,
             },
 
             // Methods that gained a trailing parameter. The old form is genuinely gone while the name is
@@ -1247,6 +1294,124 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         }
 
         /// <summary><c>Singleton&lt;T&gt;.Instance</c> or <c>PlayerSingleton&lt;T&gt;.Instance</c>.</summary>
+        /// <summary>The old name, calling the new one on the same object.</summary>
+        /// <remarks>
+        /// The plainest repair there is, and worth a helper because a rename on the same type is the
+        /// commonest shape a curated rule has to express. Refuses rather than guesses when the target is
+        /// not there, so a later build that renames it again produces a refusal in the log instead of a
+        /// method that answers and does nothing.
+        /// </remarks>
+        private static MethodDefinition EmitSelfCall(ModuleDefinition module, TypeDefinition type,
+                                                     string oldName, string newName)
+        {
+            var target = MethodUp(type, newName, 0);
+            if (target == null) return null;
+
+            var method = new MethodDefinition(oldName,
+                MethodAttributes.Public | MethodAttributes.HideBySig,
+                module.ImportReference(target.ReturnType));
+
+            var il = method.Body.GetILProcessor();
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(target));
+            il.Emit(OpCodes.Ret);
+            return method;
+        }
+
+        /// <summary>
+        /// PlayerCamera.CloseInterface, rebuilt line by line.
+        /// </summary>
+        /// <remarks>
+        /// EVERY CALL OR NONE. If one of the nine is missing this returns null and the log says the rule
+        /// could not be applied, because a CloseInterface that does eight of them leaves the player with
+        /// a locked inventory or a hidden crosshair and nothing to explain it - worse than the missing
+        /// method the mod already knows how to see.
+        ///
+        /// The two arguments keep their meaning: the lerp time goes to both camera overrides, and the
+        /// flag decides whether the camera takes input back, exactly as before.
+        /// </remarks>
+        private static MethodDefinition EmitCloseInterface(ModuleDefinition module, TypeDefinition camera)
+        {
+            var hud = Singleton(module, "Il2CppScheduleOne.UI.HUD", player: false);
+            var movement = Singleton(module, "Il2CppScheduleOne.PlayerScripts.PlayerMovement", player: true);
+            var compass = Singleton(module, "Il2CppScheduleOne.UI.Compass.CompassManager", player: false);
+            var inventory = Singleton(module, "Il2CppScheduleOne.PlayerScripts.PlayerInventory", player: true);
+            var items = Singleton(module, "Il2CppScheduleOne.UI.Items.ItemUIManager", player: false);
+            if (hud.Get == null || movement.Get == null || compass.Get == null || inventory.Get == null
+                || items.Get == null)
+                return null;
+
+            var lockMouse = MethodUp(camera, "LockMouse", 1) ?? MethodUp(camera, "LockMouse", 0);
+            var crosshair = Method(hud.Type, "SetCrosshairVisible", 1);
+            var canMove = Method(movement.Type, "set_CanMove", 1);
+            var compassOn = Method(compass.Type, "SetCompassEnabled", 1);
+            var inventoryOn = Method(inventory.Type, "SetInventoryEnabled", 1);
+            var equipping = Method(inventory.Type, "SetEquippingEnabled", 1);
+            var dragging = Method(items.Type, "SetDraggingEnabled", 1);
+            var quickMove = Method(items.Type, "DisableQuickMove", 0);
+            var stopFov = MethodUp(camera, "StopFOVOverride", 1);
+            var stopTransform = MethodUp(camera, "StopTransformOverride", 2)
+                             ?? MethodUp(camera, "StopTransformOverride", 3);
+            if (lockMouse == null || crosshair == null || canMove == null || compassOn == null
+                || inventoryOn == null || equipping == null || dragging == null || quickMove == null
+                || stopFov == null || stopTransform == null)
+                return null;
+
+            var method = new MethodDefinition("CloseInterface",
+                MethodAttributes.Public | MethodAttributes.HideBySig, module.TypeSystem.Void);
+            method.Parameters.Add(new ParameterDefinition("cameraLerpTime", ParameterAttributes.None,
+                                                          module.TypeSystem.Single));
+            method.Parameters.Add(new ParameterDefinition("reenableCameraInput", ParameterAttributes.None,
+                                                          module.TypeSystem.Boolean));
+
+            var il = method.Body.GetILProcessor();
+
+            il.Emit(OpCodes.Ldarg_0);
+            for (int i = 0; i < lockMouse.Parameters.Count; i++) il.Emit(OpCodes.Ldc_I4_1);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(lockMouse));
+
+            il.Emit(OpCodes.Call, hud.Get);
+            il.Emit(OpCodes.Ldc_I4_1);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(crosshair));
+
+            il.Emit(OpCodes.Call, movement.Get);
+            il.Emit(OpCodes.Ldc_I4_1);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(canMove));
+
+            il.Emit(OpCodes.Call, compass.Get);
+            il.Emit(OpCodes.Ldc_I4_1);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(compassOn));
+
+            il.Emit(OpCodes.Call, inventory.Get);
+            il.Emit(OpCodes.Ldc_I4_1);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(inventoryOn));
+
+            il.Emit(OpCodes.Call, inventory.Get);
+            il.Emit(OpCodes.Ldc_I4_1);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(equipping));
+
+            il.Emit(OpCodes.Call, items.Get);
+            il.Emit(OpCodes.Ldc_I4_0);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(dragging));
+
+            il.Emit(OpCodes.Call, items.Get);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(quickMove));
+
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Ldarg_1);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(stopFov));
+
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Ldarg_1);
+            il.Emit(OpCodes.Ldarg_2);
+            // A third argument only exists on builds that added one, and it kept the old default.
+            for (int i = 2; i < stopTransform.Parameters.Count; i++) il.Emit(OpCodes.Ldc_I4_1);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(stopTransform));
+
+            il.Emit(OpCodes.Ret);
+            return method;
+        }
+
         private static (TypeDefinition Type, MethodReference Get) Singleton(ModuleDefinition module,
                                                                             string fullName, bool player)
         {
