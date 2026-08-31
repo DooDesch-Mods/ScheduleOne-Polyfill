@@ -272,6 +272,14 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
 
         private const string Emitter = "Il2CppScheduleOne.VoiceOver.VOEmitter";
         private const string Camera = "Il2CppScheduleOne.PlayerScripts.PlayerCamera";
+        private const string AmountSelector = "Il2CppScheduleOne.UI.AmountSelector";
+
+        /// <summary>No hop at all: the member stayed on the type and only changed its name.</summary>
+        private static readonly string[] NoHops = new string[0];
+
+        private const string PriceRenamed
+            = "0.4.6 turned the handover price selector into the general amount box, and Price into "
+            + "SelectedAmount on it - same float, same meaning (AmountSelector.cs:27)";
         private const string Packaging = "Il2CppScheduleOne.ObjectScripts.PackagingStation";
         private const string Bool = "System.Boolean";
         private const string GameplayMenu = "Il2CppScheduleOne.UI.GameplayMenu";
@@ -346,6 +354,20 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             // NPCData objects (NPCData.cs). Nothing was dropped and nothing changed meaning - the game reads
             // the same values back out of the same places it used to write them, so putting the old member
             // back as a walk down that path is the whole repair.
+            // The handover price box became the game's general amount box, and its value went with it.
+            // Price and SelectedAmount are the same float with the same meaning; the new one is only
+            // spelled for a box that no longer only holds prices (AmountSelector.cs:27).
+            //
+            // WORTH A BRIDGE EVEN THOUGH NO PATCH ASKS FOR IT. Tweakables reaches this one by reflection -
+            // Traverse.Create(instance).Property("Price").SetValue(...) - which no static check can see
+            // and which fails silently when the property is not there: the cap is computed, written
+            // nowhere, and the player sees the old limit with no error anywhere.
+            //
+            // The setter is real: C# calls SelectedAmount private, and the interop assembly generates
+            // set_SelectedAmount all the same (Il2Cpp AmountSelector.cs:62).
+            Moved(AmountSelector, "Price", Read, NoHops, "SelectedAmount", PriceRenamed),
+            Moved(AmountSelector, "Price", Write, NoHops, "SelectedAmount", PriceRenamed),
+
             Moved(Npc, "ID", Write, BasicInfo, "ID", NameSplit),
             Moved(Npc, "FirstName", Write, BasicInfo, "FirstName", NameSplit),
             Moved(Npc, "LastName", Write, BasicInfo, "LastName", NameSplit),
