@@ -223,6 +223,10 @@ namespace Polyfill.Core
                 var missingTypes = CheckTypes(module, index, report, repaired);
                 CheckMembers(module, index, report, missingTypes, repaired);
                 HarmonyTargets.Check(module, index, report);
+
+                // Last, and it repairs nothing: a mod can pass every check above and still be
+                // broken by the shape of a prefab it clones. See Core/ShapeCoupling.
+                ShapeCoupling.Check(module, report);
             }
             catch (Exception e)
             {

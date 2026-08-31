@@ -18,7 +18,18 @@ namespace Polyfill.Contract
     /// <summary>One thing a mod asks for that this installation does not have.</summary>
     internal sealed class Finding
     {
-        internal string Kind;     // type | member | field | harmony-target
+        internal string Kind;     // type | member | field | harmony-target | shape-coupled
+
+        /// <summary>
+        /// Something worth saying that is not a missing name, so it must not decide the verdict.
+        /// </summary>
+        /// <remarks>
+        /// Every other finding answers "will this load". A note answers a different question - here,
+        /// "this mod depends on the shape of a prefab it does not own". Letting it reach the verdict
+        /// would print blocked over a mod whose names are all present, which is a worse lie than the
+        /// silence it replaces.
+        /// </remarks>
+        internal bool Note;
         internal string Scope;    // the game assembly it was expected in
         internal string Symbol;   // what the mod asks for
         internal string Reason;   // why it is not there
@@ -85,10 +96,14 @@ namespace Polyfill.Contract
         {
             get
             {
-                if (Findings.Count == 0) return "clean";
+                bool any = false;
                 foreach (var finding in Findings)
+                {
+                    if (finding.Note) continue;          // a note is not a missing name
+                    any = true;
                     if (string.IsNullOrEmpty(finding.Hint)) return "blocked";
-                return "adaptable";
+                }
+                return any ? "adaptable" : "clean";
             }
         }
     }
