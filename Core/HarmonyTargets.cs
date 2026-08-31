@@ -283,6 +283,23 @@ namespace Polyfill.Core
                         && (argumentCount < 0 || method.Parameters.Count == argumentCount))
                     { Names(method, patches, site, report); return; }
 
+            // The same redirect the runtime performs, so the report and the game agree. Without this a
+            // patch that binds perfectly well reads as dead on a public listing.
+            string moved = RenamedMethods.Successor(under ?? declaring.FullName, name);
+            if (moved != null)
+            {
+                foreach (var method in declaring.Methods)
+                    if (method.Name == moved
+                        && (argumentCount < 0 || method.Parameters.Count == argumentCount))
+                    { Names(method, patches, site, report); return; }
+
+                for (var above = Base(declaring, index); above != null; above = Base(above, index))
+                    foreach (var method in above.Methods)
+                        if (method.Name == moved
+                            && (argumentCount < 0 || method.Parameters.Count == argumentCount))
+                        { Names(method, patches, site, report); return; }
+            }
+
             // A PATCH TARGET CAN ASK FOR A REPAIR TOO, and until this line it could not. The member check
             // collects a bridge whenever a mod CALLS something that is gone; a member that is only ever
             // PATCHED went through here instead, which reported it and asked for nothing. So a method the

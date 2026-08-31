@@ -52,6 +52,22 @@ namespace Polyfill.Contract
                 NewName = "open",
                 Because = "the flag kept its type and its meaning and lost its name in 0.4.6",
             },
+
+            // The price box became the general amount box, and the argument was renamed with it. Without
+            // this the redirect from SetPrice lands on SetAmount and Harmony still refuses the patch:
+            // Tweakables' prefix takes a parameter called price, there is no such argument any more, and
+            // the whole patch class is thrown out with "IL Compile Error".
+            new Entry
+            {
+                Type = "Il2CppScheduleOne.UI.AmountSelector",
+                Method = "SetAmount",
+                ParameterCount = 1,
+                Index = 0,
+                OldName = "price",
+                NewName = "amount",
+                Because = "SetPrice(float price) became SetAmount(float amount) when the handover price "
+                        + "control turned into the game's general amount box (AmountSelector.cs:61)",
+            },
         };
 
         /// <summary>Every entry for this method, or nothing.</summary>

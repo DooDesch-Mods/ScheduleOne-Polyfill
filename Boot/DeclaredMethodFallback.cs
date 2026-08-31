@@ -84,6 +84,24 @@ namespace Polyfill.Boot
                                      ref MethodInfo __result)
         {
             if (__result != null || type == null || name == null) return;
+
+            // A METHOD THE BUILD RENAMED, answered with what took over. Nothing is written back for
+            // these: a hook Polyfill writes is a name the game never calls, so a patch on it binds and
+            // never fires, and relaying from the replacement afterwards cannot honour a prefix that
+            // returns false. Tweakables suppresses the vanilla packaging animation exactly that way.
+            // Redirecting the lookup puts the patch on the method the game really calls, where a prefix
+            // is still a prefix.
+            string renamed = RenamedMethods.Successor(type.FullName, name);
+            if (renamed != null)
+            {
+                try
+                {
+                    var moved = AccessTools.Method(type, renamed, parameters, generics);
+                    if (moved != null) { __result = moved; return; }
+                }
+                catch { }
+            }
+
             if (!RenamedTypes.IsStandIn(type.FullName)) return;
 
             try
