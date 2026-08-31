@@ -25,6 +25,7 @@ namespace Polyfill.Contract
             "Il2CppScheduleOne.DevUtilities.ExitAction",
             "Il2CppScheduleOne.UI.ATM.ATMInterface",
             "Il2CppScheduleOne.UI.Stations.Drying_rack.DryingOperationUI",
+            "Il2CppScheduleOne.UI.MainMenu.MainMenuScreen",
         };
 
         internal static bool IsStandIn(string fullName)

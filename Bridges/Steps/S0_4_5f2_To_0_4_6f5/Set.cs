@@ -82,6 +82,20 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             Pair(Stations +"CauldronCanvas",         Stations + "CauldronInterface"),
             Pair(Stations +"DryingRackCanvas",       Stations + "DryingRackInterface"),
 
+            // Every main-menu screen derived from MainMenuScreen and now derives from MenuScreen, in the
+            // same namespace. ContinueScreen reads `: MainMenuScreen` at 0.4.5f2 and `: MenuScreen` on
+            // 0.4.6f13, MenuScreen exists exactly once in the whole build, and it did not exist at all
+            // before - it appeared as MainMenuScreen went. One candidate, no choice to get wrong.
+            new TypeRename
+            {
+                Assembly = "Assembly-CSharp",
+                OldFullName = "Il2CppScheduleOne.UI.MainMenu.MainMenuScreen",
+                NewFullName = "Il2CppScheduleOne.UI.MainMenu.MenuScreen",
+                Because = "the base class of every main-menu screen was renamed in place: 0.4.5f2 has "
+                        + "ContinueScreen : MainMenuScreen, 0.4.6f13 has ContinueScreen : MenuScreen, and "
+                        + "MenuScreen is the only type of that name on the build",
+            },
+
             new TypeRename
             {
                 Assembly = "Assembly-CSharp",
