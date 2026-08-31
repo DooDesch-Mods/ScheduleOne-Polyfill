@@ -318,7 +318,22 @@ namespace Polyfill.Core
                 return;
             }
 
+            // UP THE CHAIN, the same way the member check does it (Triage.CheckMethod). Harmony resolves
+            // a name up the hierarchy, so the method that replaced this one may well sit on a base type -
+            // and asking only the type the patch names meant the hint was empty for every one of those.
+            // Two paths, one question, and the answer was only implemented in one of them.
             var candidates = NameHeuristics.ForMethod(declaring, name, null);
+            TypeDefinition candidateOn = candidates.Count > 0 ? declaring : null;
+            if (candidates.Count == 0)
+                for (var above = Base(declaring, index); above != null; above = Base(above, index))
+                {
+                    candidates = NameHeuristics.ForMethod(above, name, null);
+                    if (candidates.Count > 0) { candidateOn = above; break; }
+                }
+
+            string onType = candidateOn == null || candidateOn == declaring
+                ? "" : " on " + candidateOn.Name;
+
             report.Findings.Add(new Finding
             {
                 Kind = "harmony-target",
@@ -329,7 +344,8 @@ namespace Polyfill.Core
                     : under != null
                         ? $"the type is put back as {declaring.Name}, which has no {name} to patch"
                         : "the patched method is gone, so this patch will not apply",
-                Hint = candidates.Count == 1 ? candidates[0].NewName + "  [" + candidates[0].Rule + "]" : "",
+                Hint = candidates.Count == 1
+                    ? candidates[0].NewName + onType + "  [" + candidates[0].Rule + "]" : "",
                 Site = site,
             });
         }
