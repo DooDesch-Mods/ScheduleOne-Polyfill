@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented here.
 
+## [0.11.6] - 2026-08-31
+
+### Fixed
+- Mods that open the sleep screen work again. The repair for it shipped in 0.11.3 and never once ran:
+  it looked for the wrong thing and gave up without saying so.
+- Mods built on the main menu's screens load again, LethalLizard's Mod Manager among them.
+- Mods that read or change a dealer's cut work again.
+- When Polyfill says a mod is missing something, it now shows enough of the name to tell it apart from
+  what the game has. Two names that looked identical in the report were not.
+
+### Added
+- polyfill.doomods.com has a "Find this mod" button on every mod, so you can go and get the thing you
+  just read about.
+
 ## [0.11.5] - 2026-08-30
 
 ### Fixed
