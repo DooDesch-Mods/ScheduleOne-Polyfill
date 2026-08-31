@@ -93,6 +93,24 @@ namespace Polyfill.Core
                 }
 
                 var elsewhere = index.BySimpleName(SimpleNameOf(wanted));
+
+                // THE SAME REPAIR, WITHOUT A CURATED RULE. A type that only MOVED namespace gets its
+                // stand-in from the generic pass rather than from Registry, so the branch above finds
+                // nothing and this one used to report the patch dead - while the runtime wrote the
+                // stand-in, Harmony walked into its base, and every one of those patches bound.
+                //
+                // Measured on Tweakables: five patches on ScheduleOne.UI.ATM.ATMInterface, all five
+                // reported "the patched type does not exist here" with the successor already sitting in
+                // the Hint, none of them in MelonLoader's list of patch classes that failed to bind.
+                //
+                // One candidate only. Two types of that name and there is a choice to get wrong, which
+                // is worse on a public listing than saying nothing.
+                if (RenamedTypes.IsStandIn(wanted) && elsewhere.Count == 1)
+                {
+                    Verify(spec, site, index, report, elsewhere[0], wanted, patches);
+                    return;
+                }
+
                 report.Findings.Add(new Finding
                 {
                     Kind = "harmony-target",
