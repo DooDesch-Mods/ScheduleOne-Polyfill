@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented here.
 
+## [0.11.8] - 2026-08-31
+
+### Fixed
+- Media Player, Tweakables and Wages Manager fill the phone screen again instead of being squeezed into
+  a strip at the top.
+- Tweakables works again. Six of its features were not loading at all, the packaging skip and the raised
+  deal cap among them.
+- Mods that put you into a screen and hand control back afterwards work again.
+- Mods that use the packaging station, the ATM or the main menu are no longer called broken when they
+  are not.
+
 ## [0.11.7] - 2026-08-31
 
 ### Fixed
