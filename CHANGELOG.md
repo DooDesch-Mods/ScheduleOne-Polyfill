@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here.
 
+## [0.11.9] - 2026-08-31
+
+### Fixed
+- Tweakables' raised deal cap works again. The higher number was worked out and then written nowhere,
+  so you kept seeing the old limit with nothing to say why.
+
+### Changed
+- When something a mod needs cannot be put back, but Polyfill restores what it was for another way,
+  the report says which fix covers it instead of only listing it as missing.
+
 ## [0.11.8] - 2026-08-31
 
 ### Fixed
