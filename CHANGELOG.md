@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here.
 
+## [0.11.7] - 2026-08-31
+
+### Fixed
+- Media Player's app fills the phone screen again. It had been squeezed into a strip at the top since
+  the game rebuilt the screen it borrows.
+
+### Added
+- Polyfill now says when a mod borrows a piece of the game's own screens. Those mods can pass every
+  check here and still look wrong on your phone.
+
 ## [0.11.6] - 2026-08-31
 
 ### Fixed
