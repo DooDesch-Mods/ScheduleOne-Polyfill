@@ -1356,13 +1356,16 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             var open = MethodUp(type, "OpenMenu", 0);
             if (open == null) return null;
 
-            FieldDefinition state = null;
-            foreach (var field in type.Fields)
-                if (field.Name == "MenuState") { state = field; break; }
+            // A PROPERTY, NOT A FIELD, and the first version of this looked for a field and quietly
+            // refused for it. Il2CppInterop writes every instance field as a property over a native
+            // field pointer - SleepCanvas carries a private static IntPtr NativeFieldInfoPtr_MenuState
+            // and a public MonoState MenuState { get; set; } (SleepCanvas.cs:813,1137). That is the same
+            // shape that breaks the mods this whole project repairs, and it broke the repair.
+            var state = MethodUp(type, "get_MenuState", 0);
             if (state == null) return null;
 
             TypeDefinition stateType = null;
-            try { stateType = state.FieldType.Resolve(); } catch { }
+            try { stateType = state.ReturnType?.Resolve(); } catch { }
             var pop = stateType == null ? null : MethodUp(stateType, "PopFromDefaultParent", 0);
             if (pop == null) return null;
 
@@ -1380,7 +1383,7 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             il.Emit(OpCodes.Callvirt, module.ImportReference(open));
             il.Emit(OpCodes.Ret);
             il.Append(closeIt);
-            il.Emit(OpCodes.Ldfld, module.ImportReference(state));
+            il.Emit(OpCodes.Callvirt, module.ImportReference(state));
             il.Emit(OpCodes.Callvirt, module.ImportReference(pop));
             il.Emit(OpCodes.Ret);
 
