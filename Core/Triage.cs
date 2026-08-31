@@ -631,12 +631,28 @@ namespace Polyfill.Core
                 foreach (var field in type.Fields)
                     if (field.Name == wanted.Name) return;
 
+            // UP THE CHAIN FOR THE CANDIDATE TOO, not only for the field itself. Il2CppInterop writes an
+            // instance field as a PROPERTY over a native field pointer, and the game keeps moving members
+            // onto base types - ItemInstance.ID lives on BaseItemInstance now. Asking only the type the
+            // mod named meant the one useful sentence, "the field became a property", never fired for any
+            // of those, and the author got "nothing on this type to point at" for a member that is right
+            // there one level up.
             var hits = NameHeuristics.ForField(declaring, wanted.Name);
-            string hint = hits.Count == 1 ? hits[0].NewName + "  [" + hits[0].Rule + "]" : "";
+            TypeDefinition foundOn = hits.Count > 0 ? declaring : null;
+            if (hits.Count == 0)
+                foreach (var type in Chain(declaring, index))
+                {
+                    if (type == declaring) continue;
+                    hits = NameHeuristics.ForField(type, wanted.Name);
+                    if (hits.Count > 0) { foundOn = type; break; }
+                }
+
+            string where = foundOn == null || foundOn == declaring ? "" : " on " + foundOn.Name;
+            string hint = hits.Count == 1 ? hits[0].NewName + where + "  [" + hits[0].Rule + "]" : "";
             string reason = hits.Count > 1
                 ? $"field missing; {hits.Count} members could be meant, so none is chosen"
                 : hits.Count == 1 && hits[0].KindChanged
-                    ? "the field became a property"
+                    ? "the field became a property" + where
                     : "field missing, with nothing on this type to point at";
 
             report.Findings.Add(new Finding
