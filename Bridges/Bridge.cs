@@ -118,6 +118,28 @@ namespace Polyfill.Bridges
         /// </remarks>
         internal bool AllowOverload;
 
+        /// <summary>
+        /// Put this one back whether or not a mod is seen asking for it.
+        /// </summary>
+        /// <remarks>
+        /// EVERY OTHER BRIDGE IS DEMAND-DRIVEN and should stay that way: it goes in only when the check
+        /// finds a mod whose call does not resolve, so nothing is added to the game that nobody wanted.
+        ///
+        /// Reflection makes no demand a static pass can see. Tweakables reaches AmountSelector.Price
+        /// through Traverse.Create(instance).Property("Price").SetValue(...) - there is no reference in
+        /// the IL to find, Traverse returns quietly when the property is not there, and the result is a
+        /// deal cap that is computed, written nowhere, and shows the player the old limit with no error
+        /// anywhere. Measured: get_Price went in because a DIFFERENT mod names it in code, and set_Price
+        /// did not, so the reflective write still did nothing.
+        ///
+        /// The cost is real and is the reason this is not the default: a member nobody asked for makes
+        /// reflection BY NAME ALONE on that type ambiguous, which is the hazard already written down for
+        /// SameNameNewReturn (InteropAugmentor.cs:88-101). It is safe HERE because the name being put
+        /// back is one the build does not have at all - there is nothing for it to be ambiguous with.
+        /// A rule that would double an existing name must never set this.
+        /// </remarks>
+        internal bool Unprompted;
+
         /// <summary>Was this bridge read against the build that is running?</summary>
         internal bool Verified(GameVersion game)
             => Set == null || Set.VerifiedRange.Allows(game);

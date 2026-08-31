@@ -141,6 +141,10 @@ namespace Polyfill.Core
 
             Reports = reports;
 
+            // The few repairs no check can ask for, because the mods that need them reach the member by
+            // reflection. See Bridge.Unprompted for why that is not the default.
+            SeedUnprompted(log);
+
             // Repair first, THEN write. The report is the answer to "what did Polyfill do about my mod",
             // and written the other way round it could only ever answer "what did it find".
             var outcomes = Repair(interopDirectory, originals, log);
@@ -668,6 +672,50 @@ namespace Polyfill.Core
         }
 
         /// <summary>Remember a repair, and hand back the key the report uses to find out what became of it.</summary>
+        /// <summary>
+        /// Ask for the bridges marked Unprompted, since nothing else will.
+        /// </summary>
+        /// <remarks>
+        /// Deliberately after every mod has been read, so these land in the same pass as everything the
+        /// checks found and go through the same duplicate key - a member a mod DID reference is already
+        /// in the list and is not added twice.
+        ///
+        /// Only ever a handful. If this list grows, the question to ask is whether the checks should see
+        /// what those mods do, not whether more rules should skip them.
+        /// </remarks>
+        private static void SeedUnprompted(Contract.ILog log)
+        {
+            // What the checks already asked for. Seeding it again is not harmless: the second one is
+            // refused as a name already taken, and that refusal reaches the public listing as a repair
+            // that failed - a mod reading broken while it works, which is the one thing worth less than
+            // saying nothing. Measured on AmountSelector.get_Price, which DealOptimizer names in code.
+            var already = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var member in _members) already.Add(member.Key);
+
+            int asked = 0;
+            foreach (var bridge in Bridges.Registry.Bridges())
+            {
+                if (!bridge.Unprompted) continue;
+                var wanted = new InteropAugmentor.MemberForward
+                {
+                    InAssembly = bridge.Assembly,
+                    DeclaringType = bridge.DeclaringType,
+                    OldName = bridge.OldName,
+                    NewName = null,
+                    ParameterCount = bridge.ParameterCount,
+                    ParameterTypes = bridge.ParameterTypes,
+                    Rule = "curated",
+                };
+                if (!already.Add(wanted.Key)) continue;    // a mod named it; it is in the list already
+                Collect(wanted);
+                asked++;
+            }
+
+            if (asked > 0)
+                log.Msg($"[triage] {asked} repair(s) asked for without a mod naming them, because the mods "
+                      + "that need them reach the member by reflection.");
+        }
+
         private static string Collect(InteropAugmentor.MemberForward member)
         {
             _members.Add(member);

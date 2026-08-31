@@ -130,6 +130,13 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             },
         };
 
+        /// <summary>Mark a rule as one no check will ever ask for. See Bridge.Unprompted.</summary>
+        private static Bridge Unprompted(Bridge bridge)
+        {
+            bridge.Unprompted = true;
+            return bridge;
+        }
+
         private static TypeRename Pair(string oldFullName, string newFullName)
             => new()
             {
@@ -365,8 +372,8 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             //
             // The setter is real: C# calls SelectedAmount private, and the interop assembly generates
             // set_SelectedAmount all the same (Il2Cpp AmountSelector.cs:62).
-            Moved(AmountSelector, "Price", Read, NoHops, "SelectedAmount", PriceRenamed),
-            Moved(AmountSelector, "Price", Write, NoHops, "SelectedAmount", PriceRenamed),
+            Unprompted(Moved(AmountSelector, "Price", Read, NoHops, "SelectedAmount", PriceRenamed)),
+            Unprompted(Moved(AmountSelector, "Price", Write, NoHops, "SelectedAmount", PriceRenamed)),
 
             Moved(Npc, "ID", Write, BasicInfo, "ID", NameSplit),
             Moved(Npc, "FirstName", Write, BasicInfo, "FirstName", NameSplit),
