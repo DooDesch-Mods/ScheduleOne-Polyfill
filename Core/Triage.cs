@@ -622,6 +622,13 @@ namespace Polyfill.Core
                 if (onBase != null) reason += "; the base type " + onBase;
             }
 
+            // A member that cannot be put back, whose PURPOSE a named fix restores anyway. Said as a
+            // hint rather than an outcome: this knows a fix EXISTS, not that it ran - the report is
+            // written before the game does, and a mod-side fix can still stand down on this machine.
+            var covered = CoveredElsewhere.For(declaring.FullName, wanted.Name);
+            if (covered != null && string.IsNullOrEmpty(hint))
+                hint = "covered by the fix " + covered.FixId + ": " + covered.Because;
+
             report.Findings.Add(new Finding
             {
                 Kind = kindPrefix + "member", Scope = scope,
