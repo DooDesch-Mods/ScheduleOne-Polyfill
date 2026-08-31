@@ -24,21 +24,36 @@ namespace Polyfill.Core
     /// stop the report being confidently wrong: a note rather than a missing name, so the verdict stays
     /// what it honestly is while the reader learns there is a second way this mod can fail.
     ///
-    /// Deliberately narrow. It matches a method that names the app canvas AND a known vanilla app AND
-    /// instantiates something, in one body. A mod that merely mentions one of those strings is not
-    /// flagged. It will miss obfuscated names, reflection, and a clone split across helper methods -
-    /// and missing a case costs nothing, while a false one costs an author an afternoon.
+    /// Deliberately narrow. One method body has to NAME a piece of the game's interface and
+    /// INSTANTIATE something. Mentioning the phone is not enough. It will miss obfuscated names,
+    /// reflection, and a clone split across helper methods - and missing a case costs nothing, while a
+    /// false one costs an author an afternoon looking for a problem that is not there.
     /// </remarks>
     internal static class ShapeCoupling
     {
-        /// <summary>The container every phone app lives under; nothing else in the game is called this.</summary>
-        private const string Canvas = "AppsCanvas";
+        /// <summary>
+        /// Marks that name a piece of the game's own interface.
+        /// </summary>
+        /// <remarks>
+        /// CONTAINS, not equals, and that is the whole correction. The first version asked for the bare
+        /// literal "AppsCanvas" plus a name from a list of vanilla apps, and missed Mod Manager
+        /// entirely: it spells the same place as a path,
+        /// "Player_Local/CameraContainer/Camera/OverlayCamera/GameplayMenu/Phone/phone/AppsCanvas", and
+        /// takes its template from "MainMenu/Home/Bank/Panel" - neither of which is an app name.
+        ///
+        /// Still narrow: a body has to name one of these AND instantiate something in the same method.
+        /// A mod that merely mentions the phone is not flagged.
+        /// </remarks>
+        private static readonly string[] Marks =
+        {
+            "AppsCanvas", "GameplayMenu/Phone", "MainMenu/", "HomeScreen",
+        };
 
-        /// <summary>Vanilla apps a mod might clone. Named, because "any string" would match anything.</summary>
+        /// <summary>Vanilla apps, still named: they make the note say WHICH piece was borrowed.</summary>
         private static readonly string[] Apps =
         {
             "ProductManagerApp", "DeliveryApp", "MessagesApp", "ContactsApp", "ManagementApp",
-            "ProductManager", "OrganisationApp", "OrganizationApp", "SettingsApp", "MapApp",
+            "OrganisationApp", "OrganizationApp", "SettingsApp", "MapApp",
         };
 
         internal static void Check(ModuleDefinition module, Contract.ModReport report)
@@ -59,40 +74,68 @@ namespace Polyfill.Core
                 foreach (var method in Methods(nested)) yield return method;
         }
 
+        /// <summary>
+        /// Is this string a place in the game's hierarchy, rather than a sentence that mentions one?
+        /// </summary>
+        /// <remarks>
+        /// A PATH OR THE WHOLE NAME, never a substring of prose. Matching "HomeScreen" anywhere flagged
+        /// four mods on their own log lines - "[NetEye] CreateAppIcon: HomeScreen missing." is a
+        /// message, not a lookup, and two of the four were our own. A path has a slash; a bare object
+        /// name is the entire string. Neither describes an error message.
+        /// </remarks>
+        private static bool NamesTheGame(string text)
+        {
+            if (string.IsNullOrEmpty(text) || text.Length > 200) return false;
+
+            foreach (string name in Marks)
+            {
+                if (text == name.TrimEnd('/')) return true;
+                if (text.Contains('/') && text.Contains(name)) return true;
+            }
+            return false;
+        }
+
+        /// <summary>The tail of a path: the full one is mostly camera rig and reads as noise.</summary>
+        private static string Shorten(string path)
+        {
+            int cut = path.LastIndexOf('/');
+            return cut > 0 && cut < path.Length - 1 ? path.Substring(cut + 1) : path;
+        }
+
         private static void Inspect(MethodDefinition method, Contract.ModReport report)
         {
             if (!method.HasBody) return;
 
-            bool canvas = false, instantiates = false;
-            string app = null;
+            bool instantiates = false;
+            string mark = null, app = null;
 
             foreach (var instruction in method.Body.Instructions)
             {
                 if (instruction.OpCode == OpCodes.Ldstr && instruction.Operand is string text)
                 {
-                    if (text == Canvas) canvas = true;
-                    else if (app == null)
+                    if (mark == null && NamesTheGame(text)) mark = text;
+                    if (app == null)
                         foreach (string name in Apps)
-                            if (text == name) { app = name; break; }
+                            if (text.Contains(name)) { app = name; break; }
                     continue;
                 }
 
-                // Instantiate is what makes it a CLONE rather than a mod reading the app it was given.
+                // Instantiate is what makes it a CLONE rather than a mod reading the screen it was given.
                 if (instruction.Operand is MethodReference called && called.Name == "Instantiate")
                     instantiates = true;
             }
 
-            if (!canvas || app == null || !instantiates) return;
+            if (mark == null || !instantiates) return;
 
             report.Findings.Add(new Contract.Finding
             {
                 Kind = "shape-coupled",
                 Note = true,
-                Symbol = app,
-                Reason = "this mod clones the game's " + app + " and rebuilds what is inside it, so its "
-                       + "layout depends on the shape of a prefab the game is free to change. Every name "
-                       + "it asks for is here - if it looks wrong in game, that is why, and Polyfill "
-                       + "cannot repair it",
+                Symbol = app ?? Shorten(mark),
+                Reason = "this mod clones a piece of the game's own interface (" + Shorten(mark)
+                       + ") and rebuilds what is inside it, so how it looks depends on the shape of "
+                       + "something the game is free to change. Every name it asks for is here - if it "
+                       + "looks wrong in game, that is why, and Polyfill cannot repair it",
                 Site = method.DeclaringType?.FullName + "/" + method.Name,
             });
         }
