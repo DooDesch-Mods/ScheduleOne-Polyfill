@@ -2,6 +2,24 @@
 
 All notable changes to this project are documented here.
 
+## [0.11.10] - 2026-09-01
+
+### Fixed
+- Seeds and items a mod delivers by dead drop arrive again. With every dead drop in the world full,
+  the game broke off instead of answering, and the delivery stopped halfway.
+- Dedicated servers start again with S1API installed. The crash left nothing behind but
+  `Internal CLR error` and no line saying which mod.
+- A dedicated server starts straight away. The question about sharing findings arrived as a dialog
+  box nobody was there to answer, and the first three startups each waited a minute for it.
+- Sharing turned on by hand on a server now survives a restart. Every startup wrote
+  `ShareFindings` back to off.
+
+### Changed
+- A dedicated server sends findings and crashes but no longer counts its uptime as playtime. A box
+  running overnight with nobody on it says nothing about whether a mod works.
+- Repairs that only change what you see - phone app layout, images drawn over the game, tree size -
+  are skipped on a dedicated server.
+
 ## [0.11.9] - 2026-08-31
 
 ### Fixed
