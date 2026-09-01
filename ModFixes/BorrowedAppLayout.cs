@@ -59,6 +59,8 @@ namespace Polyfill.ModFixes
         /// </remarks>
         internal override string GameVersions => "0.4.6*";
 
+        internal override bool NeedsAScreen => true;
+
         internal override string What
             => "phone apps built inside a borrowed vanilla one fill the screen again instead of being "
              + "squeezed into a strip at the top";

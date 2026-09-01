@@ -101,6 +101,14 @@ namespace Polyfill.ModFixes
                     continue;
                 }
 
+                if (fix.NeedsAScreen && Contract.Headless.Yes(out string headless))
+                {
+                    outcome.State = "not needed without a screen";
+                    log.Msg($"[fix] {fix.Id} did not run: {headless}, and this repair only changes what a "
+                          + $"player sees. {fix.What}");
+                    continue;
+                }
+
                 bool did;
                 try { did = fix.Apply(log); }
                 catch (Exception e)

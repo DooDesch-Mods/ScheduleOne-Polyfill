@@ -53,6 +53,8 @@ namespace Polyfill.ModFixes
         internal override string ModVersions => "*";
         internal override string GameVersions => ">=0.4.6";
 
+        internal override bool NeedsAScreen => true;
+
         internal override string What
             => "mods that draw an image over the screen with GUI.DrawTexture draw it instead of throwing";
 

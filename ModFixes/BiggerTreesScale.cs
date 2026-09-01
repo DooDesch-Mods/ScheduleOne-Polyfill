@@ -42,6 +42,8 @@ namespace Polyfill.ModFixes
         /// own trees and the mod works as it always did.</summary>
         internal override string GameVersions => ">=0.4.6f5";
 
+        internal override bool NeedsAScreen => true;
+
         internal override string What => "the trees actually get bigger";
 
         internal override string StandsDownBecause

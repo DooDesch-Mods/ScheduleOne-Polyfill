@@ -38,6 +38,8 @@ namespace Polyfill.ModFixes
         internal override string ModVersions => "*";
         internal override string GameVersions => "*";
 
+        internal override bool NeedsAScreen => true;
+
         internal override string What
             => "a phone app whose icon is a sprite rather than a file registers instead of throwing";
 

@@ -52,6 +52,20 @@ namespace Polyfill.ModFixes
         /// </remarks>
         internal virtual string StandsDownBecause => null;
 
+        /// <summary>Does this repair only mean anything with a screen in front of it?</summary>
+        /// <remarks>
+        /// A dedicated server loads the same mods and the same game assembly, so a fix aimed at what a
+        /// player SEES binds there perfectly and then either never runs or runs for nobody. Two of them
+        /// do worse than nothing: the tree fixes drive a once-a-second coroutine through RenderTexture,
+        /// Graphics.Blit and ReadPixels, which under -nographics is work with no output and a failure
+        /// waiting for the first map load.
+        ///
+        /// Marked one by one rather than guessed by a rule. Plenty of repairs matter more on a server
+        /// than on a client - anything touching NPCs, networking or the economy - and a blanket "no
+        /// fixes when headless" would take those out with them.
+        /// </remarks>
+        internal virtual bool NeedsAScreen => false;
+
         /// <summary>One line, for the log and the console list. What the player gets, not how.</summary>
         internal abstract string What { get; }
 

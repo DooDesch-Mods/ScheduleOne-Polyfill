@@ -44,6 +44,8 @@ namespace Polyfill.ModFixes
         internal override string ModVersions => "2.0.0";
         internal override string GameVersions => "0.4.6f13";
 
+        internal override bool NeedsAScreen => true;
+
         internal override string What
             => "GraphicsMOD's lighting toggle reaches the sun the game holds now";
 
