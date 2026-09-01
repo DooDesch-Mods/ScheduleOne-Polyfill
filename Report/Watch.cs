@@ -71,12 +71,22 @@ namespace Polyfill.Report
         /// session of zero minutes. The index drops anything under five, so no session was ever
         /// counted and every mod stayed "not played yet" no matter how long anybody played. Nothing
         /// in a log said so - the number was simply wrong.
+        ///
+        /// A SERVER'S UPTIME IS NOT PLAYTIME. The index reads these minutes as "somebody played this
+        /// mod for this long and nothing went wrong", and weighs a mod's standing by it. A dedicated
+        /// server left running overnight would enter a day of spotless play for every mod it loaded,
+        /// on the strength of nobody having been there to open a single menu - and one such box would
+        /// outweigh the players it was meant to inform.
+        ///
+        /// So a headless session reports no minutes, which the index drops. Everything else it learns
+        /// still goes: what loaded, what was missing, what threw. A crash on a server is evidence -
+        /// quiet uptime, with nobody playing, is not.
         /// </remarks>
         internal static int Minutes
         {
             get
             {
-                if (_started == default) return 0;
+                if (_started == default || Headless.Yes()) return 0;
                 var until = _stopped == default ? DateTime.UtcNow : _stopped;
                 return (int)Math.Max(0, (until - _started).TotalMinutes);
             }

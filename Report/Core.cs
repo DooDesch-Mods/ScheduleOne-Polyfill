@@ -45,11 +45,18 @@ namespace Polyfill.Report
 
             int blocked = 0;
             foreach (var mod in ReportReader.Mods) if (mod.Verdict != "clean") blocked++;
+            // WHERE TO LOOK depends on whether anybody can type. A dedicated server runs its own
+            // console with a closed command registry, so `polyfill` is answered there with "Unknown
+            // command" - pointing an operator at it sends them somewhere that cannot help.
+            string where = Contract.Headless.Yes()
+                ? "The full list is in UserData/Polyfill/last-run.txt."
+                : "Type `polyfill` in the console for the detail.";
+
             LoggerInstance.Msg(blocked == 0
                 ? $"{ReportReader.Mods.Count} mod(s) checked against Schedule I {ReportReader.GameVersion} - "
-                  + "nothing is missing. Type `polyfill` in the console for the detail."
+                  + "nothing is missing. " + where
                 : $"{blocked} of {ReportReader.Mods.Count} mod(s) ask for something this game version does not "
-                  + "have. Type `polyfill` in the console.");
+                  + "have. " + where);
         }
 
         private bool _fixesRun;

@@ -96,15 +96,26 @@ namespace Polyfill.Boot
              * somebody clicked it. On a hosted box there is nobody to click.
              *
              * SILENCE IS NOT CONSENT, so this does not answer for them. It declines to ask and leaves
-             * sharing off, which is what an unanswered question already meant. An operator who wants
-             * to send reports turns it on with `polyfillshare on`, and the log says so here rather
-             * than leaving them to guess why nothing is shared.
+             * sharing off, which is what an unanswered question already meant.
+             *
+             * AND IT DOES NOT SAY "type polyfillshare on", because on a dedicated server nobody can.
+             * S1DedicatedServers runs its own console with a closed command registry - an unknown word
+             * gets "Unknown command" and is never passed to ScheduleOne.Console, which is the method
+             * Polyfill's commands hang off. So the one instruction that works headless is the file:
+             * MelonPreferences is on disk, an operator already edits it, and it is the same setting the
+             * command would have written.
+             *
+             * AND IT WRITES NOTHING. Saying "not answered" out loud here would mean calling
+             * Consent.Write(false, false) on every single startup, which overwrites the very setting the
+             * line above just told the operator to make - they turn sharing on, the next boot turns it
+             * back off, and nothing says why. Leaving the file alone already means what the write meant:
+             * unanswered, and off unless somebody says otherwise.
              */
-            if (Headless(out string why))
+            if (Contract.Headless.Yes(out string why))
             {
-                log.Msg($"[share] not asking - {why}. Nothing is shared. `polyfillshare on` turns it "
-                      + "on for this server.");
-                Consent.Write(false, answered: false);
+                log.Msg($"[share] not asking - {why}. Nothing is shared. To send findings from this "
+                      + $"server, set {Contract.Consent.SharingKey} = true under [Polyfill] in "
+                      + "UserData/MelonPreferences.cfg.");
                 return;
             }
 
@@ -131,42 +142,6 @@ namespace Polyfill.Boot
             log.Msg(yes
                 ? "[share] on - anonymous findings will be sent. `polyfillshare off` stops it."
                 : "[share] off - nothing is sent. `polyfillshare on` turns it on.");
-        }
-
-        /// <summary>
-        /// Is this a game with nobody in front of it?
-        /// </summary>
-        /// <remarks>
-        /// From the command line rather than from Unity. This runs in the plugin's earliest hook,
-        /// before the interop assemblies are usable, so Application.isBatchMode is not reachable yet -
-        /// and the switches are the same ones the launcher passes, so they say the same thing.
-        ///
-        /// Any one of them is enough. A server passes all three; a headless test rig might pass one.
-        /// Both dash spellings, because Unity accepts either and a server script may use either.
-        /// </remarks>
-        private static bool Headless(out string why)
-        {
-            why = null;
-            try
-            {
-                foreach (string argument in Environment.GetCommandLineArgs())
-                {
-                    string flag = argument.TrimStart('-').ToLowerInvariant();
-                    switch (flag)
-                    {
-                        case "batchmode": why = "the game is running in batch mode"; return true;
-                        case "nographics": why = "the game is running without graphics"; return true;
-                        case "dedicated-server":
-                        case "dedicatedserver": why = "this is a dedicated server"; return true;
-                    }
-                }
-            }
-            catch (Exception)
-            {
-                // Reading the command line must never be the reason a player is not asked. Saying
-                // nothing here leaves the question to be asked exactly as before.
-            }
-            return false;
         }
 
         /// <summary>
