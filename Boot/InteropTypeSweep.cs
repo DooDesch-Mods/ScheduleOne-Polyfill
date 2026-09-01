@@ -78,6 +78,30 @@ namespace Polyfill.Boot
         };
 
         /// <summary>
+        /// Methods that fetch the assembly list themselves and sweep it, so there is no argument to
+        /// intercept.
+        /// </summary>
+        /// <remarks>
+        /// The <see cref="Known"/> shape needs a method that TAKES an assembly - stand in front of it,
+        /// answer nothing for an interop one, done. These take nothing. They call
+        /// <c>AppDomain.CurrentDomain.GetAssemblies()</c> inside their own body and walk the result, so
+        /// the only place to stand is inside the method.
+        ///
+        /// A prefix is the wrong tool here and would be worse than the crash: skipping
+        /// <c>PreRegisterAllNpcPrefabsInternal</c> means S1API never registers a single custom NPC, and
+        /// every mod that ships one breaks quietly instead of loudly.
+        /// </remarks>
+        private static readonly Sweep[] KnownSelfSweeps =
+        {
+            new Sweep
+            {
+                Type = "S1API.Entities.NPC",
+                Method = "PreRegisterAllNpcPrefabsInternal",
+                Mod = "S1API",
+            },
+        };
+
+        /// <summary>
         /// Methods that search every assembly for a type by the END of its name, and die doing it.
         /// </summary>
         /// <remarks>
@@ -191,6 +215,51 @@ namespace Polyfill.Boot
                     log.Warning($"[sweep] could not guard {search.Mod}: {e.Message}");
                 }
             }
+            foreach (var sweep in KnownSelfSweeps)
+            {
+                try
+                {
+                    var type = AccessTools.TypeByName(sweep.Type);
+                    if (type == null) continue;                 // that mod is not installed
+
+                    // Exact shape, not the first method of that name: an overload taking arguments
+                    // is a different method with different behaviour, and rewriting it blind would be a
+                    // guess dressed as a guard.
+                    var target = AccessTools.DeclaredMethod(type, sweep.Method, Type.EmptyTypes);
+                    if (target == null)
+                    {
+                        log.Warning($"[sweep] {sweep.Mod} has no {sweep.Method}() here, so its walk over "
+                                  + "every loaded assembly is not guarded. If the game dies on startup "
+                                  + "with no message, that is where to look.");
+                        continue;
+                    }
+
+                    _replaced = 0;
+                    harmony.Patch(target,
+                                  transpiler: new HarmonyMethod(typeof(InteropTypeSweep), nameof(WithoutInterop)));
+
+                    // ONE, not "at least one". Binding and rewriting are two different successes,
+                    // and a transpiler that matched nothing hands the method back unchanged with no
+                    // error - which reads exactly like a guard that is in place. A second call site is
+                    // not better news than none: it means the method was rewritten upstream, and what
+                    // this rewrote is no longer the thing it was read against.
+                    if (_replaced != 1)
+                    {
+                        log.Warning($"[sweep] {sweep.Mod}.{sweep.Method}() calls AppDomain.GetAssemblies "
+                                  + $"{_replaced} time(s) where this expected exactly one, so it was not "
+                                  + "guarded. The crash it protects against is still possible.");
+                        continue;
+                    }
+
+                    log.Msg($"[sweep] {sweep.Mod} will not see the interop assemblies when it walks the "
+                          + "loaded ones; enumerating one kills the process without a message.");
+                }
+                catch (Exception e)
+                {
+                    log.Warning($"[sweep] could not guard {sweep.Mod}: {e.Message}");
+                }
+            }
+
         }
 
         /// <summary>
@@ -469,6 +538,63 @@ namespace Polyfill.Boot
                                      StringComparison.OrdinalIgnoreCase);
             }
             catch { return false; }
+        }
+
+        private static int _replaced;
+
+        /// <summary>
+        /// Swap the call to <c>AppDomain.GetAssemblies()</c> for one that leaves the interop assemblies
+        /// out. Everything else in the method is untouched.
+        /// </summary>
+        /// <remarks>
+        /// NAMED APART FROM <see cref="Mortals"/> ON PURPOSE. Harmony resolves a transpiler by name off
+        /// a type, so two methods sharing one name is an ambiguity that only shows at patch time.
+        ///
+        /// ONE INSTRUCTION, because <c>GetAssemblies</c> is an instance method and the replacement is a
+        /// static one taking the same <c>AppDomain</c>: it consumes the same stack slot and returns the
+        /// same type, so nothing around it has to move. Labels and exception blocks are carried across,
+        /// or a branch or a try that pointed at this instruction would point at nothing.
+        /// </remarks>
+        private static IEnumerable<CodeInstruction> WithoutInterop(IEnumerable<CodeInstruction> instructions)
+        {
+            var original = AccessTools.DeclaredMethod(typeof(AppDomain),
+                                                      nameof(AppDomain.GetAssemblies), Type.EmptyTypes);
+            var ours = AccessTools.DeclaredMethod(typeof(InteropTypeSweep), nameof(Mortals),
+                                                  new[] { typeof(AppDomain) });
+
+            foreach (var instruction in instructions)
+            {
+                if (original != null && ours != null && instruction.Calls(original))
+                {
+                    _replaced++;
+                    yield return new CodeInstruction(System.Reflection.Emit.OpCodes.Call, ours)
+                        .WithLabels(instruction.labels)
+                        .WithBlocks(instruction.blocks);
+                    continue;
+                }
+                yield return instruction;
+            }
+        }
+
+        /// <summary>The loaded assemblies a mod may safely call <c>GetTypes()</c> on.</summary>
+        /// <remarks>
+        /// Nothing is lost by the omission. A caller sweeping for types that derive from its OWN managed
+        /// base class cannot find one in an interop assembly: those hold the game's types, projected from
+        /// IL2CPP, and none of them derives from a mod's C# class. So the assemblies removed here are
+        /// exactly the ones that could never have answered - and the only ones that kill the process
+        /// when asked.
+        ///
+        /// Private, although the call to it now sits in somebody else's assembly: Harmony emits the
+        /// patched body as a dynamic method that skips visibility checks, which is the same reason every
+        /// transpiler may call its own private helpers. Making it public would not have helped anyway,
+        /// since the type around it is internal.
+        /// </remarks>
+        private static Assembly[] Mortals(AppDomain domain)
+        {
+            var all = domain?.GetAssemblies() ?? Array.Empty<Assembly>();
+            var kept = new List<Assembly>(all.Length);
+            foreach (var assembly in all) if (!IsInterop(assembly)) kept.Add(assembly);
+            return kept.ToArray();
         }
     }
 }
