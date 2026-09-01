@@ -58,6 +58,14 @@ namespace Polyfill.Boot
             /// <summary>Which prefix answers it. Two searches can want the same metadata and hand it back
             /// through different signatures.</summary>
             internal string Answer;
+
+            /// <summary>For a self-sweep: the assembly whose base type the walk is looking for.</summary>
+            /// <remarks>
+            /// A type can only derive from something in this assembly if its own assembly references it,
+            /// directly or through another one. That is the whole filter, and it is read from metadata
+            /// rather than by loading anything - which is the point, because loading is what kills.
+            /// </remarks>
+            internal string Anchor;
         }
 
         /// <summary>
@@ -98,6 +106,7 @@ namespace Polyfill.Boot
                 Type = "S1API.Entities.NPC",
                 Method = "PreRegisterAllNpcPrefabsInternal",
                 Mod = "S1API",
+                Anchor = "S1API",
             },
         };
 
@@ -234,6 +243,17 @@ namespace Polyfill.Boot
                         continue;
                     }
 
+                    if (_anchor != null && _anchor != sweep.Anchor)
+                    {
+                        // One rewritten call site, one filter. A second self-sweep hunting a different
+                        // base type would need its own, and quietly handing it this one would filter
+                        // its walk by the wrong assembly.
+                        log.Warning($"[sweep] {sweep.Mod}.{sweep.Method}() looks for {sweep.Anchor} but "
+                                  + $"the filter is already set to {_anchor}, so it was not guarded.");
+                        continue;
+                    }
+                    _anchor = sweep.Anchor;
+
                     _replaced = 0;
                     harmony.Patch(target,
                                   transpiler: new HarmonyMethod(typeof(InteropTypeSweep), nameof(WithoutInterop)));
@@ -251,8 +271,9 @@ namespace Polyfill.Boot
                         continue;
                     }
 
-                    log.Msg($"[sweep] {sweep.Mod} will not see the interop assemblies when it walks the "
-                          + "loaded ones; enumerating one kills the process without a message.");
+                    log.Msg($"[sweep] {sweep.Mod} will only walk the loaded assemblies that name "
+                          + $"{sweep.Anchor}; enumerating one of the others can kill the process "
+                          + "without a message.");
                 }
                 catch (Exception e)
                 {
@@ -541,6 +562,7 @@ namespace Polyfill.Boot
         }
 
         private static int _replaced;
+        private static string _anchor;
 
         /// <summary>
         /// Swap the call to <c>AppDomain.GetAssemblies()</c> for one that leaves the interop assemblies
@@ -576,13 +598,22 @@ namespace Polyfill.Boot
             }
         }
 
-        /// <summary>The loaded assemblies a mod may safely call <c>GetTypes()</c> on.</summary>
+        /// <summary>The loaded assemblies whose types could possibly derive from the anchor's.</summary>
         /// <remarks>
-        /// Nothing is lost by the omission. A caller sweeping for types that derive from its OWN managed
-        /// base class cannot find one in an interop assembly: those hold the game's types, projected from
-        /// IL2CPP, and none of them derives from a mod's C# class. So the assemblies removed here are
-        /// exactly the ones that could never have answered - and the only ones that kill the process
-        /// when asked.
+        /// NOT "everything except the interop assemblies", which is what this filtered at first and what
+        /// turned out to be the wrong cut. GetTypes() on a MOD assembly loads that assembly's types, and
+        /// loading a type resolves its fields - so a mod holding a static UnityEngine.GameObject reaches
+        /// straight into the interop assembly the filter had just removed, and dies there anyway. That is
+        /// a real report: a server with 55 mods, narrowed by its operator to one mod whose runtime class
+        /// holds a GameObject, a LineRenderer and a dictionary of an interop type.
+        ///
+        /// So the cut is made where it holds: a type can only derive from the anchor assembly's base
+        /// class if its own assembly references that assembly, directly or through another one. Every
+        /// assembly that does not is dropped, its types are never loaded, and nothing it holds is
+        /// reached. Nothing is lost, because none of them could have answered.
+        ///
+        /// Read from metadata with Cecil, which opens the file rather than loading it - the same trick
+        /// the type searches above use, and for the same reason.
         ///
         /// Private, although the call to it now sits in somebody else's assembly: Harmony emits the
         /// patched body as a dynamic method that skips visibility checks, which is the same reason every
@@ -592,9 +623,139 @@ namespace Polyfill.Boot
         private static Assembly[] Mortals(AppDomain domain)
         {
             var all = domain?.GetAssemblies() ?? Array.Empty<Assembly>();
-            var kept = new List<Assembly>(all.Length);
-            foreach (var assembly in all) if (!IsInterop(assembly)) kept.Add(assembly);
+            if (_anchor == null) return all;              // no filter set; leave the walk alone
+
+            // Who names the anchor, one hop at a time. A mod subclassing S1API's NPC references S1API;
+            // a mod subclassing THAT mod's class references the mod and not S1API, so the set has to
+            // grow until it stops growing.
+            /*
+             * IF THE ANCHOR IS NOT LOADED, FILTER NOTHING. The anchor is a name in a table, and the
+             * assembly it names could be renamed upstream tomorrow. Then no assembly matches, the walk
+             * sees an empty list, and every custom NPC in the game stops registering - with the log
+             * saying only that the guard installed fine. Handing the walk back untouched puts the old
+             * risk back, which is the lesser of the two and the one that says so out loud.
+             */
+            bool anchorLoaded = false;
+            foreach (var assembly in all)
+            {
+                if (!string.Equals(Simple(assembly), _anchor, StringComparison.OrdinalIgnoreCase)) continue;
+                anchorLoaded = true;
+                break;
+            }
+
+            if (!anchorLoaded)
+            {
+                Complain($"nothing loaded is called {_anchor}, so its walk was left alone rather than "
+                       + "filtered down to nothing");
+                return all;
+            }
+
+            var wanted = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { _anchor };
+            var references = new Dictionary<Assembly, string[]>();
+
+            foreach (var assembly in all)
+            {
+                string[] named = NamesReferenced(assembly);
+                if (named != null) references[assembly] = named;
+            }
+
+            bool grew = true;
+            while (grew)
+            {
+                grew = false;
+                foreach (var pair in references)
+                {
+                    string self = Simple(pair.Key);
+                    if (self == null || wanted.Contains(self)) continue;
+                    foreach (string name in pair.Value)
+                    {
+                        if (!wanted.Contains(name)) continue;
+                        wanted.Add(self);
+                        grew = true;
+                        break;
+                    }
+                }
+            }
+
+            var kept = new List<Assembly>();
+            foreach (var assembly in all)
+            {
+                if (!references.TryGetValue(assembly, out var named))
+                {
+                    /*
+                     * COULD NOT BE READ, so it is kept and named. Dropping it silently would mean a mod
+                     * whose NPCs never register and no line saying why; keeping it is what happened
+                     * before this filter existed. Rare enough that a warning is affordable, and the
+                     * name is the only thing that makes it actionable.
+                     */
+                    if (assembly != null && !assembly.IsDynamic && !string.IsNullOrEmpty(SafeLocation(assembly)))
+                    {
+                        Complain($"could not read {Simple(assembly) ?? "an assembly"} to see whether it "
+                               + $"references {_anchor}, so it is walked as before");
+                        kept.Add(assembly);
+                    }
+                    continue;
+                }
+
+                string self = Simple(assembly);
+                if (self != null && wanted.Contains(self)) kept.Add(assembly);
+            }
+
+            // Once, and in Release too. "The guard is installed" and "the guard narrowed anything" are
+            // different claims, and only the second one is worth trusting - the numbers say which
+            // happened, and how much of the walk never had to load a thing.
+            if (!_said)
+            {
+                _said = true;
+                _log?.Msg($"[sweep] {_anchor}'s walk sees {kept.Count} of {all.Length} loaded "
+                        + $"assemblies - the rest cannot name {_anchor}, so none of their types are "
+                        + "loaded to find out.");
+            }
+
             return kept.ToArray();
+        }
+
+        private static bool _said;
+
+        private static readonly HashSet<string> Complained = new(StringComparer.Ordinal);
+
+        private static void Complain(string what)
+        {
+            if (!Complained.Add(what)) return;
+            _log?.Warning("[sweep] " + what + ".");
+        }
+
+        private static string Simple(Assembly assembly)
+        {
+            try { return assembly?.GetName()?.Name; }
+            catch { return null; }
+        }
+
+        private static string SafeLocation(Assembly assembly)
+        {
+            try { return assembly.Location; }
+            catch { return null; }
+        }
+
+        /// <summary>The assemblies this one names, out of its metadata - nothing is loaded.</summary>
+        /// <remarks>
+        /// Null when the question cannot be answered: a dynamic assembly, one with no file, or one Cecil
+        /// refuses. The caller decides what that means; it is not the same as "references nothing".
+        /// </remarks>
+        private static string[] NamesReferenced(Assembly assembly)
+        {
+            try
+            {
+                if (assembly == null || assembly.IsDynamic) return null;
+                string location = SafeLocation(assembly);
+                if (string.IsNullOrEmpty(location) || !File.Exists(location)) return null;
+
+                using var module = Mono.Cecil.ModuleDefinition.ReadModule(location);
+                var names = new List<string>(module.AssemblyReferences.Count);
+                foreach (var reference in module.AssemblyReferences) names.Add(reference.Name);
+                return names.ToArray();
+            }
+            catch { return null; }
         }
     }
 }
