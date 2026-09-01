@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.11.11] - 2026-09-01
+
+### Fixed
+- Another fix for dedicated servers dying at startup. 0.11.10 guarded the wrong half and a server
+  with TrashGrabber PLUS still died; S1API now only looks at mods that could hold its own NPCs.
+
 ## [0.11.10] - 2026-09-01
 
 ### Fixed
