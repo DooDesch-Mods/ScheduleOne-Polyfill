@@ -83,6 +83,31 @@ namespace Polyfill.Boot
             var state = Consent.Read();
             if (state.Answered || state.Asked >= Attempts) return;
 
+            /*
+             * NOBODY IS THERE TO ANSWER ON A SERVER, and asking anyway costs a minute of every startup.
+             *
+             * A dedicated server launches with --batchmode --nographics --dedicated-server and runs
+             * where no one is looking at a screen. The question still went up: MessageBoxW either
+             * draws on a desktop nobody watches or on none at all, and the launch then waits out the
+             * full deadline before carrying on - three times, once per attempt, on three separate
+             * startups. A server operator sees a minute of nothing and no reason for it.
+             *
+             * Measured on S1DedicatedServers v1.0.8: the dialog appeared and held the boot until
+             * somebody clicked it. On a hosted box there is nobody to click.
+             *
+             * SILENCE IS NOT CONSENT, so this does not answer for them. It declines to ask and leaves
+             * sharing off, which is what an unanswered question already meant. An operator who wants
+             * to send reports turns it on with `polyfillshare on`, and the log says so here rather
+             * than leaving them to guess why nothing is shared.
+             */
+            if (Headless(out string why))
+            {
+                log.Msg($"[share] not asking - {why}. Nothing is shared. `polyfillshare on` turns it "
+                      + "on for this server.");
+                Consent.Write(false, answered: false);
+                return;
+            }
+
             Consent.CountOneAsk(state);
 
             int answer = AskWithDeadline(log);
@@ -106,6 +131,42 @@ namespace Polyfill.Boot
             log.Msg(yes
                 ? "[share] on - anonymous findings will be sent. `polyfillshare off` stops it."
                 : "[share] off - nothing is sent. `polyfillshare on` turns it on.");
+        }
+
+        /// <summary>
+        /// Is this a game with nobody in front of it?
+        /// </summary>
+        /// <remarks>
+        /// From the command line rather than from Unity. This runs in the plugin's earliest hook,
+        /// before the interop assemblies are usable, so Application.isBatchMode is not reachable yet -
+        /// and the switches are the same ones the launcher passes, so they say the same thing.
+        ///
+        /// Any one of them is enough. A server passes all three; a headless test rig might pass one.
+        /// Both dash spellings, because Unity accepts either and a server script may use either.
+        /// </remarks>
+        private static bool Headless(out string why)
+        {
+            why = null;
+            try
+            {
+                foreach (string argument in Environment.GetCommandLineArgs())
+                {
+                    string flag = argument.TrimStart('-').ToLowerInvariant();
+                    switch (flag)
+                    {
+                        case "batchmode": why = "the game is running in batch mode"; return true;
+                        case "nographics": why = "the game is running without graphics"; return true;
+                        case "dedicated-server":
+                        case "dedicatedserver": why = "this is a dedicated server"; return true;
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                // Reading the command line must never be the reason a player is not asked. Saying
+                // nothing here leaves the question to be asked exactly as before.
+            }
+            return false;
         }
 
         /// <summary>
