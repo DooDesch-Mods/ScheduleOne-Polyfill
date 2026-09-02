@@ -284,6 +284,8 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         /// <summary>No hop at all: the member stayed on the type and only changed its name.</summary>
         private static readonly string[] NoHops = new string[0];
 
+        private const string BotanistConfig = "Il2CppScheduleOne.Management.BotanistConfiguration";
+
         private const string PriceRenamed
             = "0.4.6 turned the handover price selector into the general amount box, and Price into "
             + "SelectedAmount on it - same float, same meaning (AmountSelector.cs:27)";
@@ -372,6 +374,15 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             //
             // The setter is real: C# calls SelectedAmount private, and the interop assembly generates
             // set_SelectedAmount all the same (Il2Cpp AmountSelector.cs:62).
+            // The botanist's assignment list kept its type and lost its name. Both employee mods do the
+            // same one thing with it - `configuration.AssignedStations.MaxItems = n` - and that is the
+            // proof of which member it became: Assigns is the ObjectListField with a MaxItems
+            // (BotanistConfiguration.cs:27,61). AssignedSpawnStations is a plain List rebuilt out of it
+            // (:117) and has no such property, so it was never the successor however alike the names read.
+            Moved(BotanistConfig, "AssignedStations", Read, NoHops, "Assigns",
+                  "BotanistConfiguration.cs:27 is the same ObjectListField, taking the same pots, racks and "
+                + "beds (:15) with the same cap (:61); only the name moved"),
+
             Unprompted(Moved(AmountSelector, "Price", Read, NoHops, "SelectedAmount", PriceRenamed)),
             Unprompted(Moved(AmountSelector, "Price", Write, NoHops, "SelectedAmount", PriceRenamed)),
 
