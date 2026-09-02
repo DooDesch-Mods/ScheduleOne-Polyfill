@@ -133,7 +133,7 @@ namespace Polyfill.ModFixes
         }
 
         /// <summary>Run the relayed patches, but only for the box the counteroffer screen owns.</summary>
-        private static void Moved(object __instance)
+        private static void Moved(object __instance, float change)
         {
             if (Relayed.Count == 0 || __instance == null) return;
 
@@ -148,7 +148,7 @@ namespace Polyfill.ModFixes
                 object box = _priceSelector.GetValue(screen);
                 if (box == null || !Same(box, __instance)) return;
 
-                foreach (var patch in Relayed) Run(patch, screen);
+                foreach (var patch in Relayed) Run(patch, screen, change);
             }
             catch (Exception e)
             {
@@ -177,15 +177,19 @@ namespace Polyfill.ModFixes
             return Equals(pointer.GetValue(left), other.GetValue(right));
         }
 
-        private static void Run(MethodInfo patch, object screen)
+        private static void Run(MethodInfo patch, object screen, float change)
         {
             try
             {
                 var wanted = patch.GetParameters();
                 var arguments = new object[wanted.Length];
                 for (int i = 0; i < wanted.Length; i++)
-                    arguments[i] = wanted[i].Name == "__instance"
-                        ? screen
+                    // THE REAL DELTA WHERE THE OLD METHOD TOOK ONE. ChangePrice(float change) and
+                    // ChangeAmount(float change) are the same number under the same name, and filling it
+                    // with a default instead would run the mod's code against a price move of zero -
+                    // which looks like a repair and is a lie about what the player did.
+                    arguments[i] = wanted[i].Name == "__instance" ? screen
+                        : wanted[i].ParameterType == typeof(float) && wanted[i].Name == "change" ? change
                         : Activator.CreateInstance(wanted[i].ParameterType);
 
                 patch.Invoke(null, arguments);
