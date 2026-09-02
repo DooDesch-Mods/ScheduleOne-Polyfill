@@ -316,7 +316,13 @@ namespace Polyfill.Core
                                 (forward.Namespace.Length == 0 ? "" : forward.Namespace + ".") + forward.Name,
                                 out string partial) ? partial : null;
 
-                            string what = "a class deriving from " + forward.TargetFullName
+                            // WHAT WAS BUILT, not what is usually built. An enum cannot be derived from,
+                            // so it is copied instead, and saying "a class deriving from" there described
+                            // a repair that did not happen - which is the one thing this report exists to
+                            // avoid.
+                            string what = (shadow.IsEnum
+                                    ? "a copy of " + forward.TargetFullName + "'s members"
+                                    : "a class deriving from " + forward.TargetFullName)
                                         + (incomplete == null ? "" : ", but without its native class: " + incomplete);
 
                             result.Applied.Add($"{forward.InAssembly}!{Full(forward)} -> {what}");

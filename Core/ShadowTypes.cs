@@ -34,7 +34,15 @@ namespace Polyfill.Core
             var target = Resolve(module, targetFullName, targetAssembly);
             if (target == null)
             { refusal = "the type it became is not where it was said to be"; return null; }
-            if (target.IsInterface || target.IsEnum || target.IsValueType)
+            if (target.IsEnum)
+            {
+                var copy = Enum(module, oldNamespace, oldName, target, nestedIn, out string cannot);
+                if (copy == null) { refusal = cannot; return null; }
+                if (!Register(module, copy, nestedIn, out refusal)) return null;
+                Made[target.FullName] = copy;
+                return copy;
+            }
+            if (target.IsInterface || target.IsValueType)
             { refusal = $"{target.FullName} is not a class"; return null; }
             if (target.IsSealed)
             { refusal = $"{target.FullName} is sealed, so nothing can stand in for it"; return null; }
@@ -321,6 +329,103 @@ namespace Polyfill.Core
 
             il.Append(keepNull);                            // the duplicate is the null being returned
             return true;
+        }
+
+
+
+        /// <summary>Put a built type into the module, nested where the old name was nested.</summary>
+        /// <remarks>
+        /// Its own step because building a type and having it in the assembly are different things, and
+        /// only the second one is what the mod sees. The enum copy went in without this and Polyfill's own
+        /// check of the written image caught it: the repair reported success and the name was still not
+        /// there.
+        /// </remarks>
+        private static bool Register(ModuleDefinition module, TypeDefinition type, string nestedIn,
+                                     out string refusal)
+        {
+            refusal = null;
+            if (nestedIn == null) { module.Types.Add(type); return true; }
+
+            var outer = module.GetType(nestedIn);
+            if (outer == null)
+            { refusal = nestedIn + ", which it was nested in, is not in this assembly"; return false; }
+
+            foreach (var existing in outer.NestedTypes)
+                if (string.Equals(existing.Name, type.Name, StringComparison.Ordinal))
+                { refusal = "the name is taken inside " + nestedIn; return false; }
+
+            type.Attributes = (type.Attributes & ~TypeAttributes.VisibilityMask)
+                            | TypeAttributes.NestedPublic;
+            outer.NestedTypes.Add(type);
+            return true;
+        }
+
+        /// <summary>An enum that moved, written back under its old name with the same members.</summary>
+        /// <remarks>
+        /// NOT A SUBCLASS, because nothing subclasses an enum, and not a forwarder either: a forwarder
+        /// looks for the SAME name in the target assembly, and these moved namespace as well as assembly -
+        /// ELegalStatus went from Il2CppScheduleOne.ItemFramework to Il2CppScheduleOne.Core.Items.Framework.
+        /// So the only thing left is a copy carrying the same names and the same numbers.
+        ///
+        /// WHAT A COPY IS AND IS NOT. It has its own identity, so it does not satisfy a signature that
+        /// names the real one - a Harmony prefix taking the enum as a parameter still will not bind, and a
+        /// member whose return type is the enum still needs its own bridge. What it does give back is every
+        /// use as a VALUE: comparisons, casts to int, storing it in a local. In IL those are int32
+        /// operations and no identity is checked, which is how OG Backpack reads it -
+        /// `(int)Definition.legalStatus > 0`.
+        ///
+        /// Copied rather than derived from the target's field list at runtime, because the values are the
+        /// whole point: a member that changed number between builds would be silently wrong, so the numbers
+        /// come from the build being repaired and nowhere else.
+        /// </remarks>
+        private static TypeDefinition Enum(ModuleDefinition module, string oldNamespace, string oldName,
+                                           TypeDefinition target, string nestedIn, out string refusal)
+        {
+            refusal = null;
+
+            var underlying = UnderlyingOf(target);
+            if (underlying == null)
+            { refusal = $"{target.FullName} is an enum with no value field to copy"; return null; }
+
+            var enumBase = module.ImportReference(target.BaseType);      // System.Enum, as this module sees it
+            var copy = new TypeDefinition(nestedIn == null ? oldNamespace : "", oldName,
+                TypeAttributes.Public | TypeAttributes.Sealed, enumBase);
+
+            var value = new FieldDefinition("value__",
+                FieldAttributes.Public | FieldAttributes.SpecialName | FieldAttributes.RTSpecialName,
+                module.ImportReference(underlying.FieldType));
+            copy.Fields.Add(value);
+
+            int members = 0;
+            foreach (var field in target.Fields)
+            {
+                if (!field.IsStatic || !field.HasConstant) continue;
+                var member = new FieldDefinition(field.Name,
+                    FieldAttributes.Public | FieldAttributes.Static | FieldAttributes.Literal
+                        | FieldAttributes.HasDefault,
+                    copy)
+                { Constant = field.Constant };
+                copy.Fields.Add(member);
+                members++;
+            }
+
+            if (members == 0)
+            {
+                // An enum with no members is a name that compiles and answers nothing. Refusing says so;
+                // adding it would report a repair and leave every comparison in the mod false.
+                refusal = $"{target.FullName} has no members to copy";
+                return null;
+            }
+
+            return copy;
+        }
+
+        /// <summary>The <c>value__</c> field an enum carries, which decides its underlying type.</summary>
+        private static FieldDefinition UnderlyingOf(TypeDefinition type)
+        {
+            foreach (var field in type.Fields)
+                if (!field.IsStatic && field.Name == "value__") return field;
+            return null;
         }
 
         /// <summary>
