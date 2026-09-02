@@ -17,9 +17,10 @@ namespace Polyfill.Core
     /// built from that same pointer IS the object, reachable under both names. Assignment to anything
     /// expecting the new type is then plain inheritance and needs no conversion at all.
     ///
-    /// What it does not give back is construction. Only the pointer constructor is rebuilt, because that is
-    /// the only one whose meaning is beyond doubt; a mod that calls <c>new</c> on the old name still finds
-    /// nothing, and that is reported rather than approximated.
+    /// Construction comes back only where its meaning is beyond doubt: the pointer constructor, and a
+    /// parameterless one when the type it stands in for has one - that call makes precisely the object the
+    /// new name would make. A constructor that takes arguments is still not rebuilt, because what a
+    /// stand-in should pass would be a guess, and that is reported rather than approximated.
     /// </remarks>
     internal static class ShadowTypes
     {
@@ -71,6 +72,31 @@ namespace Polyfill.Core
             il.Emit(OpCodes.Ret);
 
             shadow.Methods.Add(constructor);
+
+            // AND `new`, WHEN ITS MEANING IS BEYOND DOUBT. A stand-in used to carry the pointer
+            // constructor only, so a mod writing `new OldName()` found nothing and threw
+            // MissingMethodException at the call - MoreRealisticSleeping does exactly that for each of
+            // the game's effect types, none of which it can construct.
+            //
+            // The doubt that kept it out was about constructors that take arguments: what a stand-in
+            // should pass is a guess. A parameterless one is not a guess. The type it stands in for has
+            // one, calling it makes precisely the object the new name would make, and chaining to it is
+            // the whole body.
+            var empty = Parameterless(target);
+            if (empty != null)
+            {
+                var made = new MethodDefinition(".ctor",
+                    MethodAttributes.Public | MethodAttributes.HideBySig
+                        | MethodAttributes.SpecialName | MethodAttributes.RTSpecialName,
+                    module.TypeSystem.Void);
+
+                var body = made.Body.GetILProcessor();
+                body.Emit(OpCodes.Ldarg_0);
+                body.Emit(OpCodes.Call, module.ImportReference(empty));
+                body.Emit(OpCodes.Ret);
+
+                shadow.Methods.Add(made);
+            }
 
             // A NESTED NAME HAS TO GO BACK NESTED. Building it from namespace and name alone gave a
             // top-level ProductTypeContainer while the mod asks for ProductManagerApp/ProductTypeContainer,
@@ -425,6 +451,20 @@ namespace Polyfill.Core
         {
             foreach (var field in type.Fields)
                 if (!field.IsStatic && field.Name == "value__") return field;
+            return null;
+        }
+
+
+        /// <summary>The type's own constructor that takes nothing, or null when it has none.</summary>
+        /// <remarks>
+        /// Declared on the type itself rather than inherited: a base class constructor is not callable as
+        /// this one, and chaining to the wrong one would build a different object under a familiar name.
+        /// </remarks>
+        private static MethodDefinition Parameterless(TypeDefinition type)
+        {
+            foreach (var method in type.Methods)
+                if (method.IsConstructor && !method.IsStatic && method.Parameters.Count == 0)
+                    return method;
             return null;
         }
 

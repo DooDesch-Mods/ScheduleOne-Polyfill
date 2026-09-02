@@ -1560,7 +1560,12 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
 
             var method = new MethodDefinition("SetIsOpen",
                 MethodAttributes.Public | MethodAttributes.HideBySig, module.TypeSystem.Void);
-            method.Parameters.Add(new ParameterDefinition("o", ParameterAttributes.None,
+            // THE NAME THE OLD BUILD USED, not a short one of our own. Harmony matches a prefix
+            // parameter by NAME, so a rebuilt method whose argument is called something else refuses
+            // every patch written against the real thing - "Parameter \"open\" not found in ...
+            // SetIsOpen(bool o)", and the whole patch class goes with it. 0.4.5f2 called it `open`
+            // (GameplayMenu.cs:187).
+            method.Parameters.Add(new ParameterDefinition("open", ParameterAttributes.None,
                                                           module.TypeSystem.Boolean));
 
             var il = method.Body.GetILProcessor();
