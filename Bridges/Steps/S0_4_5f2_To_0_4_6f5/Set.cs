@@ -218,6 +218,14 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         private const string Counteroffer = "Il2CppScheduleOne.UI.Phone.CounterofferInterface";
 
         private static readonly string[] PriceSelector = { "PriceSelector" };
+
+        /// <remarks>
+        /// The AMOUNT BOX, not the stand-in that carries the old name. A mod naming
+        /// HandoverScreenPriceSelector has its lookup redirected onto the base by
+        /// DeclaredMethodFallback, so the missing member is reported - and has to be emitted - on
+        /// AmountSelector. A bridge hung on the stand-in matches nothing and reports "none".
+        /// </remarks>
+        private const string PriceSelectorType = "Il2CppScheduleOne.UI.AmountSelector";
         private static readonly string[] DealerData = { "DealerData" };
 
         private const string Movement = "Il2CppScheduleOne.NPCs.NPCMovement";
@@ -466,6 +474,19 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             // 0.4.6 put a service between the lobby and Steam and dropped every CSteamID off the public
             // surface. The values themselves did not go anywhere - each one is still exactly derivable, and
             // the first is derivable from the same expression 0.4.5f2 used.
+            // The price box lost the event it raised, and the mod that reads it guards every use.
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = PriceSelectorType,
+                OldName = "get_onPriceChanged",
+                ParameterCount = 0,
+                Because = "the control became the game's general amount box, whose notification is the C# "
+                        + "event OnAmountChanged (AmountSelector.cs:29) and not a UnityEvent - so the old "
+                        + "name has no successor of that shape, and the callers guard it",
+                Emit = EmitNoPriceEvent,
+            },
+
             new Bridge
             {
                 Assembly = "Assembly-CSharp",
@@ -2591,6 +2612,45 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             il.Emit(OpCodes.Ldarg_0);
             il.Emit(OpCodes.Call, module.ImportReference(id));
             il.Emit(OpCodes.Newobj, module.ImportReference(constructor));
+            il.Emit(OpCodes.Ret);
+            return method;
+        }
+
+
+        /// <summary>
+        /// The price box's old event, answered with nothing, because nothing of that shape survives.
+        /// </summary>
+        /// <remarks>
+        /// NULL IS THE HONEST ANSWER HERE, and it is not the same as a repair that quietly does nothing.
+        /// <c>onPriceChanged</c> was a UnityEvent the control raised; 0.4.6 replaced the control with the
+        /// game's general amount box, whose notification is a C# <c>event Action&lt;float&gt;</c>
+        /// (AmountSelector.cs:29). The two cannot be adapted: the caller wants an object with Invoke and
+        /// AddListener, and there is no such object to hand back.
+        ///
+        /// What makes null right rather than lazy is that the caller already guards it - Tweakables reads
+        /// <c>if (onPriceChanged != null) onPriceChanged.Invoke()</c> - and that the notification itself is
+        /// delivered anyway, by the amount-changed-after-override fix, which exists to raise the change the
+        /// overriding prefix swallowed. So the guard skips a call whose effect has already happened.
+        ///
+        /// Without this the member simply is not there, and the read throws MissingMethodException out of
+        /// a native-to-managed trampoline every time somebody moves a price - three times per open, with
+        /// no stack that names the mod.
+        ///
+        /// The two belong together: if amount-changed-after-override is ever removed, this stops being an
+        /// honest answer and becomes a swallowed notification.
+        /// </remarks>
+        private static MethodDefinition EmitNoPriceEvent(ModuleDefinition module, TypeDefinition owner)
+        {
+            var unityEvent = module.GetType("UnityEngine.Events.UnityEvent")
+                          ?? Core.ShadowTypes.Resolve(module, "UnityEngine.Events.UnityEvent",
+                                                      "UnityEngine.CoreModule");
+            if (unityEvent == null) return null;
+
+            var method = new MethodDefinition("get_onPriceChanged",
+                MethodAttributes.Public | MethodAttributes.HideBySig, module.ImportReference(unityEvent));
+
+            var il = method.Body.GetILProcessor();
+            il.Emit(OpCodes.Ldnull);
             il.Emit(OpCodes.Ret);
             return method;
         }

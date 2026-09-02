@@ -14,9 +14,19 @@ namespace Polyfill.Contract
     /// a UnityEvent back is not possible here - it would have to be the same object every time it is
     /// read on a selector, and interop wrappers are pooled by weak reference, so a managed field on one
     /// is not on the next; and UnityEvent.Invoke is not virtual on this build, so a derived event cannot
-    /// intercept a call a mod already compiled. Returning null would silence the notification, which is
-    /// refused outright. What the mod needed - somebody hearing that the amount changed - is restored by
-    /// <c>amount-changed-after-override</c> instead.
+    /// intercept a call a mod already compiled. What the mod needed - somebody hearing that the amount
+    /// changed - is restored by <c>amount-changed-after-override</c> instead.
+    ///
+    /// THE MEMBER IS EMITTED ANYWAY, returning null, and this note used to refuse that outright on the
+    /// grounds that null "would silence the notification". It does not, and leaving the member absent was
+    /// the worse of the two: the only caller guards it - Tweakables reads
+    /// <c>if (onPriceChanged != null) onPriceChanged.Invoke()</c> - so null skips a call whose effect the
+    /// fix above has already had, while ABSENCE throws MissingMethodException out of a native-to-managed
+    /// trampoline three times every time a counteroffer opens, with no stack that names the mod.
+    /// Measured on 0.4.6f13, and the bridge is in the 0.4.5f2 step's set.
+    ///
+    /// The pair is load-bearing: if amount-changed-after-override is ever removed, null stops being an
+    /// honest answer and becomes a swallowed notification.
     ///
     /// A HINT, NOT AN OUTCOME, and the distinction is the point. This says a fix for it EXISTS; it does
     /// not say the fix ran. The plugin writes the report before the game exists and cannot know whether
