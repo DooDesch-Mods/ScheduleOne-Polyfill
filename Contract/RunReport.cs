@@ -101,6 +101,13 @@ namespace Polyfill.Contract
                 {
                     if (finding.Note) continue;          // a note is not a missing name
                     any = true;
+
+                    // REPAIRED IS NOT BLOCKING, whatever the hint said. A finding with no candidate is
+                    // normally the definition of blocked, and one kind of repair does not produce a
+                    // candidate at all: a runtime fix moves a mod's patch onto the method the game calls
+                    // and records the outcome only afterwards. Reading the hint alone called those mods
+                    // blocked while their patches were demonstrably working.
+                    if (finding.Outcome == Contract.Outcome.Applied) continue;
                     if (string.IsNullOrEmpty(finding.Hint)) return "blocked";
                 }
                 return any ? "adaptable" : "clean";

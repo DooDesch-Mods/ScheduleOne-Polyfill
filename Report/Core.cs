@@ -78,6 +78,10 @@ namespace Polyfill.Report
             _fixesRun = true;
             ModFixes.Fixes.Run(LoggerInstance);
 
+            // IMMEDIATELY AFTER, because the report is older than what just happened and both copies of it
+            // are about to be read - the file by a player, and the object by Share at quit.
+            Reconcile.After(LoggerInstance);
+
             // From HERE and not from the plugin, because of what there is to watch. Every repair and every
             // mod fix has run and the world exists, so from this frame on an exception is a statement about
             // playing rather than about loading.
