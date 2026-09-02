@@ -2,6 +2,24 @@
 
 All notable changes to this project are documented here.
 
+## [0.11.12] - 2026-09-03
+
+### Fixed
+- The game stays open when you start a counteroffer. Two repairs got in the way of each other, and
+  the game closed with no message and no crash report.
+- More Realistic Sleeping works again. It makes an effect that the game renamed, and the old name
+  could not make one.
+- Tweakables waters, pours and sprays. Four of its jobs did not start, because it names a value
+  differently from the game.
+- Tweakables sets the order days. Its change did not start, and the log showed an error that named
+  no mod.
+- Price per gram shows the price per gram. The counteroffer screen moved the number into the box
+  beside it.
+
+### Changed
+- OG Backpack, the employee mods and HUB - Dispensary show the correct state on
+  polyfill.doomods.com. A repair that runs after the report was not counted.
+
 ## [0.11.11] - 2026-09-01
 
 ### Fixed
