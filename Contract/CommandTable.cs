@@ -37,6 +37,11 @@ namespace Polyfill.Contract
             C("polyfillrestore", "undo every repair, restart to take effect", "polyfillrestore"),
             C("polyfillregen",   "have MelonLoader rebuild the game's generated assemblies", "polyfillregen"),
             C("polyfillshare",   "share anonymous findings, or see what would be sent", "polyfillshare show"),
+#if DEBUG
+            // Debug only, and the table is what the console consults - a handler nothing routes to is a
+            // command that silently does not exist, which is how the first attempt at this failed.
+            C("polyfillapp",     "open a vanilla phone app, to look at a UI repair", "polyfillapp messages"),
+#endif
             C("polyfillhelp",    "list the polyfill commands", "polyfillhelp"),
         };
 

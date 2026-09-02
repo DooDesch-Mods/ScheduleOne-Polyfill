@@ -137,6 +137,24 @@ namespace Polyfill.ModFixes
         private static readonly Dictionary<System.Reflection.MethodBase, System.Reflection.FieldInfo> Owners
             = new();
 
+
+        /// <summary>Where in the scene an object sits, as a slash-separated path from its root.</summary>
+        private static string Path(UnityEngine.Transform transform)
+        {
+            try
+            {
+                var parts = new List<string>();
+                for (var current = transform; current != null; current = current.parent)
+                {
+                    parts.Add(current.name);
+                    if (parts.Count > 12) break;         // a cycle cannot happen, a deep tree can
+                }
+                parts.Reverse();
+                return string.Join("/", parts);
+            }
+            catch { return transform == null ? "(nothing)" : transform.name; }
+        }
+
         /// <summary>Switch off the inherited layout on THIS mod's clone, once.</summary>
         private static void Loosen(System.Reflection.MethodBase __originalMethod, object[] __args)
         {
@@ -179,9 +197,14 @@ namespace Polyfill.ModFixes
                 if (!layout.enabled) return;              // the mod dealt with it itself; nothing to say
 
                 layout.enabled = false;
-                _log?.Msg($"[fix] borrowed-app-layout: switched off the vertical layout group "
-                        + $"{app.name} inherited from the game's product manager, so its own panels "
-                        + "decide where they go again.");
+
+                // THE PATH, NOT THE NAME. "Container" names half the UI in this game, and this line is the
+                // only record of what was switched off - permanently, since nothing turns it back on. A
+                // name alone cannot answer the question that matters when a stray panel shows up
+                // somewhere else: was this the mod's own clone, or something of the game's.
+                _log?.Msg($"[fix] borrowed-app-layout: switched off the vertical layout group on "
+                        + $"{Path(container)}, inherited from the game's product manager, so the app's own "
+                        + "panels decide where they go again.");
             }
             catch (Exception e)
             {

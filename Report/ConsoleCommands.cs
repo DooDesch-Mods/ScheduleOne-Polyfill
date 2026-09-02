@@ -41,6 +41,11 @@ namespace Polyfill.Report
             ["polyfillrestore"] = _ => Restore(),
             ["polyfillregen"] = _ => Regenerate(),
             ["polyfillshare"] = Share,
+#if DEBUG
+            // A UI repair cannot be checked without the screen it repairs, and the game has no command
+            // that opens one. Debug only: it opens a screen the player did not ask for.
+            ["polyfillapp"] = PhoneApp.Open,
+#endif
             ["polyfillhelp"] = _ => Help(),
         };
 
