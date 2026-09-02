@@ -81,30 +81,49 @@ namespace Polyfill.Report
         }
 
 
-        /// <summary>Put the phone itself up or away, the way the player's key does.</summary>
+        /// <summary>Put the phone up or away, through the menu that owns it.</summary>
+        /// <remarks>
+        /// NOT Phone.SetIsOpen, which is what the first version called and why nothing appeared. That
+        /// method sets a flag and raises two events; the phone is put on screen by GameplayMenu.Open,
+        /// which also turns on the overlay light, hands the player the lowered-phone equippable, opens the
+        /// menu interface, registers a UI element with the camera and starts the animation coroutine
+        /// (GameplayMenu.cs:248-267). SetIsOpen is one line inside that.
+        ///
+        /// The screen is chosen first, because the same menu shows either the phone or the character and
+        /// Open honours whichever is current (GameplayMenu.cs:252-259).
+        /// </remarks>
         private static void Phone(bool open)
         {
             try
             {
-                var type = AccessTools.TypeByName("Il2CppScheduleOne.UI.Phone.Phone");
-                var instance = type == null
+                var menu = AccessTools.TypeByName("Il2CppScheduleOne.UI.GameplayMenu");
+                var instance = menu == null
                     ? null
-                    : AccessTools.PropertyGetter(type, "Instance")?.Invoke(null, null);
+                    : AccessTools.PropertyGetter(menu, "Instance")?.Invoke(null, null);
                 if (instance == null)
                 {
-                    Core.Log.Warning("the phone has no instance yet - load a save first.");
+                    Core.Log.Warning("the gameplay menu has no instance yet - load a save first.");
                     return;
                 }
 
-                var setIsOpen = AccessTools.Method(type, "SetIsOpen", new[] { typeof(bool) });
-                if (setIsOpen == null)
+                if (open)
                 {
-                    Core.Log.Warning("Phone.SetIsOpen(bool) is not on this build, so it cannot be opened "
-                                   + "from here.");
+                    var setScreen = AccessTools.Method(menu, "SetScreen");
+                    var screen = AccessTools.TypeByName("Il2CppScheduleOne.UI.GameplayMenu/EGameplayScreen")
+                              ?? AccessTools.Inner(menu, "EGameplayScreen");
+                    if (setScreen != null && screen != null)
+                        setScreen.Invoke(instance, new[] { Enum.ToObject(screen, 0) });   // 0 is Phone
+                }
+
+                var door = AccessTools.Method(menu, open ? "Open" : "Close", Type.EmptyTypes);
+                if (door == null)
+                {
+                    Core.Log.Warning($"GameplayMenu.{(open ? "Open" : "Close")}() is not on this build, so "
+                                   + "the phone cannot be moved from here.");
                     return;
                 }
 
-                setIsOpen.Invoke(instance, new object[] { open });
+                door.Invoke(instance, null);
             }
             catch (Exception e)
             {
