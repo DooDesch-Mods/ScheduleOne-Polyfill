@@ -395,6 +395,13 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             // what a MissingMethodException in the mod's Subscribe() looks like from the outside.
             Moved(Counteroffer, "PriceInput", Read, PriceSelector, "_inputField", PriceBox),
 
+            // And the price itself went with the box. The screen kept a float of its own until 0.4.5f2
+            // and read it back everywhere; now the box holds the number and the screen asks it - the
+            // confirm handler does exactly that at CounterofferInterface.cs:164.
+            Moved(Counteroffer, "price", Read, PriceSelector, "SelectedAmount",
+                  "CounterofferInterface.cs:164 reads PriceSelector.SelectedAmount where the screen's own "
+                + "`price` field used to be, and AmountSelector.cs:63 is what writes it"),
+
             // And the screen stopped MOVING the price as well: the box it holds does that now, and it does
             // it the same way. Both add the delta to what is showing and clamp it.
             Onto(Counteroffer, "ChangePrice", 1, PriceSelector, "ChangeAmount",
