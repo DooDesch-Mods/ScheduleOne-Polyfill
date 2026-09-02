@@ -97,7 +97,7 @@ namespace Polyfill.Boot
                 try
                 {
                     var moved = AccessTools.Method(type, renamed, parameters, generics);
-                    if (moved != null) { __result = moved; return; }
+                    if (moved != null) { __result = Canonical(moved); return; }
                 }
                 catch { }
             }
@@ -108,9 +108,58 @@ namespace Polyfill.Boot
             {
                 var found = AccessTools.Method(type, name, parameters, generics);
                 if (found == null || found.DeclaringType == type) return;
-                __result = found;
+                __result = Canonical(found);
             }
             catch { }
+        }
+
+
+        /// <summary>
+        /// The same method, looked up through the type that DECLARES it.
+        /// </summary>
+        /// <remarks>
+        /// THIS ONE COST A CRASH, so it is worth stating exactly. Both redirects above answer a lookup on a
+        /// stand-in with a method that lives on its base, and .NET hands back a MethodInfo whose
+        /// ReflectedType is the stand-in it was asked through. Two MethodInfos differing only in
+        /// ReflectedType are not equal and do not hash alike, so Harmony files them as two separate
+        /// patch targets - while they are one native method.
+        ///
+        /// The second patcher then detours an address that is already detoured and captures the FIRST
+        /// detour as its original. Every call re-enters, and the process dies of a stack overflow with no
+        /// exception and nothing in the log: 0xc00000fd, roughly 1,561 identical reverse-P/Invoke frames.
+        /// Measured on 0.4.6f13 - Tweakables patches HandoverScreenPriceSelector.SetPrice, this redirect
+        /// sends it to AmountSelector.SetAmount, Polyfill's own amount-changed-after-override patches the
+        /// same method through the base type, and opening a counteroffer reaches SetAmount through
+        /// SetProduct -> ApplyFairPrice before any of it can be noticed.
+        ///
+        /// Answering with the declaring type's own MethodInfo gives both of them one key, and Harmony
+        /// merges the two patches the way it does for any other pair.
+        /// </remarks>
+        private static MethodInfo Canonical(MethodInfo method)
+        {
+            if (method?.DeclaringType == null) return method;
+            if (method.ReflectedType == method.DeclaringType) return method;
+
+            try
+            {
+                var declared = AccessTools.DeclaredMethod(method.DeclaringType, method.Name,
+                                                          Types(method.GetParameters()));
+                return declared ?? method;
+            }
+            catch
+            {
+                // A lookup that fails leaves the method as it was. That is the behaviour before this
+                // existed, and a redirect that answers nothing would be worse than one that answers a
+                // method with the wrong ReflectedType.
+                return method;
+            }
+        }
+
+        private static Type[] Types(System.Reflection.ParameterInfo[] parameters)
+        {
+            var types = new Type[parameters.Length];
+            for (int i = 0; i < parameters.Length; i++) types[i] = parameters[i].ParameterType;
+            return types;
         }
 
         /// <summary>
