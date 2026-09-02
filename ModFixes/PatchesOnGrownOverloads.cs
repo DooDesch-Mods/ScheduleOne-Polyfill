@@ -99,13 +99,6 @@ namespace Polyfill.ModFixes
             return found;
         }
 
-        /// <summary>Patches this fix moved, as "&lt;mod assembly&gt;|&lt;Type&gt;::&lt;Name&gt;".</summary>
-        /// <remarks>
-        /// Read by <see cref="Report.Reconcile"/>, which is the only reason it is kept: the report is made
-        /// before this fix runs and has no other way to learn that a finding stopped being true.
-        /// </remarks>
-        internal static readonly HashSet<string> Repaired = new(StringComparer.Ordinal);
-
         /// <summary>Copy every prefix and postfix from one method onto another.</summary>
         /// <remarks>
         /// Shared with <see cref="PatchesOnSplitMethods"/>, which is the same repair for a method the game
@@ -156,7 +149,7 @@ namespace Polyfill.ModFixes
                 // identifies the row - see Report/Reconcile.cs.
                 string ownerAssembly = patch.PatchMethod?.DeclaringType?.Assembly?.GetName()?.Name;
                 if (!string.IsNullOrEmpty(ownerAssembly))
-                    Repaired.Add(ownerAssembly + "|" + real.DeclaringType?.FullName + "::" + real.Name);
+                    Fixes.Repaired.Add(ownerAssembly + "|" + real.DeclaringType?.FullName + "::" + real.Name);
 
                 log.Msg($"[fix] {id}: {patch.owner} -> "
                       + $"{real.DeclaringType?.Name}.{real.Name}({real.GetParameters().Length} args)");

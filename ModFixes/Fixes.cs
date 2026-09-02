@@ -12,6 +12,23 @@ namespace Polyfill.ModFixes
     /// </remarks>
     internal static class Fixes
     {
+        /// <summary>
+        /// Findings a fix repaired after the report was written, as "&lt;mod assembly&gt;|&lt;symbol&gt;".
+        /// </summary>
+        /// <remarks>
+        /// The report is made while the game loads and these fixes run once the world exists, so a finding
+        /// one of them repaired is still recorded as unrepaired. <see cref="Report.Reconcile"/> corrects
+        /// that from here.
+        ///
+        /// The symbol is the OLD one - what the finding names - and not what the patch ended up on. For a
+        /// method that only grew an argument the two read the same; for one that moved to another type they
+        /// do not, and matching on the new name would find no row to correct.
+        ///
+        /// Here rather than on one fix because more than one fix now records into it, and a second private
+        /// copy is how the two would drift apart.
+        /// </remarks>
+        internal static readonly HashSet<string> Repaired = new(StringComparer.Ordinal);
+
         internal sealed class Outcome
         {
             internal Fix Fix;
@@ -36,6 +53,7 @@ namespace Polyfill.ModFixes
             new OverTheCounterClipboard(),
             new OverTheCounterStalePanel(),
             new OverTheCounterHandover(),
+            new PatchesOnMovedPriceBox(),
             new SupplierMeetingNeverStarts(),
             new PhoneAppIconWithoutFile(),
             new ThmButtonCodes(),

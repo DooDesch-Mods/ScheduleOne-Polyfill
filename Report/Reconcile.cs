@@ -30,7 +30,7 @@ namespace Polyfill.Report
         /// <summary>Match what a fix repaired against what the report says, and correct the difference.</summary>
         internal static void After(MelonLogger.Instance log)
         {
-            var repaired = ModFixes.PatchesOnGrownOverloads.Repaired;
+            var repaired = ModFixes.Fixes.Repaired;
             if (repaired.Count == 0) return;
 
             var corrected = new List<string>();
