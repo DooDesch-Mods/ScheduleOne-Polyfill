@@ -109,6 +109,11 @@ namespace Polyfill.Boot
                 // class that will not bind from ending the mod's whole registration.
                 if (!DryRun) PatchClassIsolation.Install(LoggerInstance);
 
+                // Beside the isolation, and earlier in the failure: this makes an argument bind that
+                // Harmony could not place, so the class the isolation would have caught never fails.
+                if (!DryRun) PatchArgumentByShape.Install(LoggerInstance);
+                if (!DryRun) PatchNeedsAResult.Install(LoggerInstance);
+
                 // Layer 2. Off under DryRun like everything else: it answers the same questions the same way,
                 // but it is still a change to a running game, and "repair nothing" has to mean nothing.
                 if (DryRun)
