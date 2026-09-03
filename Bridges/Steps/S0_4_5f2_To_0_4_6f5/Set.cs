@@ -158,6 +158,7 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         private static readonly string[] BasicInfo = { "NPCData", "BasicInfo" };
         private static readonly string[] Appearance = { "NPCData", "Appearance" };
         private static readonly string[] Interaction = { "NPCData", "Interaction" };
+        private static readonly string[] Messaging = { "NPCData", "Messaging" };
 
         /// <summary>NPCInventory is a component, not the NPC, so its path starts at its own back-reference -
         /// the same one the component itself now reads through (NPCInventory.cs:62, 113, 122).</summary>
@@ -209,6 +210,9 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                                        + "form is what passing false always did (Avatar.cs:292-297)";
 
         private const string NameSplit = "NPC.cs:63-69 until 0.4.5f2, now BasicInfo.cs:4-7";
+        private const string Hideable = "NPC.cs:130 until 0.4.5f2, now Messaging.cs:11 - the same default "
+                                      + "and the same use, moved into the NPCData object with the rest of "
+                                      + "the per-NPC settings";
         private const string Summon = "NPC.cs:116 until 0.4.5f2, now Interaction.cs:8 - and the game reads it "
                                     + "from there in NPCEnterableBuilding.cs:96";
         private const string SlotCount = "NPCInventory.cs:45 until 0.4.5f2, now Inventory.InventorySlotCount, "
@@ -422,6 +426,11 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                   "NPC.cs:71 until 0.4.5f2, now Appearance.Mugshot"),
             Moved(Npc, "CanBeSummoned", Write, Interaction, "CanBeSummoned", Summon),
             Moved(Npc, "CanBeSummoned", Read, Interaction, "CanBeSummoned", Summon),
+
+            // Whether an NPC's chat can be hidden. Nine mod builds on the public listing block on the
+            // setter alone, which is the most of any member gap there.
+            Moved(Npc, "ConversationCanBeHidden", Write, Messaging, "ConversationCanBeHidden", Hideable),
+            Moved(Npc, "ConversationCanBeHidden", Read, Messaging, "ConversationCanBeHidden", Hideable),
             Moved(Inv, "SlotCount", Write, Inventory, "InventorySlotCount", SlotCount),
             Moved(Inv, "SlotCount", Read, Inventory, "InventorySlotCount", SlotCount),
             Moved(Inv, "ClearInventoryEachNight", Write, Inventory, "ClearInventoryOnNewDay", Renamed),
