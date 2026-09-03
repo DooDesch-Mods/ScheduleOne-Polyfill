@@ -201,15 +201,31 @@ namespace Polyfill.Bridges
     /// One member a <see cref="TypeRename.ByNativeClass"/> stand-in carries, and what it gives back.
     /// </summary>
     /// <remarks>
-    /// Deliberately only three answers. A stand-in of this kind exists because the caller guards every use
-    /// of it, so the only replies worth emitting are the ones a guard reads: nothing at all, a null
-    /// reference, and zero. Anything richer would be a guess at behaviour the game no longer has.
+    /// Three answers without a body: nothing at all, a null reference, and zero. A stand-in of this kind
+    /// exists because the caller guards every use of it, so those are the replies a guard reads, and
+    /// anything richer would be a guess at behaviour the game no longer has.
+    ///
+    /// UNLESS THE BEHAVIOUR IS STILL THERE, which is what <see cref="Emit"/> is for. The stand-in carries
+    /// the successor's native class, so <c>this</c> already points at the live object - a member whose
+    /// successor takes the same information can call it rather than answer for it.
     /// </remarks>
     internal sealed class Answer
     {
         internal string Name;
         internal string Returns;          // full name, or null for void
         internal string[] Takes;          // full names, or null for none
+
+        /// <summary>
+        /// Build the member instead of answering with a constant. Given the module, the stand-in, and the
+        /// type it stands in for; returns null when this build has not got what it needs.
+        /// </summary>
+        /// <remarks>
+        /// The shape it writes is always the same one: take <c>this.Pointer</c>, build a wrapper of the
+        /// successor around it, and call the successor. That crossing is needed because two interop
+        /// wrappers around one native object are unrelated managed types - a cast between them fails, and
+        /// the pointer is the only thing they share.
+        /// </remarks>
+        internal Func<ModuleDefinition, TypeDefinition, TypeDefinition, MethodDefinition> Emit;
     }
 
     /// <summary>
