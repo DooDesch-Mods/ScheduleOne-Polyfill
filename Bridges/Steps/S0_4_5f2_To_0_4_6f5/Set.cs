@@ -236,6 +236,10 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         /// </remarks>
         private const string PriceSelectorType = "Il2CppScheduleOne.UI.AmountSelector";
         private static readonly string[] DealerData = { "DealerData" };
+        private const string CutMoved = "Dealer.cs:102 until 0.4.5f2, now DealerNPCData.SalesCutPercentage "
+                                      + "(:20) - and the payout reads it from there with the same "
+                                      + "expression the old field was used in (Dealer.cs:1892 against "
+                                      + ":2031 in 0.4.5f2)";
         private const string SigningMoved = "Dealer.cs:100 until 0.4.5f2, now DealerNPCData.cs:17 with the "
                                           + "same 500 default, copied across when a dealer's data is built "
                                           + "(:40) - the same move DealerType made";
@@ -622,6 +626,14 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             // The signing fee went the same way and under the same name. Dealer.cs:100 until 0.4.5f2,
             // DealerNPCData.cs:17 now, with the same 500 default and copied straight across when a
             // dealer's data is built (:40).
+            // The dealer's take went the same way and changed its word: Cut on Dealer until 0.4.5f2
+            // (:102), SalesCutPercentage on the data object now - and Dealer.cs:1892 pays out with
+            // `payment * (1f - DealerData.SalesCutPercentage)`, the same expression :2031 used with Cut.
+            Moved("Il2CppScheduleOne.Economy.Dealer", "Cut", Read, DealerData, "SalesCutPercentage",
+                  CutMoved),
+            Moved("Il2CppScheduleOne.Economy.Dealer", "Cut", Write, DealerData, "SalesCutPercentage",
+                  CutMoved),
+
             Moved("Il2CppScheduleOne.Economy.Dealer", "SigningFee", Write, DealerData, "SigningFee",
                   SigningMoved),
             Moved("Il2CppScheduleOne.Economy.Dealer", "SigningFee", Read, DealerData, "SigningFee",
