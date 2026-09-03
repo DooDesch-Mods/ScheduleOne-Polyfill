@@ -520,6 +520,18 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             // under the same names (MouseController.cs:9,13,25). Reading it is what a mod does with it -
             // "is the cursor up right now" - and the write is bookkeeping in both builds: neither the old
             // field nor the new property moves the cursor by itself.
+            // The two calls that go with the flag. Both bodies are line for line the same in the two
+            // builds, and the argument 0.4.6 added guards exactly the line the old one ran every time -
+            // so true is what reproduces the old behaviour, not a value picked from the declaration.
+            ElsewhereStatic(PlayerCameraType, "LockMouse", 0, MouseControllerType,
+                            "PlayerCamera.cs:523 until 0.4.5f2, now MouseController.cs:11 with the same "
+                          + "body; its showCrosshair guards the line the old one ran unconditionally, so "
+                          + "true is the old behaviour", new object[] { true }),
+            ElsewhereStatic(PlayerCameraType, "FreeMouse", 0, MouseControllerType,
+                            "PlayerCamera.cs:534 until 0.4.5f2, now MouseController.cs:23 with the same "
+                          + "body; its hideCrosshair guards the line the old one ran unconditionally, so "
+                          + "true is the old behaviour", new object[] { true }),
+
             Elsewhere(PlayerCameraType, "get_isCursorShowing", NoParameters, MouseControllerType,
                       CursorMoved, "get_IsMouseVisible"),
             Elsewhere(PlayerCameraType, "set_isCursorShowing", OneBool, MouseControllerType,
@@ -1284,6 +1296,79 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
 
             var il = method.Body.GetILProcessor();
             foreach (var parameter in method.Parameters) il.Emit(OpCodes.Ldarg, parameter);
+            il.Emit(OpCodes.Call, module.ImportReference(target));
+            il.Emit(OpCodes.Ret);
+            return method;
+        }
+
+        /// <summary>
+        /// An instance method whose work moved to a static on another type, which asks for more.
+        /// </summary>
+        /// <remarks>
+        /// Three of the existing shapes each cover a piece of this and none covers it whole: Elsewhere
+        /// moves a static and keeps the signature, NowStatic keeps the type and drops the instance, and
+        /// EmitWithDefaults fills arguments on the same type. This one crosses a type, drops the instance
+        /// AND fills what the new form added.
+        ///
+        /// The emitted method keeps the OLD arity, because that is what the callsite passes. Anything the
+        /// target wants beyond that comes from <paramref name="defaults"/>, and each of those values has
+        /// to be the one that reproduces the old body rather than the one the C# declaration happens to
+        /// default to - they are the same number here and that is a fact to check, not to assume.
+        /// </remarks>
+        private static Bridge ElsewhereStatic(string declaringType, string oldName, int oldParameterCount,
+                                              string nowOn, string because, object[] defaults = null)
+            => new()
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = declaringType,
+                OldName = oldName,
+                ParameterCount = oldParameterCount,
+                Because = because,
+                Emit = (module, type) => EmitElsewhereStatic(module, oldName, oldParameterCount, nowOn,
+                                                             defaults ?? Array.Empty<object>()),
+            };
+
+        private static MethodDefinition EmitElsewhereStatic(ModuleDefinition module, string name,
+                                                            int oldParameterCount, string nowOn,
+                                                            object[] defaults)
+        {
+            var host = module.GetType(nowOn);
+            if (host == null) return null;
+
+            int wanted = oldParameterCount + defaults.Length;
+            MethodDefinition target = null;
+            foreach (var candidate in host.Methods)
+            {
+                if (candidate.Name != name || !candidate.IsStatic
+                    || candidate.Parameters.Count != wanted) continue;
+                if (target != null) return null;               // two that fit; choosing would be a guess
+                target = candidate;
+            }
+            if (target == null || target.HasGenericParameters) return null;
+
+            // The emitted method is an INSTANCE one: the mod calls it on a PlayerCamera, and a static of
+            // the same name does not answer a callsite that carries a `this`.
+            var method = new MethodDefinition(name,
+                MethodAttributes.Public | MethodAttributes.HideBySig,
+                module.ImportReference(target.ReturnType));
+
+            for (int i = 0; i < oldParameterCount; i++)
+                method.Parameters.Add(new ParameterDefinition(target.Parameters[i].Name,
+                                                              ParameterAttributes.None,
+                                                              module.ImportReference(target.Parameters[i].ParameterType)));
+
+            var il = method.Body.GetILProcessor();
+            foreach (var parameter in method.Parameters) il.Emit(OpCodes.Ldarg, parameter);
+            for (int i = 0; i < defaults.Length; i++)
+            {
+                var expects = target.Parameters[oldParameterCount + i].ParameterType;
+                if (defaults[i] is bool flag && expects.MetadataType == MetadataType.Boolean)
+                    il.Emit(flag ? OpCodes.Ldc_I4_1 : OpCodes.Ldc_I4_0);
+                else if (defaults[i] is int number && expects.MetadataType == MetadataType.Int32)
+                    il.Emit(OpCodes.Ldc_I4, number);
+                else
+                    return null;                              // a value this cannot push is not a repair
+            }
             il.Emit(OpCodes.Call, module.ImportReference(target));
             il.Emit(OpCodes.Ret);
             return method;
