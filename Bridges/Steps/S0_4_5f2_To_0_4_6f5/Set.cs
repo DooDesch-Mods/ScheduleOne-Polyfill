@@ -251,6 +251,10 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         /// <summary>NPCMovement is a component, so its path starts at its own back-reference to the NPC -
         /// the same one its surviving getters use.</summary>
         private static readonly string[] NpcSpeed = { "npc", "NPCData", "Movement" };
+
+        /// <summary>NPCHealth reads its own values through the same back-reference the speed does
+        /// (NPCHealth.cs:28, :82), so the write goes down the same path.</summary>
+        private static readonly string[] NpcHealthData = { "npc", "NPCData", "Health" };
         private static readonly string[] SupplierData = { "SupplierData" };
 
         private const string ShopListings = "the same PhoneShopInterface.Listing[]; 0.4.6 keeps it on "
@@ -473,6 +477,14 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
 
             // Walk and run speed became read-only views over the NPC's data object. Writing one wrote the
             // value the getter still reads, so the write goes to the same place.
+            // An NPC's maximum health. 0.4.5f2 had it as a settable field (NPCHealth.cs:32); 0.4.6 keeps
+            // the number on the NPC's own data and reads it back through a getter that cannot be assigned
+            // (:82). The write lands where that getter reads, which is the same field with the same 100
+            // default (Health.cs:8).
+            Moved("Il2CppScheduleOne.NPCs.NPCHealth", "MaxHealth", Write, NpcHealthData, "MaxHealth",
+                  "NPCHealth.cs:32 until 0.4.5f2, now Health.cs:8 - and NPCHealth.cs:82 reads it straight "
+                + "back from there, so a write goes to the value the getter answers with"),
+
             Moved(Movement, "WalkSpeed", Write, NpcSpeed, "WalkSpeed", Speed),
             Moved(Movement, "RunSpeed", Write, NpcSpeed, "SprintSpeed", Speed),
 
