@@ -256,6 +256,13 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                                       + "which every casino game shares; the screen's own BetPanel is the "
                                       + "way in (CasinoGameBetPanel.cs:20,23,26, 38, 103)";
 
+        private const string PlayerCameraType = "Il2CppScheduleOne.PlayerScripts.PlayerCamera";
+        private const string MouseControllerType = "Il2CppScheduleOne.Input.MouseController";
+        private static readonly string[] OneBool = { "System.Boolean" };
+        private const string CursorMoved = "the cursor flag left PlayerCamera for MouseController, which "
+                                         + "0.4.6 added and which its LockMouse and FreeMouse write the "
+                                         + "same way the camera's used to (MouseController.cs:9,13,25)";
+
         private const string PlayerManager = "Il2CppScheduleOne.PlayerScripts.PlayerManager";
         private const string PlayerLookups = "0.4.6 moved the player lookups off Player onto PlayerManager "
                                            + "with the same names, parameters and return type; the game's "
@@ -471,6 +478,17 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             Moved(RouletteTable, "BetSlider", Read, BetPanel, "_betSlider", BetMoved),
             Moved(RouletteTable, "BetAmount", Read, BetPanel, "_betAmount", BetMoved),
             Moved(RouletteTable, "ReadyButton", Read, BetPanel, "_readyButton", BetMoved),
+
+            // THE MOUSE MOVED OFF THE CAMERA. 0.4.5f2 kept the cursor flag on PlayerCamera as a private
+            // static field (PlayerCamera.cs:117) that its own LockMouse and FreeMouse wrote (:525,:536),
+            // and 0.4.6 keeps the same flag as MouseController.IsMouseVisible, written by the same pair
+            // under the same names (MouseController.cs:9,13,25). Reading it is what a mod does with it -
+            // "is the cursor up right now" - and the write is bookkeeping in both builds: neither the old
+            // field nor the new property moves the cursor by itself.
+            Elsewhere(PlayerCameraType, "get_isCursorShowing", NoParameters, MouseControllerType,
+                      CursorMoved, "get_IsMouseVisible"),
+            Elsewhere(PlayerCameraType, "set_isCursorShowing", OneBool, MouseControllerType,
+                      CursorMoved, "set_IsMouseVisible"),
 
             // "Which player is that" was five statics on Player and is five statics on PlayerManager now.
             // Nothing about them changed except where they live, so each is put back where it was called.
@@ -1122,15 +1140,18 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         }
 
         /// <summary>
-        /// A static that kept its name and signature and moved to another type.
+        /// A static that kept its signature and moved to another type, under this name or another one.
         /// </summary>
         /// <remarks>
         /// The parameter types are named rather than counted, because the set that moved carries two pairs
         /// of same-arity overloads - <c>GetPlayer(string)</c> beside <c>GetPlayer(NetworkConnection)</c> -
         /// and picking by count would pick whichever the metadata lists first.
+        ///
+        /// <c>nowCalled</c> is for a move that renamed on the way. It is left null where the name is the
+        /// same, which is most of them, so that a rename is always a thing somebody wrote down.
         /// </remarks>
         private static Bridge Elsewhere(string declaringType, string name, string[] parameters,
-                                        string nowOn, string because)
+                                        string nowOn, string because, string nowCalled = null)
             => new()
             {
                 Assembly = "Assembly-CSharp",
@@ -1140,11 +1161,13 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                 ParameterTypes = parameters,
                 AllowOverload = true,
                 Because = because,
-                Emit = (module, type) => EmitElsewhere(module, type, name, parameters, nowOn),
+                Emit = (module, type) => EmitElsewhere(module, type, name, parameters, nowOn,
+                                                       nowCalled ?? name),
             };
 
         private static MethodDefinition EmitElsewhere(ModuleDefinition module, TypeDefinition owner,
-                                                      string name, string[] parameters, string nowOn)
+                                                      string name, string[] parameters, string nowOn,
+                                                      string nowCalled)
         {
             var host = module.GetType(nowOn);
             if (host == null) return null;
@@ -1152,7 +1175,7 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             MethodDefinition target = null;
             foreach (var candidate in host.Methods)
             {
-                if (candidate.Name != name || !candidate.IsStatic
+                if (candidate.Name != nowCalled || !candidate.IsStatic
                     || candidate.Parameters.Count != parameters.Length) continue;
 
                 bool matches = true;
