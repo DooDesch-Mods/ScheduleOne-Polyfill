@@ -533,6 +533,22 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             NowCalled(Emitter, "set_Database", 1, "set__currentDatabase", VoDatabase),
             NowCalled(Emitter, "get_PitchMultiplier", 0, "get__defaultPitch", VoPitch),
             NowCalled(Emitter, "set_PitchMultiplier", 1, "SetDefaultPitch", VoPitch),
+            // The pursuit level's SyncVar accessor. The property is in the generated assembly and its
+            // accessor METHODS are not: probed on a running 0.4.6f13, get_ and set_ under that name do not
+            // exist, while sync___set_value__CurrentPursuitLevel_k__BackingField(EPursuitLevel, Boolean)
+            // does, and so does set_CurrentPursuitLevel. The archive records no change to any of them
+            // between 0.4.5f2 and 0.4.6, so what moved is how the assembly is generated rather than what
+            // the game has - and a mod that named the accessor is left calling nothing either way.
+            //
+            // WHY THE PROPERTY AND NOT THE SYNC METHOD: CurrentPursuitLevel's own setter is
+            // sync___set_value__...(value, asServer: true) (PlayerCrimeData.cs:119), and the accessor's
+            // getter is `return CurrentPursuitLevel` (:151). One call, and it is the write the game makes
+            // for a plain assignment, rather than a second argument decided here.
+            NowCalled("Il2CppScheduleOne.PlayerScripts.PlayerCrimeData",
+                    "set_SyncAccessor_<CurrentPursuitLevel>k__BackingField", 1, "set_CurrentPursuitLevel",
+                      "the generated assembly carries the property without accessor methods under that "
+                    + "name, and CurrentPursuitLevel's own setter is the same write - its getter is a plain "
+                    + "`return CurrentPursuitLevel` (PlayerCrimeData.cs:151)"),
             NowCalled("Il2CppScheduleOne.UI.Relations.RelationCircle", "get_AssignedNPC_ID", 0, "get_NPCId",
                     "RelationCircle.cs:23 until 0.4.5f2 cached the id in a field; NPCId reads it off the "
                   + "assigned NPC and returns string.Empty for none, which is what the field held"),
