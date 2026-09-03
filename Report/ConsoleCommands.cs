@@ -344,9 +344,24 @@ namespace Polyfill.Report
                 return;
             }
 
+            // ONLY A SCENE TYPE CAN BE LOOKED FOR IN THE SCENE. FindObjectOfType throws rather than
+            // answering null for a type that is not a UnityEngine.Object - a plain configuration class,
+            // say - and that came out as "call FAILED" with an IL2CPP stack, which reads as the member
+            // being broken when the probe simply cannot reach one.
+            UnityEngine.Object found;
             try
             {
-                var found = UnityEngine.Object.FindObjectOfType(Il2CppInterop.Runtime.Il2CppType.From(type));
+                found = UnityEngine.Object.FindObjectOfType(Il2CppInterop.Runtime.Il2CppType.From(type));
+            }
+            catch (Exception e)
+            {
+                Core.Log.Msg("  not called: nothing in the scene can be found of this type ("
+                           + (e.InnerException ?? e).GetType().Name + "), so it is not a MonoBehaviour.");
+                return;
+            }
+
+            try
+            {
                 if (found == null) { Core.Log.Msg("  not called: no instance of this type is in the scene."); return; }
 
                 // FindObjectOfType hands back a UnityEngine.Object wrapper whatever the native type is, and
