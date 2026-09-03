@@ -391,6 +391,14 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             // proof of which member it became: Assigns is the ObjectListField with a MaxItems
             // (BotanistConfiguration.cs:27,61). AssignedSpawnStations is a plain List rebuilt out of it
             // (:117) and has no such property, so it was never the successor however alike the names read.
+            // The delivery app's status display. 0.4.5f2 kept the prefab in a public field
+            // (DeliveryApp.cs:31); 0.4.6 keeps the same DeliveryStatusDisplay in a private one and
+            // instantiates it into the same container (DeliveryApp.cs:67,332). Only the name moved.
+            Moved("Il2CppScheduleOne.UI.Phone.Delivery.DeliveryApp", "StatusDisplayPrefab", Read, NoHops,
+                  "_deliveryStatusDisplayPrefab",
+                  "the same DeliveryStatusDisplay prefab, kept in a private field now and instantiated "
+                + "into the same StatusDisplayContainer (DeliveryApp.cs:332)"),
+
             Moved(BotanistConfig, "AssignedStations", Read, NoHops, "Assigns",
                   "BotanistConfiguration.cs:27 is the same ObjectListField, taking the same pots, racks and "
                 + "beds (:15) with the same cap (:61); only the name moved"),
