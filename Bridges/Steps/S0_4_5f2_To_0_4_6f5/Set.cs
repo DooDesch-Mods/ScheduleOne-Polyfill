@@ -519,11 +519,21 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             Elsewhere(PlayerType, "GetRandomPlayer", new[] { "System.Boolean", "System.Boolean" },
                       PlayerManager, PlayerLookups),
 
-            // GetClosestPlayer moved with them and is NOT here. Its third parameter is an interop list, and
-            // naming that type would put the game's own surface into a plugin that runs before the game
-            // exists - the build refuses the assembly over it, rightly. Arity alone cannot stand in: 0.4.6
-            // added a second three-argument overload taking a single Player, so a count would pick blind.
-            // No mod has asked for it; the day one does, it needs a rule that matches without naming the type.
+            Elsewhere(PlayerType, "AreAllPlayersReadyToSleep", NoParameters, PlayerManager, PlayerLookups),
+
+            // GetClosestPlayer moved with them, and until now it was left out with a note saying why: its
+            // third parameter is an interop list, naming that type would put Il2CppSystem into a plugin
+            // the CI checks for exactly that, and arity alone cannot choose because 0.4.6 added a SECOND
+            // three-argument overload taking a single Player (PlayerManager.cs:305 and :329).
+            //
+            // The note ended "no mod has asked for it; the day one does, it needs a rule that matches
+            // without naming the type". Five mod builds ask for it on the public listing now, so here is
+            // that rule: the overload is chosen by the SHAPE of its third parameter rather than by its
+            // name. One is a generic instance and the other is not, which decides it without a string, and
+            // the emitted signature is built from the parameter Cecil hands back - so the type is never
+            // spelled here at all.
+            ElsewhereByShape(PlayerType, "GetClosestPlayer", 3, PlayerManager, PlayerLookups,
+                             m => m.Parameters[2].ParameterType.IsGenericInstance),
 
             // The station screens that KEPT their name still lost this one to the new shared base.
             FromBase(Stations + "PackagingStationCanvas", "Canvas", "_canvas", StationCanvas),
@@ -1184,6 +1194,70 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                 Emit = (module, type) => EmitElsewhere(module, type, name, parameters, nowOn,
                                                        nowCalled ?? name),
             };
+
+        /// <summary>
+        /// The same move, where which overload it became is decided by shape instead of by name.
+        /// </summary>
+        /// <remarks>
+        /// Polyfill.Boot must not carry the game's type names: it runs before the interop assemblies
+        /// exist, and CI greps the built plugin for Il2CppSystem and friends. So an overload whose
+        /// parameter is an interop generic cannot be picked the way the others are, by writing the type
+        /// out - the string alone would fail the build.
+        ///
+        /// <paramref name="pick"/> decides from the metadata instead. The signature that gets emitted is
+        /// still built from the parameters Cecil hands back, so the name never appears here.
+        /// </remarks>
+        private static Bridge ElsewhereByShape(string declaringType, string name, int parameterCount,
+                                               string nowOn, string because,
+                                               Func<MethodDefinition, bool> pick)
+            => new()
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = declaringType,
+                OldName = name,
+                ParameterCount = parameterCount,
+                AllowOverload = true,
+                Because = because,
+                Emit = (module, type) => EmitPicked(module, type, name, parameterCount, nowOn, pick),
+            };
+
+        private static MethodDefinition EmitPicked(ModuleDefinition module, TypeDefinition owner,
+                                                   string name, int parameterCount, string nowOn,
+                                                   Func<MethodDefinition, bool> pick)
+        {
+            var host = module.GetType(nowOn);
+            if (host == null) return null;
+
+            MethodDefinition target = null;
+            foreach (var candidate in host.Methods)
+            {
+                if (candidate.Name != name || !candidate.IsStatic
+                    || candidate.Parameters.Count != parameterCount) continue;
+
+                bool fits;
+                try { fits = pick(candidate); }
+                catch { return null; }                        // a shape test that throws has not decided
+                if (!fits) continue;
+
+                if (target != null) return null;              // two that fit; choosing would be a guess
+                target = candidate;
+            }
+            if (target == null || target.HasGenericParameters) return null;
+
+            var method = new MethodDefinition(name,
+                MethodAttributes.Public | MethodAttributes.Static | MethodAttributes.HideBySig,
+                module.ImportReference(target.ReturnType));
+
+            foreach (var parameter in target.Parameters)
+                method.Parameters.Add(new ParameterDefinition(parameter.Name, ParameterAttributes.None,
+                                                              module.ImportReference(parameter.ParameterType)));
+
+            var il = method.Body.GetILProcessor();
+            foreach (var parameter in method.Parameters) il.Emit(OpCodes.Ldarg, parameter);
+            il.Emit(OpCodes.Call, module.ImportReference(target));
+            il.Emit(OpCodes.Ret);
+            return method;
+        }
 
         private static MethodDefinition EmitElsewhere(ModuleDefinition module, TypeDefinition owner,
                                                       string name, string[] parameters, string nowOn,
