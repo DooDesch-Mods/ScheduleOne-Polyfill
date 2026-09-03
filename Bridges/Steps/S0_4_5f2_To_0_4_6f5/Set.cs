@@ -652,6 +652,13 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                         + "null, so this answers the empty string there instead of throwing",
                 Emit = EmitNpcFullName,
             },
+            // The dialogue screen kept the question and changed the word for it. Both builds answer
+            // "is a handler attached": `currentHandler != null` at DialogueCanvas.cs:57 in 0.4.5f2 and
+            // the same expression at :60 now, under IsOpen.
+            NowCalled("Il2CppScheduleOne.UI.DialogueCanvas", "get_isActive", 0, "get_IsOpen",
+                      "DialogueCanvas.cs:57 until 0.4.5f2 and :60 now - the same `currentHandler != null`, "
+                    + "renamed from isActive to IsOpen"),
+
             NowCalled("Il2CppScheduleOne.UI.Relations.RelationCircle", "get_AssignedNPC_ID", 0, "get_NPCId",
                     "RelationCircle.cs:23 until 0.4.5f2 cached the id in a field; NPCId reads it off the "
                   + "assigned NPC and returns string.Empty for none, which is what the field held"),
