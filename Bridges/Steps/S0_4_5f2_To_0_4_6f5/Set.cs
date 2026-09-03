@@ -160,6 +160,8 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         private static readonly string[] Interaction = { "NPCData", "Interaction" };
         private static readonly string[] Messaging = { "NPCData", "Messaging" };
 
+        private const string SpeedController = "Il2CppScheduleOne.NPCs.NPCSpeedController";
+
         /// <summary>NPCInventory is a component, not the NPC, so its path starts at its own back-reference -
         /// the same one the component itself now reads through (NPCInventory.cs:62, 113, 122).</summary>
         private static readonly string[] Inventory = { "_npc", "NPCData", "Inventory" };
@@ -426,6 +428,15 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                   "NPC.cs:71 until 0.4.5f2, now Appearance.Mugshot"),
             Moved(Npc, "CanBeSummoned", Write, Interaction, "CanBeSummoned", Summon),
             Moved(Npc, "CanBeSummoned", Read, Interaction, "CanBeSummoned", Summon),
+
+            // An NPC's default walk speed. 0.4.5f2 had it as a public field on the controller
+            // (NPCSpeedController.cs:29) and never assigned it anywhere: every use in that build reads it
+            // - NPCActions.cs:110 and four places in NPCSignal_WaitForDelivery. 0.4.6 says so outright,
+            // as `public const float DefaultNormalizedSpeed = 0.08f` (NPCSpeedController.cs:27), the same
+            // number. So the value stopped varying per controller, which it never did.
+            NowStatic(SpeedController, "get_DefaultWalkSpeed", 0, "get_DefaultNormalizedSpeed",
+                      "NPCSpeedController.cs:29 until 0.4.5f2, where nothing ever wrote it; 0.4.6 makes it "
+                    + "the const DefaultNormalizedSpeed = 0.08f (:27), the same value it was initialised to"),
 
             // Whether an NPC's chat can be hidden. Nine mod builds on the public listing block on the
             // setter alone, which is the most of any member gap there.
@@ -2008,6 +2019,53 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         }
 
         /// <summary>A method with the target's signature under the old name, whose body is one call.</summary>
+        /// <summary>
+        /// An instance member whose value the game made the same for everyone.
+        /// </summary>
+        /// <remarks>
+        /// The mirror of <see cref="Elsewhere"/>: that one keeps the shape and changes the type, this one
+        /// keeps the type and changes the shape. The old member is called on an instance, so what is put
+        /// back has to be an instance method - a static of the same name does not answer a callsite that
+        /// carries a `this`, and EmitCall would emit exactly that, because it copies the staticness of
+        /// whatever it found.
+        ///
+        /// The instance is then dropped, which is the whole claim being made: the value no longer varies
+        /// per object. That is only honest where nothing ever wrote the old member, so the Because has to
+        /// say where that was checked.
+        /// </remarks>
+        private static Bridge NowStatic(string declaringType, string oldName, int parameterCount,
+                                        string newName, string because)
+            => new()
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = declaringType,
+                OldName = oldName,
+                ParameterCount = parameterCount,
+                Because = because,
+                Emit = (module, type) => EmitFromStatic(module, type, oldName, newName, parameterCount),
+            };
+
+        private static MethodDefinition EmitFromStatic(ModuleDefinition module, TypeDefinition type,
+                                                       string oldName, string newName, int parameterCount)
+        {
+            var target = Method(type, newName, parameterCount);
+            if (target == null || !target.IsStatic || target.HasGenericParameters) return null;
+
+            var method = new MethodDefinition(oldName,
+                MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName,
+                module.ImportReference(target.ReturnType));
+
+            foreach (var parameter in target.Parameters)
+                method.Parameters.Add(new ParameterDefinition(parameter.Name, ParameterAttributes.None,
+                                                              module.ImportReference(parameter.ParameterType)));
+
+            var il = method.Body.GetILProcessor();
+            foreach (var parameter in method.Parameters) il.Emit(OpCodes.Ldarg, parameter);
+            il.Emit(OpCodes.Call, module.ImportReference(target));
+            il.Emit(OpCodes.Ret);
+            return method;
+        }
+
         private static MethodDefinition EmitCall(ModuleDefinition module, TypeDefinition type,
                                                  string oldName, string newName, int parameterCount,
                                                  string[] keptArgumentNames = null)
