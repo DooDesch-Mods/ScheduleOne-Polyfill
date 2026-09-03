@@ -549,6 +549,20 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                       "the generated assembly carries the property without accessor methods under that "
                     + "name, and CurrentPursuitLevel's own setter is the same write - its getter is a plain "
                     + "`return CurrentPursuitLevel` (PlayerCrimeData.cs:151)"),
+            // An NPC's name. The version history already answers this one with get_FullName, and that IS
+            // the successor - but the two do not fail the same way, so the rename alone hands mods a throw
+            // where the old member could not produce one. See EmitNpcFullName.
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = "Il2CppScheduleOne.NPCs.NPC",
+                OldName = "get_fullName",
+                ParameterCount = 0,
+                Because = "0.4.6 renamed fullName to FullName and moved the names it reads behind NPCData, "
+                        + "which is null until an NPC is set up - the old one read fields that were never "
+                        + "null, so this answers the empty string there instead of throwing",
+                Emit = EmitNpcFullName,
+            },
             NowCalled("Il2CppScheduleOne.UI.Relations.RelationCircle", "get_AssignedNPC_ID", 0, "get_NPCId",
                     "RelationCircle.cs:23 until 0.4.5f2 cached the id in a field; NPCId reads it off the "
                   + "assigned NPC and returns string.Empty for none, which is what the field held"),
@@ -2626,6 +2640,56 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         /// short name silently found nothing - the emitter then answered null and the whole bridge was
         /// refused with a message that names no member.
         /// </remarks>
+        /// <summary>
+        /// An NPC's full name, and the empty string where the old member would have given one.
+        /// </summary>
+        /// <remarks>
+        /// 0.4.5f2 read three plain fields, each initialised to <c>string.Empty</c> at its declaration
+        /// (NPC.cs:63,65,67), so <c>fullName</c> could not throw and answered "" before an NPC was named.
+        /// 0.4.6 renamed it FullName and put the names behind NPCData: <c>NPCData.BasicInfo.FirstName</c>
+        /// (NPC.cs:135,139-148). NPCData is a property with a private setter and is null until the NPC is
+        /// built, so the same read now throws.
+        ///
+        /// The rename is right and the failure mode is not, and a mod cannot tell the difference until it
+        /// does. NastyMod is on the public listing with an exception on NPC.get_FullName in 12 sessions,
+        /// against a member Polyfill itself pointed it at.
+        ///
+        /// So the guard is the repair: no NPCData, or no BasicInfo behind it, answers the empty string -
+        /// which is what the fields held at that moment - and everything else is the game's own FullName.
+        /// </remarks>
+        private static MethodDefinition EmitNpcFullName(ModuleDefinition module, TypeDefinition npc)
+        {
+            var data = Getter(npc, "NPCData");
+            var full = Getter(npc, "FullName");
+            var basic = Getter(data?.ReturnType?.Resolve(), "BasicInfo");
+            if (data == null || full == null || basic == null) return null;
+            if (full.ReturnType.MetadataType != MetadataType.String) return null;
+
+            var method = new MethodDefinition("get_fullName",
+                MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName,
+                module.TypeSystem.String);
+
+            var il = method.Body.GetILProcessor();
+            var empty = il.Create(OpCodes.Ldstr, "");
+
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(data));
+            il.Emit(OpCodes.Brfalse, empty);
+
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(data));
+            il.Emit(OpCodes.Callvirt, module.ImportReference(basic));
+            il.Emit(OpCodes.Brfalse, empty);
+
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(full));
+            il.Emit(OpCodes.Ret);
+
+            il.Append(empty);
+            il.Emit(OpCodes.Ret);
+            return method;
+        }
+
         private static TypeDefinition Base(TypeDefinition type, string name)
         {
             for (var current = type; current != null; current = current.BaseType?.Resolve())
