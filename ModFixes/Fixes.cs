@@ -55,6 +55,7 @@ namespace Polyfill.ModFixes
             new OverTheCounterSmartFill(),
             new OverTheCounterHandover(),
             new MeetPointsLobbyChat(),
+            new MoreRealisticSleepingPhoneFonts(),
             new SupplierMeetingNeverStarts(),
             new PhoneAppIconWithoutFile(),
             new ThmButtonCodes(),
