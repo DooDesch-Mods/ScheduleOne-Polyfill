@@ -662,14 +662,26 @@ namespace Polyfill.Core
             if (authored != null)
             {
                 hint = "hand-written rule: " + authored.Because;
+
+                // THE BRIDGE'S OWN TYPES, NOT THE CALLER'S, and the difference is a repair reported as
+                // failed. The key carries the parameter types, so a request naming the call's types and the
+                // Harmony pass's request naming the bridge's produced two keys for ONE bridge - the second
+                // survived the deduplication, reached the injector, and was refused as "the name is already
+                // taken here" by the first. That refusal is what the public listing shows, so
+                // DealOptimizer read blocked over CounterofferInterface::ChangePrice while the repair had
+                // gone in, and Tweakables the same over AmountSelector::get_Price.
+                //
+                // Nothing is lost by using the bridge's: Find has just matched this bridge against the
+                // call's types, so a bridge that names its own fits them, and one that names none was
+                // never choosing by them.
                 repairKey = Collect(new InteropAugmentor.MemberForward
                 {
-                    InAssembly = scope,
-                    DeclaringType = declaring.FullName,
-                    OldName = wanted.Name,
+                    InAssembly = authored.Assembly,
+                    DeclaringType = authored.DeclaringType,
+                    OldName = authored.OldName,
                     NewName = null,
-                    ParameterCount = parameters,
-                    ParameterTypes = parameterTypes,
+                    ParameterCount = authored.ParameterCount,
+                    ParameterTypes = authored.ParameterTypes,
                     Rule = "curated",
                 });
             }
