@@ -236,6 +236,9 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         /// </remarks>
         private const string PriceSelectorType = "Il2CppScheduleOne.UI.AmountSelector";
         private static readonly string[] DealerData = { "DealerData" };
+        private const string SigningMoved = "Dealer.cs:100 until 0.4.5f2, now DealerNPCData.cs:17 with the "
+                                          + "same 500 default, copied across when a dealer's data is built "
+                                          + "(:40) - the same move DealerType made";
 
         private const string Movement = "Il2CppScheduleOne.NPCs.NPCMovement";
         private const string Amount = "Il2CppScheduleOne.UI.AmountSelector";
@@ -591,6 +594,14 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             Moved("Il2CppScheduleOne.Economy.Dealer", "DealerType", Read, DealerData, "DealerType",
                   "Dealer.cs held the type itself until 0.4.5f2; 0.4.6 keeps every dealer-specific value "
                 + "on DealerNPCData and Dealer.DealerData is the way in"),
+
+            // The signing fee went the same way and under the same name. Dealer.cs:100 until 0.4.5f2,
+            // DealerNPCData.cs:17 now, with the same 500 default and copied straight across when a
+            // dealer's data is built (:40).
+            Moved("Il2CppScheduleOne.Economy.Dealer", "SigningFee", Write, DealerData, "SigningFee",
+                  SigningMoved),
+            Moved("Il2CppScheduleOne.Economy.Dealer", "SigningFee", Read, DealerData, "SigningFee",
+                  SigningMoved),
 
             // Members that were renamed past what a name rule can see: the new name shares no stem with the
             // old one, or it stopped being an accessor. Each one is a member of the same type holding the
