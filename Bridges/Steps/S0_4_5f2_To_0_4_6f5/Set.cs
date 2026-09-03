@@ -667,6 +667,13 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             // The dialogue screen kept the question and changed the word for it. Both builds answer
             // "is a handler attached": `currentHandler != null` at DialogueCanvas.cs:57 in 0.4.5f2 and
             // the same expression at :60 now, under IsOpen.
+            // The player's appearance kept its type and its job and changed its word. Both builds write
+            // the same line - `appearanceString = (X != null) ? X.GetJson() : string.Empty` at
+            // Player.cs:865 in 0.4.5f2 and :754 now - and both declare it the same way.
+            NowCalled(PlayerType, "get_CurrentAvatarSettings", 0, "get_CurrentBasicAppearance",
+                      "Player.cs:450 until 0.4.5f2, now :415 as CurrentBasicAppearance - the same "
+                    + "BasicAvatarSettings with the same protected setter, saved by the same line (:754)"),
+
             NowCalled("Il2CppScheduleOne.UI.DialogueCanvas", "get_isActive", 0, "get_IsOpen",
                       "DialogueCanvas.cs:57 until 0.4.5f2 and :60 now - the same `currentHandler != null`, "
                     + "renamed from isActive to IsOpen"),
