@@ -250,10 +250,11 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         private const string LobbyType = "Il2CppScheduleOne.Networking.Lobby";
 
         private const string Blackjack = "Il2CppScheduleOne.Casino.UI.BlackjackInterface";
+        private const string RouletteTable = "Il2CppScheduleOne.Casino.UI.RTBInterface";
         private static readonly string[] BetPanel = { "BetPanel" };
-        private const string BetMoved = "the betting half of the blackjack screen became CasinoGameBetPanel, "
-                                      + "which every casino game shares; BlackjackInterface.BetPanel is the "
-                                      + "way in (CasinoGameBetPanel.cs:20, 38, 103)";
+        private const string BetMoved = "the betting half of a casino screen became CasinoGameBetPanel, "
+                                      + "which every casino game shares; the screen's own BetPanel is the "
+                                      + "way in (CasinoGameBetPanel.cs:20,23,26, 38, 103)";
 
         private const string PlayerManager = "Il2CppScheduleOne.PlayerScripts.PlayerManager";
         private const string PlayerLookups = "0.4.6 moved the player lookups off Player onto PlayerManager "
@@ -458,9 +459,18 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             // casino game now shares. The slider, the handler on its onValueChanged and the label refresh
             // all went together, so all three are reached through the panel the screen holds.
             Moved(Blackjack, "BetSlider", Read, BetPanel, "_betSlider", BetMoved),
+            Moved(Blackjack, "BetAmount", Read, BetPanel, "_betAmount", BetMoved),
+            Moved(Blackjack, "ReadyButton", Read, BetPanel, "_readyButton", BetMoved),
             Onto(Blackjack, "BetSliderChanged", 1, BetPanel, "BetSliderChanged", BetMoved,
                  new[] { "newValue" }),
             Onto(Blackjack, "RefreshDisplayedBet", 0, BetPanel, "RefreshDisplayedBet", BetMoved),
+
+            // ROULETTE HAS THE SAME PANEL AND WAS MISSED. RTBInterface holds its own
+            // `public CasinoGameBetPanel BetPanel` (RTBInterface.cs:21) and lost the same three fields to
+            // it, so a mod that touches both tables was repaired on one and not the other.
+            Moved(RouletteTable, "BetSlider", Read, BetPanel, "_betSlider", BetMoved),
+            Moved(RouletteTable, "BetAmount", Read, BetPanel, "_betAmount", BetMoved),
+            Moved(RouletteTable, "ReadyButton", Read, BetPanel, "_readyButton", BetMoved),
 
             // "Which player is that" was five statics on Player and is five statics on PlayerManager now.
             // Nothing about them changed except where they live, so each is put back where it was called.
