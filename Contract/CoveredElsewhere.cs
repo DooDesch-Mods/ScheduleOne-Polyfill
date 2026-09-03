@@ -62,6 +62,16 @@ namespace Polyfill.Contract
                         + "change it announced is raised again when a mod replaces the setter that used "
                         + "to raise it",
             },
+
+            new Entry
+            {
+                Type = "Il2CppScheduleOne.UI.Handover.HandoverScreen",
+                Member = "get_OriginalItemLocations",
+                FixId = "otc-smart-fill-tracking",
+                Because = "the dictionary and the nested enum it was keyed by are both gone, and nothing "
+                        + "of that shape can be handed back - but it was write-only bookkeeping even in "
+                        + "0.4.5f2, so the fix drops the call instead of answering it",
+            },
         };
 
         /// <summary>The fix covering this member, or null when nothing does.</summary>
