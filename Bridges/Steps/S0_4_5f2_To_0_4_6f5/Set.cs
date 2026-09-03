@@ -2777,12 +2777,33 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         ///
         /// An id that does not parse is skipped rather than turned into zero: zero is <c>Nil</c>, and Nil
         /// in a list of real players is a member that is not there.
+        ///
+        /// IT IS NEVER NULL, and it used to be. The 0.4.5f2 member is a FIELD whose array is built at the
+        /// declaration - <c>public CSteamID[] Players = new CSteamID[4];</c> (Lobby.cs:25) - so no caller
+        /// has ever had to check it, and the game's own code does not: <c>Players.Length</c> at :47,
+        /// <c>Players[0]</c> at :49, <c>Players.Count(...)</c> at :71. Answering null where the member was
+        /// never null hands the caller a NullReferenceException with nothing in the trace naming Polyfill.
+        ///
+        /// The empty answer is a zero-length array and not four Nils, for the reason above: the length is
+        /// the number of members, and outside a lobby that is none.
+        ///
+        /// THE SERVICE IS CHECKED FIRST because <c>Lobby.GetLobbyMemberIDs()</c> does not check it -
+        /// <c>return _lobbyService.GetPlayerIds();</c> (Lobby.cs:145) throws when the field is not set yet,
+        /// which is every call before Awake has run. That throw is the reachable half: neither shipped
+        /// service answers null (SteamLobbyService.cs:180 builds a list, MockLobbyService.cs:45 returns
+        /// one), so the null branch was reached through an exception rather than through a null.
+        ///
+        /// WHAT THIS IS NOT KNOWN TO FIX: StackPro is on the public listing with NullReferenceException out
+        /// of <c>List.Exists</c> and <c>EqualityComparer.get_Default</c>, and it asks for this member. Both
+        /// of those are also what an IL2CPP generic instantiation that was never compiled looks like, and
+        /// the mod is not installed here, so the connection is a suspicion and not a measurement.
         /// </remarks>
         private static MethodDefinition EmitLobbyPlayers(ModuleDefinition module, TypeDefinition lobby)
         {
             var ids = Method(lobby, "GetLobbyMemberIDs", 0);
             var steamId = SteamType(module, "CSteamID");
-            if (ids == null || steamId == null) return null;
+            var service = Getter(lobby, "_lobbyService");
+            if (ids == null || steamId == null || service == null) return null;
 
             // THE CALLS HAVE TO NAME List<string>, NOT List<T>. Cecil resolves the return type to the open
             // definition, and a reference built from that describes a method on the open generic - which is
@@ -2823,10 +2844,14 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             method.Body.InitLocals = true;
 
             var il = method.Body.GetILProcessor();
-            var empty = il.Create(OpCodes.Ldnull);
+            var empty = il.Create(OpCodes.Ldc_I4_0);
             var test = il.Create(OpCodes.Ldloc, readSlot);
             var next = il.Create(OpCodes.Ldloc, readSlot);
             var body = il.Create(OpCodes.Nop);
+
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, module.ImportReference(service));
+            il.Emit(OpCodes.Brfalse, empty);
 
             il.Emit(OpCodes.Ldarg_0);
             il.Emit(OpCodes.Callvirt, module.ImportReference(ids));
@@ -2874,7 +2899,9 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             il.Emit(OpCodes.Ldloc, resultSlot);
             il.Emit(OpCodes.Ret);
 
-            il.Append(empty);
+            il.Append(empty);                                 // ldc.i4.0 - the length, not a null
+            il.Emit(OpCodes.Conv_I8);
+            il.Emit(OpCodes.Newobj, arraySize);
             il.Emit(OpCodes.Ret);
             return method;
         }
