@@ -53,6 +53,7 @@ namespace Polyfill.ModFixes
             new OverTheCounterClipboard(),
             new OverTheCounterStalePanel(),
             new OverTheCounterHandover(),
+            new MeetPointsLobbyChat(),
             new SupplierMeetingNeverStarts(),
             new PhoneAppIconWithoutFile(),
             new ThmButtonCodes(),
