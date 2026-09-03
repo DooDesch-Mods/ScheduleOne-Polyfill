@@ -496,6 +496,8 @@ namespace Polyfill.Core
             catch { return null; }
         }
 
+        internal static MethodDefinition PointerConstructorOf(TypeDefinition type) => PointerConstructor(type);
+
         private static MethodDefinition PointerConstructor(TypeDefinition type)
         {
             foreach (var candidate in type.Methods)

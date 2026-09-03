@@ -493,7 +493,9 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                 DeclaringType = LobbyType,
                 OldName = "get_LobbySteamID",
                 ParameterCount = 0,
-                Because = "Lobby.cs:59 until 0.4.5f2 was `new CSteamID(LobbyID)`, and LobbyID is still here",
+                Because = "the id moved into the lobby service: Lobby.LobbyID is still declared and "
+                        + "0.4.6 writes it nowhere, so this reads SteamLobbyService._lobbyID, which "
+                        + "is set when a lobby is created or entered (SteamLobbyService.cs:210,237)",
                 Emit = EmitLobbySteamId,
             },
             new Bridge
@@ -2596,12 +2598,71 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             return null;
         }
 
-        /// <summary><c>new CSteamID(this.LobbyID)</c> - the 0.4.5f2 body, unchanged.</summary>
+
+        /// <summary>The named type in this one's base chain, or null.</summary>
+        /// <remarks>
+        /// Matched on the SHORT name. Il2CppObjectBase is spelled
+        /// Il2CppInterop.Runtime.InteropTypes.Il2CppObjectBase in metadata, and comparing that against a
+        /// short name silently found nothing - the emitter then answered null and the whole bridge was
+        /// refused with a message that names no member.
+        /// </remarks>
+        private static TypeDefinition Base(TypeDefinition type, string name)
+        {
+            for (var current = type; current != null; current = current.BaseType?.Resolve())
+                if (current.Name == name) return current;
+            return null;
+        }
+
+        /// <summary>
+        /// The lobby's Steam id, read from the service that actually keeps it.
+        /// </summary>
+        /// <remarks>
+        /// NOT <c>new CSteamID(this.LobbyID)</c>, which is what this emitted until it was checked. That was
+        /// the 0.4.5f2 body and it still compiles, because <c>Lobby.LobbyID</c> is still declared
+        /// (Lobby.cs:32) - but 0.4.6 assigns it NOWHERE. An exhaustive search of the build finds not one
+        /// write to it. So the bridge reported "applied" and handed every caller CSteamID(0), which is the
+        /// exact failure this project exists to prevent: a repair that looks like one.
+        ///
+        /// What it costs is not theoretical. HUB - MeetPoints rereads each lobby chat message with
+        /// <c>GetLobbyChatEntry(lobby.LobbySteamID, ...)</c>; with a zero id that call returns nothing and
+        /// the mod's whole meet-point protocol is silent. HUB - Dispensary and StackPro ask for the same
+        /// member.
+        ///
+        /// The id lives in <c>SteamLobbyService._lobbyID</c>, written when a lobby is created or entered
+        /// (SteamLobbyService.cs:210,237) and cleared on leaving (:102). Lobby holds that service in
+        /// <c>_lobbyService</c>, typed as the interface, which carries no id of its own - so this reaches
+        /// through the pointer.
+        ///
+        /// THROUGH THE POINTER, not a cast. Two interop wrappers around one native object are unrelated
+        /// managed types, so castclass fails and <c>as</c> answers null; building a SteamLobbyService
+        /// wrapper from the interface wrapper's own Pointer is how interop code crosses that line.
+        ///
+        /// A null service answers CSteamID(0), which is what "not in a lobby" means and what every caller
+        /// already handles.
+        /// </remarks>
         private static MethodDefinition EmitLobbySteamId(ModuleDefinition module, TypeDefinition lobby)
         {
-            var id = Getter(lobby, "LobbyID");
             var steamId = SteamType(module, "CSteamID");
-            if (id == null || steamId == null) return null;
+            var service = Getter(lobby, "_lobbyService");
+            var steamService = module.GetType("Il2CppScheduleOne.Networking.SteamLobbyService");
+            if (steamId == null || service == null || steamService == null) return null;
+
+            var id = Getter(steamService, "_lobbyID");
+            var pointer = Getter(service.ReturnType?.Resolve(), "Pointer")
+                       ?? Getter(Base(service.ReturnType?.Resolve(), "Il2CppObjectBase"), "Pointer");
+            var fromPointer = Core.ShadowTypes.PointerConstructorOf(steamService);
+
+            // THROWN, NOT NULL, and the difference is deliberate. Null is the designed answer for "this
+            // build does not have what the rule needs", and the injector reports it as such - without
+            // naming the member, because on another build any of them could be the missing one. Here all
+            // four exist on every build this step covers, so a null is a name I got wrong, and the report
+            // said only "needs members this build does not have" while I read the wrong file for a round.
+            // The injector turns a throw into the same refusal plus the message.
+            if (id == null) throw new InvalidOperationException("SteamLobbyService._lobbyID is not here");
+            if (pointer == null) throw new InvalidOperationException(
+                "Il2CppObjectBase.Pointer is not reachable from " + service.ReturnType?.Name);
+            if (fromPointer == null) throw new InvalidOperationException(
+                "SteamLobbyService has no pointer constructor");
 
             MethodDefinition constructor = null;
             foreach (var candidate in steamId.Methods)
@@ -2613,9 +2674,28 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             var method = new MethodDefinition("get_LobbySteamID",
                 MethodAttributes.Public | MethodAttributes.HideBySig, module.ImportReference(steamId));
 
-            var il = method.Body.GetILProcessor();
+            var body = method.Body;
+            var held = new VariableDefinition(module.ImportReference(service.ReturnType));
+            body.Variables.Add(held);
+
+            var il = body.GetILProcessor();
+            var none = il.Create(OpCodes.Ldc_I4_0);
+
             il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, module.ImportReference(service));
+            il.Emit(OpCodes.Stloc, held);
+            il.Emit(OpCodes.Ldloc, held);
+            il.Emit(OpCodes.Brfalse, none);
+
+            il.Emit(OpCodes.Ldloc, held);
+            il.Emit(OpCodes.Call, module.ImportReference(pointer));
+            il.Emit(OpCodes.Newobj, module.ImportReference(fromPointer));
             il.Emit(OpCodes.Call, module.ImportReference(id));
+            il.Emit(OpCodes.Newobj, module.ImportReference(constructor));
+            il.Emit(OpCodes.Ret);
+
+            il.Append(none);                                  // no service: the same answer as no lobby
+            il.Emit(OpCodes.Conv_U8);
             il.Emit(OpCodes.Newobj, module.ImportReference(constructor));
             il.Emit(OpCodes.Ret);
             return method;
