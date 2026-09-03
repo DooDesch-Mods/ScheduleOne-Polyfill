@@ -45,6 +45,18 @@ namespace Polyfill.Bridges
         internal Func<ModuleDefinition, TypeDefinition, MethodDefinition> Emit;
 
         /// <summary>
+        /// The full name of a type this rule's emitter brings into being, when it does.
+        /// </summary>
+        /// <remarks>
+        /// A member whose type the game deleted needs that type back before the member can name it, so a
+        /// few emitters create one. Nothing else knew: the type check said "type no longer exists" while
+        /// the running game had it, and the mod read as blocked over a name that was right there. Stating
+        /// it here means the type finding carries this rule's outcome - applied when the member was
+        /// emitted, refused when it was not, which is exactly when the type is and is not there.
+        /// </remarks>
+        internal string Creates;
+
+        /// <summary>
         /// The old parameter types, by full name, when the count alone picks the wrong overload.
         /// </summary>
         /// <remarks>

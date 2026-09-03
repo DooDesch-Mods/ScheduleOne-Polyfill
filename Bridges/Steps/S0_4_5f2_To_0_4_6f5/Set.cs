@@ -367,6 +367,7 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                         + "behind (NPCFieldUI.cs:79 logs \"NPCSelector not implemented\"). The only use is "
                         + "a null check for \"is that screen open\", and a screen that does not exist is "
                         + "not open - see Removed.cs for why answering costs less than refusing",
+                Creates = Removed.NpcSelector,
                 Emit = Removed.EmitNpcSelectorGetter,
             },
 

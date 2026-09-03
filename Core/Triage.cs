@@ -281,6 +281,27 @@ namespace Polyfill.Core
                 string repairKey = null;
                 TypeDefinition became = null;
 
+                // A TYPE A RULE CREATES IS NOT MISSING. A member whose type the game deleted needs the type
+                // back before the member can name it, so a few emitters make one - and nothing here knew,
+                // so the report said "type no longer exists" about a name the running game had, and the
+                // mod read as blocked over it. The finding carries that rule's key, so it says applied when
+                // the member was emitted and refused when it was not, which is when the type is and is not
+                // there.
+                var creator = Bridges.Registry.Creator(scope, reference.FullName);
+                if (creator != null)
+                {
+                    report.Findings.Add(new Finding
+                    {
+                        Kind = (index.Kind(scope) == "game" ? "" : "library-") + "type",
+                        Scope = scope, Symbol = reference.FullName,
+                        Reason = $"type no longer exists in {scope}, and nothing replaced it",
+                        Hint = "an empty stand-in, made by the rule for "
+                             + creator.DeclaringType + "::" + creator.OldName + ": " + creator.Because,
+                        RepairKey = Key(creator),
+                    });
+                    continue;
+                }
+
                 // A person naming the pair outranks a name that merely matches, for the same reason a
                 // bridge outranks a spelling rule on a member: one of the two was read out of both builds.
                 var renamed = Bridges.Registry.FindType(scope, reference.FullName);
@@ -328,6 +349,15 @@ namespace Polyfill.Core
                     _forwards.Add(forward);
                     repairKey = forward.Key;
                     if (forward.ByNativeClass) standIns[reference.FullName] = forward;
+                }
+
+                // A type nothing can stand in for, whose only use a named fix takes out. Said as a hint
+                // and not an outcome, like the member form: this knows a fix EXISTS, not that it ran.
+                if (string.IsNullOrEmpty(hint))
+                {
+                    var covered = CoveredElsewhere.ForType(reference.FullName);
+                    if (covered != null)
+                        hint = "covered by the fix " + covered.FixId + ": " + covered.Because;
                 }
 
                 report.Findings.Add(new Finding
@@ -806,6 +836,23 @@ namespace Polyfill.Core
             _members.Add(member);
             return member.Key;
         }
+
+        /// <summary>
+        /// The key a bridge's repair will be recorded under, without asking for the repair.
+        /// </summary>
+        /// <remarks>
+        /// Built through MemberForward rather than written out, so a finding that borrows another repair's
+        /// outcome cannot go on matching a key format that has since changed - which would show as an
+        /// outcome that never arrives rather than as an error.
+        /// </remarks>
+        private static string Key(Bridges.Bridge bridge) => new InteropAugmentor.MemberForward
+        {
+            InAssembly = bridge.Assembly,
+            DeclaringType = bridge.DeclaringType,
+            OldName = bridge.OldName,
+            ParameterCount = bridge.ParameterCount,
+            ParameterTypes = bridge.ParameterTypes,
+        }.Key;
 
         /// <summary>The same, for the Harmony pass - a patch target is a reason to repair too.</summary>
         internal static string Request(InteropAugmentor.MemberForward member) => Collect(member);

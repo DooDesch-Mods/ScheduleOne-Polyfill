@@ -41,7 +41,10 @@ namespace Polyfill.Contract
             /// <summary>The type as the mod spells it, interop-side.</summary>
             internal string Type;
 
-            /// <summary>The member, accessor spelling included: get_X for a field or property.</summary>
+            /// <summary>
+            /// The member, accessor spelling included: get_X for a field or property. Null for the type
+            /// itself, which is what a fix that deletes the only use of a deleted type covers.
+            /// </summary>
             internal string Member;
 
             /// <summary>The fix that restores what the member was for.</summary>
@@ -72,6 +75,17 @@ namespace Polyfill.Contract
                         + "of that shape can be handed back - but it was write-only bookkeeping even in "
                         + "0.4.5f2, so the fix drops the call instead of answering it",
             },
+
+            new Entry
+            {
+                Type = "Il2CppScheduleOne.UI.Handover.HandoverScreen/EItemSource",
+                Member = null,                              // the type itself
+                FixId = "otc-smart-fill-tracking",
+                Because = "the enum only ever typed HandoverScreen.OriginalItemLocations, and 0.4.6 deleted "
+                        + "both - a copy would have its own identity and could not satisfy the signature. "
+                        + "The one method that names it is OverTheCounter's TrackItemAsPlayer, and the fix "
+                        + "takes the call to it out, so nothing reaches the name",
+            },
         };
 
         /// <summary>The fix covering this member, or null when nothing does.</summary>
@@ -81,6 +95,23 @@ namespace Polyfill.Contract
             foreach (var entry in All)
                 if (string.Equals(entry.Type, type, StringComparison.Ordinal)
                     && string.Equals(entry.Member, member, StringComparison.Ordinal))
+                    return entry;
+            return null;
+        }
+
+        /// <summary>
+        /// The fix that answers for the whole type, or null.
+        /// </summary>
+        /// <remarks>
+        /// A type with no successor cannot be stood in for, and a method that names one will not compile.
+        /// A fix that takes the naming line out answers the finding as completely as a stand-in would -
+        /// and without this the report kept the mod at "blocked" over a name nothing reaches any more.
+        /// </remarks>
+        internal static Entry ForType(string type)
+        {
+            if (type == null) return null;
+            foreach (var entry in All)
+                if (entry.Member == null && string.Equals(entry.Type, type, StringComparison.Ordinal))
                     return entry;
             return null;
         }

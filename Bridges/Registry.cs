@@ -102,6 +102,28 @@ namespace Polyfill.Bridges
         }
 
         /// <summary>
+        /// The rule that brings this type into being, or null.
+        /// </summary>
+        /// <remarks>
+        /// Only one rule may claim a type. Two would mean two emitters racing to create it, and which one
+        /// the report then names would depend on the order of the sets - so the ambiguity is refused here
+        /// rather than answered wrongly.
+        /// </remarks>
+        internal static Bridge Creator(string assembly, string typeFullName)
+        {
+            Bridge only = null;
+            foreach (var bridge in Bridges())
+            {
+                if (bridge.Creates != typeFullName
+                    || !string.Equals(bridge.Assembly, assembly, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (only != null) return null;
+                only = bridge;
+            }
+            return only;
+        }
+
+        /// <summary>
         /// The rename written for this exact type, or null.
         /// </summary>
         /// <remarks>
