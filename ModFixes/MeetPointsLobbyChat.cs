@@ -81,7 +81,17 @@ namespace Polyfill.ModFixes
             }
 
             var patch = AccessTools.Method("HUB.MeetPoints.Network.MeetPointsLobbyChatPatch:Postfix");
-            if (patch == null) return false;                  // the mod is not installed
+            if (patch == null)
+            {
+                // SAID, NOT SILENT. This looks the same whether the mod is absent or present-but-unloaded,
+                // and the second happens: a gamemode gate can hold a mod back from MelonLoader while every
+                // other tool still lists the file. An hour went into looking for a fault in this fix while
+                // the log said nothing at all.
+                log.Msg("[fix] meetpoints-lobby-chat: HUB - MeetPoints is not loaded, so there is no "
+                      + "listener to attach. If the file is installed, something is keeping MelonLoader "
+                      + "from loading it.");
+                return false;
+            }
 
             // Its one argument has to be the one the service hands out, or Harmony binds nothing and
             // takes the class with it.
