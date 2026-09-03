@@ -21,7 +21,7 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
     /// different pieces of code mean the same thing. No amount of diffing produces that, and a wrong one is
     /// worse than a missing one, because it runs.
     /// </remarks>
-    internal sealed class Set : BridgeSet
+    internal sealed partial class Set : BridgeSet
     {
         internal override string Step => "0.4.5f2 -> 0.4.6f5";
 
@@ -105,12 +105,12 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                         + "of the handover namespace; HandoverScreen.PriceSelector is an AmountSelector now",
             },
 
-            // The on-screen key hints. 0.4.6f5 replaced one Singleton that took a module name with a whole
-            // ScheduleOne.UI.Input namespace, where LoadModule takes an InputPromptsData looked up by id -
-            // so there is nothing to forward the old calls to, and nothing worth forwarding either, since
-            // what is lost is a row of key hints at the edge of the screen. What is NOT optional is the type
-            // existing: a mod that mentions it does not fail at the hint, it fails to compile the whole
-            // method, which is how Over The Counter lost the ability to give a manager a route at all.
+            // The on-screen key hints. 0.4.6f5 replaced one Singleton holding one module with a whole
+            // ScheduleOne.UI.Input namespace, where a dictionary of panels can be up at once. The type
+            // existing is not optional: a mod that mentions it does not fail at the hint, it fails to
+            // compile the whole method, which is how Over The Counter lost the ability to give a manager a
+            // route at all. What the members do is in InputPrompts.cs - the stand-in carries the manager's
+            // native class, so each one calls the manager rather than answering for it.
             new TypeRename
             {
                 Assembly = "Assembly-CSharp",
@@ -119,14 +119,17 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                 ByNativeClass = true,
                 Answers = new[]
                 {
-                    new Answer { Name = "LoadModule", Takes = new[] { "System.String" } },
-                    new Answer { Name = "UnloadModule" },
-                    new Answer { Name = "get_currentModuleLabel", Returns = "System.String" },
+                    new Answer { Name = "LoadModule", Takes = new[] { "System.String" },
+                                 Emit = EmitLoadModule },
+                    new Answer { Name = "UnloadModule", Emit = EmitUnloadModule },
+                    new Answer { Name = "get_currentModuleLabel", Returns = "System.String",
+                                 Emit = EmitCurrentModuleLabel },
                     new Answer { Name = "set_currentModuleLabel", Takes = new[] { "System.String" } },
                 },
-                Because = "InputPromptsCanvas is gone since 0.4.6f5 and InputPromptsManager took over, but "
-                        + "with LoadModule(InputPromptsData,..) instead of LoadModule(string) - so the name "
-                        + "is put back around the manager's native class and answers without doing anything",
+                Because = "InputPromptsCanvas is gone since 0.4.6f5 and InputPromptsManager took over with "
+                        + "a panel dictionary instead of one module slot - so the name is put back around "
+                        + "the manager's native class, and the three members it needs call the manager, "
+                        + "keeping the id they loaded because the manager has no current one",
             },
         };
 
@@ -247,10 +250,18 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         private const string LobbyType = "Il2CppScheduleOne.Networking.Lobby";
 
         private const string Blackjack = "Il2CppScheduleOne.Casino.UI.BlackjackInterface";
+        private const string RouletteTable = "Il2CppScheduleOne.Casino.UI.RTBInterface";
         private static readonly string[] BetPanel = { "BetPanel" };
-        private const string BetMoved = "the betting half of the blackjack screen became CasinoGameBetPanel, "
-                                      + "which every casino game shares; BlackjackInterface.BetPanel is the "
-                                      + "way in (CasinoGameBetPanel.cs:20, 38, 103)";
+        private const string BetMoved = "the betting half of a casino screen became CasinoGameBetPanel, "
+                                      + "which every casino game shares; the screen's own BetPanel is the "
+                                      + "way in (CasinoGameBetPanel.cs:20,23,26, 38, 103)";
+
+        private const string PlayerCameraType = "Il2CppScheduleOne.PlayerScripts.PlayerCamera";
+        private const string MouseControllerType = "Il2CppScheduleOne.Input.MouseController";
+        private static readonly string[] OneBool = { "System.Boolean" };
+        private const string CursorMoved = "the cursor flag left PlayerCamera for MouseController, which "
+                                         + "0.4.6 added and which its LockMouse and FreeMouse write the "
+                                         + "same way the camera's used to (MouseController.cs:9,13,25)";
 
         private const string PlayerManager = "Il2CppScheduleOne.PlayerScripts.PlayerManager";
         private const string PlayerLookups = "0.4.6 moved the player lookups off Player onto PlayerManager "
@@ -364,6 +375,7 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                         + "behind (NPCFieldUI.cs:79 logs \"NPCSelector not implemented\"). The only use is "
                         + "a null check for \"is that screen open\", and a screen that does not exist is "
                         + "not open - see Removed.cs for why answering costs less than refusing",
+                Creates = Removed.NpcSelector,
                 Emit = Removed.EmitNpcSelectorGetter,
             },
 
@@ -387,6 +399,14 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             // proof of which member it became: Assigns is the ObjectListField with a MaxItems
             // (BotanistConfiguration.cs:27,61). AssignedSpawnStations is a plain List rebuilt out of it
             // (:117) and has no such property, so it was never the successor however alike the names read.
+            // The delivery app's status display. 0.4.5f2 kept the prefab in a public field
+            // (DeliveryApp.cs:31); 0.4.6 keeps the same DeliveryStatusDisplay in a private one and
+            // instantiates it into the same container (DeliveryApp.cs:67,332). Only the name moved.
+            Moved("Il2CppScheduleOne.UI.Phone.Delivery.DeliveryApp", "StatusDisplayPrefab", Read, NoHops,
+                  "_deliveryStatusDisplayPrefab",
+                  "the same DeliveryStatusDisplay prefab, kept in a private field now and instantiated "
+                + "into the same StatusDisplayContainer (DeliveryApp.cs:332)"),
+
             Moved(BotanistConfig, "AssignedStations", Read, NoHops, "Assigns",
                   "BotanistConfiguration.cs:27 is the same ObjectListField, taking the same pots, racks and "
                 + "beds (:15) with the same cap (:61); only the name moved"),
@@ -446,9 +466,29 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             // casino game now shares. The slider, the handler on its onValueChanged and the label refresh
             // all went together, so all three are reached through the panel the screen holds.
             Moved(Blackjack, "BetSlider", Read, BetPanel, "_betSlider", BetMoved),
+            Moved(Blackjack, "BetAmount", Read, BetPanel, "_betAmount", BetMoved),
+            Moved(Blackjack, "ReadyButton", Read, BetPanel, "_readyButton", BetMoved),
             Onto(Blackjack, "BetSliderChanged", 1, BetPanel, "BetSliderChanged", BetMoved,
                  new[] { "newValue" }),
             Onto(Blackjack, "RefreshDisplayedBet", 0, BetPanel, "RefreshDisplayedBet", BetMoved),
+
+            // ROULETTE HAS THE SAME PANEL AND WAS MISSED. RTBInterface holds its own
+            // `public CasinoGameBetPanel BetPanel` (RTBInterface.cs:21) and lost the same three fields to
+            // it, so a mod that touches both tables was repaired on one and not the other.
+            Moved(RouletteTable, "BetSlider", Read, BetPanel, "_betSlider", BetMoved),
+            Moved(RouletteTable, "BetAmount", Read, BetPanel, "_betAmount", BetMoved),
+            Moved(RouletteTable, "ReadyButton", Read, BetPanel, "_readyButton", BetMoved),
+
+            // THE MOUSE MOVED OFF THE CAMERA. 0.4.5f2 kept the cursor flag on PlayerCamera as a private
+            // static field (PlayerCamera.cs:117) that its own LockMouse and FreeMouse wrote (:525,:536),
+            // and 0.4.6 keeps the same flag as MouseController.IsMouseVisible, written by the same pair
+            // under the same names (MouseController.cs:9,13,25). Reading it is what a mod does with it -
+            // "is the cursor up right now" - and the write is bookkeeping in both builds: neither the old
+            // field nor the new property moves the cursor by itself.
+            Elsewhere(PlayerCameraType, "get_isCursorShowing", NoParameters, MouseControllerType,
+                      CursorMoved, "get_IsMouseVisible"),
+            Elsewhere(PlayerCameraType, "set_isCursorShowing", OneBool, MouseControllerType,
+                      CursorMoved, "set_IsMouseVisible"),
 
             // "Which player is that" was five statics on Player and is five statics on PlayerManager now.
             // Nothing about them changed except where they live, so each is put back where it was called.
@@ -493,7 +533,9 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                 DeclaringType = LobbyType,
                 OldName = "get_LobbySteamID",
                 ParameterCount = 0,
-                Because = "Lobby.cs:59 until 0.4.5f2 was `new CSteamID(LobbyID)`, and LobbyID is still here",
+                Because = "the id moved into the lobby service: Lobby.LobbyID is still declared and "
+                        + "0.4.6 writes it nowhere, so this reads SteamLobbyService._lobbyID, which "
+                        + "is set when a lobby is created or entered (SteamLobbyService.cs:210,237)",
                 Emit = EmitLobbySteamId,
             },
             new Bridge
@@ -527,6 +569,36 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             NowCalled(Emitter, "set_Database", 1, "set__currentDatabase", VoDatabase),
             NowCalled(Emitter, "get_PitchMultiplier", 0, "get__defaultPitch", VoPitch),
             NowCalled(Emitter, "set_PitchMultiplier", 1, "SetDefaultPitch", VoPitch),
+            // The pursuit level's SyncVar accessor. The property is in the generated assembly and its
+            // accessor METHODS are not: probed on a running 0.4.6f13, get_ and set_ under that name do not
+            // exist, while sync___set_value__CurrentPursuitLevel_k__BackingField(EPursuitLevel, Boolean)
+            // does, and so does set_CurrentPursuitLevel. The archive records no change to any of them
+            // between 0.4.5f2 and 0.4.6, so what moved is how the assembly is generated rather than what
+            // the game has - and a mod that named the accessor is left calling nothing either way.
+            //
+            // WHY THE PROPERTY AND NOT THE SYNC METHOD: CurrentPursuitLevel's own setter is
+            // sync___set_value__...(value, asServer: true) (PlayerCrimeData.cs:119), and the accessor's
+            // getter is `return CurrentPursuitLevel` (:151). One call, and it is the write the game makes
+            // for a plain assignment, rather than a second argument decided here.
+            NowCalled("Il2CppScheduleOne.PlayerScripts.PlayerCrimeData",
+                    "set_SyncAccessor_<CurrentPursuitLevel>k__BackingField", 1, "set_CurrentPursuitLevel",
+                      "the generated assembly carries the property without accessor methods under that "
+                    + "name, and CurrentPursuitLevel's own setter is the same write - its getter is a plain "
+                    + "`return CurrentPursuitLevel` (PlayerCrimeData.cs:151)"),
+            // An NPC's name. The version history already answers this one with get_FullName, and that IS
+            // the successor - but the two do not fail the same way, so the rename alone hands mods a throw
+            // where the old member could not produce one. See EmitNpcFullName.
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = "Il2CppScheduleOne.NPCs.NPC",
+                OldName = "get_fullName",
+                ParameterCount = 0,
+                Because = "0.4.6 renamed fullName to FullName and moved the names it reads behind NPCData, "
+                        + "which is null until an NPC is set up - the old one read fields that were never "
+                        + "null, so this answers the empty string there instead of throwing",
+                Emit = EmitNpcFullName,
+            },
             NowCalled("Il2CppScheduleOne.UI.Relations.RelationCircle", "get_AssignedNPC_ID", 0, "get_NPCId",
                     "RelationCircle.cs:23 until 0.4.5f2 cached the id in a field; NPCId reads it off the "
                   + "assigned NPC and returns string.Empty for none, which is what the field held"),
@@ -1068,15 +1140,18 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         }
 
         /// <summary>
-        /// A static that kept its name and signature and moved to another type.
+        /// A static that kept its signature and moved to another type, under this name or another one.
         /// </summary>
         /// <remarks>
         /// The parameter types are named rather than counted, because the set that moved carries two pairs
         /// of same-arity overloads - <c>GetPlayer(string)</c> beside <c>GetPlayer(NetworkConnection)</c> -
         /// and picking by count would pick whichever the metadata lists first.
+        ///
+        /// <c>nowCalled</c> is for a move that renamed on the way. It is left null where the name is the
+        /// same, which is most of them, so that a rename is always a thing somebody wrote down.
         /// </remarks>
         private static Bridge Elsewhere(string declaringType, string name, string[] parameters,
-                                        string nowOn, string because)
+                                        string nowOn, string because, string nowCalled = null)
             => new()
             {
                 Assembly = "Assembly-CSharp",
@@ -1086,11 +1161,13 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                 ParameterTypes = parameters,
                 AllowOverload = true,
                 Because = because,
-                Emit = (module, type) => EmitElsewhere(module, type, name, parameters, nowOn),
+                Emit = (module, type) => EmitElsewhere(module, type, name, parameters, nowOn,
+                                                       nowCalled ?? name),
             };
 
         private static MethodDefinition EmitElsewhere(ModuleDefinition module, TypeDefinition owner,
-                                                      string name, string[] parameters, string nowOn)
+                                                      string name, string[] parameters, string nowOn,
+                                                      string nowCalled)
         {
             var host = module.GetType(nowOn);
             if (host == null) return null;
@@ -1098,7 +1175,7 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             MethodDefinition target = null;
             foreach (var candidate in host.Methods)
             {
-                if (candidate.Name != name || !candidate.IsStatic
+                if (candidate.Name != nowCalled || !candidate.IsStatic
                     || candidate.Parameters.Count != parameters.Length) continue;
 
                 bool matches = true;
@@ -2596,12 +2673,121 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             return null;
         }
 
-        /// <summary><c>new CSteamID(this.LobbyID)</c> - the 0.4.5f2 body, unchanged.</summary>
+
+        /// <summary>The named type in this one's base chain, or null.</summary>
+        /// <remarks>
+        /// Matched on the SHORT name. Il2CppObjectBase is spelled
+        /// Il2CppInterop.Runtime.InteropTypes.Il2CppObjectBase in metadata, and comparing that against a
+        /// short name silently found nothing - the emitter then answered null and the whole bridge was
+        /// refused with a message that names no member.
+        /// </remarks>
+        /// <summary>
+        /// An NPC's full name, and the empty string where the old member would have given one.
+        /// </summary>
+        /// <remarks>
+        /// 0.4.5f2 read three plain fields, each initialised to <c>string.Empty</c> at its declaration
+        /// (NPC.cs:63,65,67), so <c>fullName</c> could not throw and answered "" before an NPC was named.
+        /// 0.4.6 renamed it FullName and put the names behind NPCData: <c>NPCData.BasicInfo.FirstName</c>
+        /// (NPC.cs:135,139-148). NPCData is a property with a private setter and is null until the NPC is
+        /// built, so the same read now throws.
+        ///
+        /// The rename is right and the failure mode is not, and a mod cannot tell the difference until it
+        /// does. NastyMod is on the public listing with an exception on NPC.get_FullName in 12 sessions,
+        /// against a member Polyfill itself pointed it at.
+        ///
+        /// So the guard is the repair: no NPCData, or no BasicInfo behind it, answers the empty string -
+        /// which is what the fields held at that moment - and everything else is the game's own FullName.
+        /// </remarks>
+        private static MethodDefinition EmitNpcFullName(ModuleDefinition module, TypeDefinition npc)
+        {
+            var data = Getter(npc, "NPCData");
+            var full = Getter(npc, "FullName");
+            var basic = Getter(data?.ReturnType?.Resolve(), "BasicInfo");
+            if (data == null || full == null || basic == null) return null;
+            if (full.ReturnType.MetadataType != MetadataType.String) return null;
+
+            var method = new MethodDefinition("get_fullName",
+                MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName,
+                module.TypeSystem.String);
+
+            var il = method.Body.GetILProcessor();
+            var empty = il.Create(OpCodes.Ldstr, "");
+
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(data));
+            il.Emit(OpCodes.Brfalse, empty);
+
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(data));
+            il.Emit(OpCodes.Callvirt, module.ImportReference(basic));
+            il.Emit(OpCodes.Brfalse, empty);
+
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(full));
+            il.Emit(OpCodes.Ret);
+
+            il.Append(empty);
+            il.Emit(OpCodes.Ret);
+            return method;
+        }
+
+        private static TypeDefinition Base(TypeDefinition type, string name)
+        {
+            for (var current = type; current != null; current = current.BaseType?.Resolve())
+                if (current.Name == name) return current;
+            return null;
+        }
+
+        /// <summary>
+        /// The lobby's Steam id, read from the service that actually keeps it.
+        /// </summary>
+        /// <remarks>
+        /// NOT <c>new CSteamID(this.LobbyID)</c>, which is what this emitted until it was checked. That was
+        /// the 0.4.5f2 body and it still compiles, because <c>Lobby.LobbyID</c> is still declared
+        /// (Lobby.cs:32) - but 0.4.6 assigns it NOWHERE. An exhaustive search of the build finds not one
+        /// write to it. So the bridge reported "applied" and handed every caller CSteamID(0), which is the
+        /// exact failure this project exists to prevent: a repair that looks like one.
+        ///
+        /// What it costs is not theoretical. HUB - MeetPoints rereads each lobby chat message with
+        /// <c>GetLobbyChatEntry(lobby.LobbySteamID, ...)</c>; with a zero id that call returns nothing and
+        /// the mod's whole meet-point protocol is silent. HUB - Dispensary and StackPro ask for the same
+        /// member.
+        ///
+        /// The id lives in <c>SteamLobbyService._lobbyID</c>, written when a lobby is created or entered
+        /// (SteamLobbyService.cs:210,237) and cleared on leaving (:102). Lobby holds that service in
+        /// <c>_lobbyService</c>, typed as the interface, which carries no id of its own - so this reaches
+        /// through the pointer.
+        ///
+        /// THROUGH THE POINTER, not a cast. Two interop wrappers around one native object are unrelated
+        /// managed types, so castclass fails and <c>as</c> answers null; building a SteamLobbyService
+        /// wrapper from the interface wrapper's own Pointer is how interop code crosses that line.
+        ///
+        /// A null service answers CSteamID(0), which is what "not in a lobby" means and what every caller
+        /// already handles.
+        /// </remarks>
         private static MethodDefinition EmitLobbySteamId(ModuleDefinition module, TypeDefinition lobby)
         {
-            var id = Getter(lobby, "LobbyID");
             var steamId = SteamType(module, "CSteamID");
-            if (id == null || steamId == null) return null;
+            var service = Getter(lobby, "_lobbyService");
+            var steamService = module.GetType("Il2CppScheduleOne.Networking.SteamLobbyService");
+            if (steamId == null || service == null || steamService == null) return null;
+
+            var id = Getter(steamService, "_lobbyID");
+            var pointer = Getter(service.ReturnType?.Resolve(), "Pointer")
+                       ?? Getter(Base(service.ReturnType?.Resolve(), "Il2CppObjectBase"), "Pointer");
+            var fromPointer = Core.ShadowTypes.PointerConstructorOf(steamService);
+
+            // THROWN, NOT NULL, and the difference is deliberate. Null is the designed answer for "this
+            // build does not have what the rule needs", and the injector reports it as such - without
+            // naming the member, because on another build any of them could be the missing one. Here all
+            // four exist on every build this step covers, so a null is a name I got wrong, and the report
+            // said only "needs members this build does not have" while I read the wrong file for a round.
+            // The injector turns a throw into the same refusal plus the message.
+            if (id == null) throw new InvalidOperationException("SteamLobbyService._lobbyID is not here");
+            if (pointer == null) throw new InvalidOperationException(
+                "Il2CppObjectBase.Pointer is not reachable from " + service.ReturnType?.Name);
+            if (fromPointer == null) throw new InvalidOperationException(
+                "SteamLobbyService has no pointer constructor");
 
             MethodDefinition constructor = null;
             foreach (var candidate in steamId.Methods)
@@ -2613,9 +2799,28 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             var method = new MethodDefinition("get_LobbySteamID",
                 MethodAttributes.Public | MethodAttributes.HideBySig, module.ImportReference(steamId));
 
-            var il = method.Body.GetILProcessor();
+            var body = method.Body;
+            var held = new VariableDefinition(module.ImportReference(service.ReturnType));
+            body.Variables.Add(held);
+
+            var il = body.GetILProcessor();
+            var none = il.Create(OpCodes.Ldc_I4_0);
+
             il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, module.ImportReference(service));
+            il.Emit(OpCodes.Stloc, held);
+            il.Emit(OpCodes.Ldloc, held);
+            il.Emit(OpCodes.Brfalse, none);
+
+            il.Emit(OpCodes.Ldloc, held);
+            il.Emit(OpCodes.Call, module.ImportReference(pointer));
+            il.Emit(OpCodes.Newobj, module.ImportReference(fromPointer));
             il.Emit(OpCodes.Call, module.ImportReference(id));
+            il.Emit(OpCodes.Newobj, module.ImportReference(constructor));
+            il.Emit(OpCodes.Ret);
+
+            il.Append(none);                                  // no service: the same answer as no lobby
+            il.Emit(OpCodes.Conv_U8);
             il.Emit(OpCodes.Newobj, module.ImportReference(constructor));
             il.Emit(OpCodes.Ret);
             return method;
@@ -2693,12 +2898,33 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         ///
         /// An id that does not parse is skipped rather than turned into zero: zero is <c>Nil</c>, and Nil
         /// in a list of real players is a member that is not there.
+        ///
+        /// IT IS NEVER NULL, and it used to be. The 0.4.5f2 member is a FIELD whose array is built at the
+        /// declaration - <c>public CSteamID[] Players = new CSteamID[4];</c> (Lobby.cs:25) - so no caller
+        /// has ever had to check it, and the game's own code does not: <c>Players.Length</c> at :47,
+        /// <c>Players[0]</c> at :49, <c>Players.Count(...)</c> at :71. Answering null where the member was
+        /// never null hands the caller a NullReferenceException with nothing in the trace naming Polyfill.
+        ///
+        /// The empty answer is a zero-length array and not four Nils, for the reason above: the length is
+        /// the number of members, and outside a lobby that is none.
+        ///
+        /// THE SERVICE IS CHECKED FIRST because <c>Lobby.GetLobbyMemberIDs()</c> does not check it -
+        /// <c>return _lobbyService.GetPlayerIds();</c> (Lobby.cs:145) throws when the field is not set yet,
+        /// which is every call before Awake has run. That throw is the reachable half: neither shipped
+        /// service answers null (SteamLobbyService.cs:180 builds a list, MockLobbyService.cs:45 returns
+        /// one), so the null branch was reached through an exception rather than through a null.
+        ///
+        /// WHAT THIS IS NOT KNOWN TO FIX: StackPro is on the public listing with NullReferenceException out
+        /// of <c>List.Exists</c> and <c>EqualityComparer.get_Default</c>, and it asks for this member. Both
+        /// of those are also what an IL2CPP generic instantiation that was never compiled looks like, and
+        /// the mod is not installed here, so the connection is a suspicion and not a measurement.
         /// </remarks>
         private static MethodDefinition EmitLobbyPlayers(ModuleDefinition module, TypeDefinition lobby)
         {
             var ids = Method(lobby, "GetLobbyMemberIDs", 0);
             var steamId = SteamType(module, "CSteamID");
-            if (ids == null || steamId == null) return null;
+            var service = Getter(lobby, "_lobbyService");
+            if (ids == null || steamId == null || service == null) return null;
 
             // THE CALLS HAVE TO NAME List<string>, NOT List<T>. Cecil resolves the return type to the open
             // definition, and a reference built from that describes a method on the open generic - which is
@@ -2739,10 +2965,14 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             method.Body.InitLocals = true;
 
             var il = method.Body.GetILProcessor();
-            var empty = il.Create(OpCodes.Ldnull);
+            var empty = il.Create(OpCodes.Ldc_I4_0);
             var test = il.Create(OpCodes.Ldloc, readSlot);
             var next = il.Create(OpCodes.Ldloc, readSlot);
             var body = il.Create(OpCodes.Nop);
+
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, module.ImportReference(service));
+            il.Emit(OpCodes.Brfalse, empty);
 
             il.Emit(OpCodes.Ldarg_0);
             il.Emit(OpCodes.Callvirt, module.ImportReference(ids));
@@ -2790,7 +3020,9 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             il.Emit(OpCodes.Ldloc, resultSlot);
             il.Emit(OpCodes.Ret);
 
-            il.Append(empty);
+            il.Append(empty);                                 // ldc.i4.0 - the length, not a null
+            il.Emit(OpCodes.Conv_I8);
+            il.Emit(OpCodes.Newobj, arraySize);
             il.Emit(OpCodes.Ret);
             return method;
         }

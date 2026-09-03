@@ -2,6 +2,24 @@
 
 All notable changes to this project are documented here.
 
+## [0.11.13] - 2026-09-03
+
+### Fixed
+- Over The Counter's Smart Fill takes the items off your stack. It put them in the handover and left
+  the same stack in your hotbar as well.
+- A client's chosen meeting place reaches the host again in HUB - MeetPoints. The host heard nothing,
+  so the customer went to the vanilla spot.
+- More Realistic Sleeping's app opens instead of waiting for two phone fonts it could never load,
+  once every two seconds for the rest of the session.
+- Mods that read an NPC's name keep working before the game has given that NPC one.
+- Mods can work the roulette table's bet controls, the way they already could at the blackjack table.
+
+### Changed
+- Mods that work stop reading as broken. Over The Counter and DealOptimizer said blocked while their
+  repairs were already in place.
+- The key hints a mod asks for are loaded and cleared again, though the game dropped most of the sets
+  they used to name.
+
 ## [0.11.12] - 2026-09-03
 
 ### Fixed

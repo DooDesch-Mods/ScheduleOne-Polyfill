@@ -227,10 +227,19 @@ namespace Polyfill.Report
             { Core.Log.Warning("name a type, e.g. `polyfillprobe Il2CppScheduleOne.Weather.WeatherConditions`."); return; }
             name = name.Trim();
 
+            // A type or member name never has a space in it, so the rest of the line is an argument.
+            string argument = null;
+            int space = name.IndexOf(' ');
+            if (space > 0)
+            {
+                argument = name.Substring(space + 1).Trim();
+                name = name.Substring(0, space);
+            }
+
             int separator = name.IndexOf("::", StringComparison.Ordinal);
             if (separator > 0)
             {
-                ProbeMember(name.Substring(0, separator), name.Substring(separator + 2));
+                ProbeMember(name.Substring(0, separator), name.Substring(separator + 2), argument);
                 return;
             }
 
@@ -263,8 +272,12 @@ namespace Polyfill.Report
         /// A zero-argument instance member is invoked against a live object of that type when one can be
         /// found in the scene. Anything else is reported as present-but-uncalled, which is honest rather
         /// than a claim the probe did not earn.
+        ///
+        /// ONE STRING IS ALSO CALLABLE, given after the name. Half of what Polyfill puts back takes an id -
+        /// LoadModule("objectselector") is the whole of what a mod does with the input prompts - and a
+        /// member of that shape was unverifiable until the probe could pass one.
         /// </remarks>
-        private static void ProbeMember(string typeName, string memberName)
+        private static void ProbeMember(string typeName, string memberName, string argument = null)
         {
             Type type = null;
             foreach (string assembly in new[] { "Assembly-CSharp", "Il2CppScheduleOne.Core" })
@@ -294,10 +307,28 @@ namespace Polyfill.Report
                 Core.Log.Msg($"  returns {one.ReturnType.Name}, {one.GetParameters().Length} parameter(s), "
                            + $"declared on {one.DeclaringType.Name}");
 
-            var method = matches[0];
+            // WHICH OVERLOAD IS DECIDED BY WHAT WAS TYPED, not by which one metadata lists first.
+            int wanted = argument == null ? 0 : 1;
+            System.Reflection.MethodInfo method = null;
+            foreach (var one in matches)
+            {
+                var takes = one.GetParameters();
+                if (takes.Length != wanted) continue;
+                if (wanted == 1 && takes[0].ParameterType != typeof(string)) continue;
+                method = one;
+                break;
+            }
 
-            if (method.GetParameters().Length != 0)
-            { Core.Log.Msg("  not called: the probe only invokes members that take nothing."); return; }
+            if (method == null)
+            {
+                Core.Log.Msg(argument == null
+                    ? "  not called: the probe only invokes members that take nothing, or one string given "
+                    + "after the name."
+                    : $"  not called: no {memberName} here takes one string.");
+                return;
+            }
+
+            object[] arguments = argument == null ? null : new object[] { argument };
 
             // A STATIC GETTER IS HALF OF WHAT POLYFILL REPAIRS, so refusing to call one left the more
             // interesting half unverifiable. Singleton<T>.Instance is the case that made this matter: the
@@ -306,16 +337,31 @@ namespace Polyfill.Report
             {
                 try
                 {
-                    object result = method.Invoke(null, null);
+                    object result = method.Invoke(null, arguments);
                     Core.Log.Msg($"  CALLED as a static -> {(result ?? "null")}");
                 }
                 catch (Exception e) { Core.Log.Error("  call FAILED: " + (e.InnerException ?? e)); }
                 return;
             }
 
+            // ONLY A SCENE TYPE CAN BE LOOKED FOR IN THE SCENE. FindObjectOfType throws rather than
+            // answering null for a type that is not a UnityEngine.Object - a plain configuration class,
+            // say - and that came out as "call FAILED" with an IL2CPP stack, which reads as the member
+            // being broken when the probe simply cannot reach one.
+            UnityEngine.Object found;
             try
             {
-                var found = UnityEngine.Object.FindObjectOfType(Il2CppInterop.Runtime.Il2CppType.From(type));
+                found = UnityEngine.Object.FindObjectOfType(Il2CppInterop.Runtime.Il2CppType.From(type));
+            }
+            catch (Exception e)
+            {
+                Core.Log.Msg("  not called: nothing in the scene can be found of this type ("
+                           + (e.InnerException ?? e).GetType().Name + "), so it is not a MonoBehaviour.");
+                return;
+            }
+
+            try
+            {
                 if (found == null) { Core.Log.Msg("  not called: no instance of this type is in the scene."); return; }
 
                 // FindObjectOfType hands back a UnityEngine.Object wrapper whatever the native type is, and
@@ -323,7 +369,7 @@ namespace Polyfill.Report
                 // a constructor that takes one, so the same native object is re-wrapped as the right type.
                 object instance = Activator.CreateInstance(type, found.Pointer);
 
-                object value = method.Invoke(instance, null);
+                object value = method.Invoke(instance, arguments);
                 Core.Log.Msg($"  CALLED on a live instance -> {(value ?? "null")}");
             }
             catch (Exception e)

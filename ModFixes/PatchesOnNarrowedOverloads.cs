@@ -71,6 +71,15 @@ namespace Polyfill.ModFixes
                 {
                     Relayed.Add((patch, entry.ParameterName));
                     here++;
+
+                    // WHOSE PATCH, AND ONTO WHAT. The report is written before this runs and still calls
+                    // the finding unrepaired - DealOptimizer read blocked over ChangeQuantity while its
+                    // patch was running on the method the game calls. This pair is the only thing that
+                    // identifies the row; see Report/Reconcile.cs.
+                    string owner = patch.DeclaringType?.Assembly?.GetName()?.Name;
+                    if (!string.IsNullOrEmpty(owner))
+                        Fixes.Repaired.Add(owner + "|" + entry.Type + "::" + entry.Name);
+
                     log.Msg($"[fix] {Id}: {patch.DeclaringType?.FullName} -> {type.Name}.{entry.Name}"
                           + $"({string.Join(", ", entry.RealParameters)})");
                 }

@@ -35,11 +35,14 @@ namespace Polyfill.Core
     /// empty stand-in would leave that pointer at zero and the native construction would be handed
     /// <c>IntPtr.Zero</c>.
     ///
-    /// WHAT IT DOES NOT GIVE BACK IS BEHAVIOUR. The members are emitted as answers, not as forwards: the
-    /// successor's API has a different shape - <c>LoadModule(string)</c> became "look the data up by id,
-    /// then load it" - so there is nothing to forward to. That makes this honest only where the caller
-    /// already treats the whole thing as optional, which is why it is opted into per rename and never
-    /// inferred.
+    /// BEHAVIOUR COMES BACK ONLY WHERE A RULE BRINGS IT. A member is emitted as an answer - a constant,
+    /// no body - unless its <c>Answer.Emit</c> writes one, and a member without a rule gives nothing back.
+    /// That makes a rule-less stand-in honest only where the caller already treats the whole thing as
+    /// optional, which is why the shape is opted into per rename and never inferred.
+    ///
+    /// The stand-in carries the successor's native class, so <c>this</c> is the live object: a rule can
+    /// build a wrapper of the successor around <c>this.Pointer</c> and call it. That is what the
+    /// InputPrompts members do, and it is why a stand-in is not automatically a dead one.
     /// </remarks>
     internal static class FacadeTypes
     {
@@ -48,6 +51,9 @@ namespace Polyfill.Core
             internal string Name;
             internal string Returns;      // full name, or null for void
             internal string[] Takes;      // full names, or null for none
+
+            /// <summary>Builds the member instead of answering with a constant. See Bridges.Answer.Emit.</summary>
+            internal Func<ModuleDefinition, TypeDefinition, TypeDefinition, MethodDefinition> Emit;
         }
 
         /// <summary>
@@ -98,7 +104,7 @@ namespace Polyfill.Core
             AddClassPointerAlias(module, facade, store, nativePointer, target);
 
             foreach (var member in members ?? Enumerable.Empty<Member>())
-                if (!AddAnswer(module, facade, member, out refusal))
+                if (!AddAnswer(module, facade, target, member, out refusal))
                 { module.Types.Remove(facade); return null; }
 
             return facade;
@@ -158,17 +164,45 @@ namespace Polyfill.Core
         }
 
         /// <summary>
-        /// One member that answers and does nothing.
+        /// One member that answers and does nothing - or, where the rule brought one, a member that works.
         /// </summary>
         /// <remarks>
-        /// Three shapes and no more: nothing, a null reference, and zero. A caller that reaches one of
-        /// these has already been told by its own null check that there is nothing here, so the only job
-        /// left is to return without throwing.
+        /// Three shapes and no more when there is no rule: nothing, a null reference, and zero. A caller
+        /// that reaches one of these has already been told by its own null check that there is nothing
+        /// here, so the only job left is to return without throwing.
+        ///
+        /// A rule that brings its own body replaces all of that. It is handed the type the stand-in stands
+        /// in for, because reaching the live object is the only reason such a body can exist, and it may
+        /// refuse by returning null - which takes the whole stand-in with it rather than leaving a member
+        /// that answers where the rest work.
         /// </remarks>
-        private static bool AddAnswer(ModuleDefinition module, TypeDefinition facade, Member member,
-                                      out string refusal)
+        private static bool AddAnswer(ModuleDefinition module, TypeDefinition facade, TypeDefinition target,
+                                      Member member, out string refusal)
         {
             refusal = null;
+
+            if (member.Emit != null)
+            {
+                MethodDefinition built;
+                try { built = member.Emit(module, facade, target); }
+                catch (Exception e)
+                {
+                    refusal = $"the rule for {member.Name} failed on this build: {e.Message}";
+                    return false;
+                }
+                if (built == null)
+                { refusal = $"the rule for {member.Name} needs members this build has not got"; return false; }
+
+                // THE DECLARATION IS THE CONTRACT. Triage decides whether a mod's call is answered by
+                // reading Takes and Returns, and the emitter writes the body - so the two drifting apart
+                // would report a member as carried while the stand-in has a different signature, which is
+                // the failure that looks like success. Cheaper to refuse here than to find it in a game.
+                if (!Matches(built, member, out string mismatch))
+                { refusal = $"the rule for {member.Name} built {mismatch}"; return false; }
+
+                facade.Methods.Add(built);
+                return true;
+            }
 
             TypeReference returns = module.TypeSystem.Void;
             if (member.Returns != null)
@@ -197,6 +231,33 @@ namespace Polyfill.Core
             il.Emit(OpCodes.Ret);
 
             facade.Methods.Add(method);
+            return true;
+        }
+
+        /// <summary>Does the built method have the signature the member declared?</summary>
+        private static bool Matches(MethodDefinition built, Member member, out string mismatch)
+        {
+            mismatch = null;
+
+            if (built.Name != member.Name)
+            { mismatch = $"a method called {built.Name}"; return false; }
+
+            string returns = member.Returns ?? "System.Void";
+            if (built.ReturnType.FullName != returns)
+            { mismatch = $"one returning {built.ReturnType.FullName}, not {returns}"; return false; }
+
+            var takes = member.Takes ?? Array.Empty<string>();
+            if (built.Parameters.Count != takes.Length)
+            { mismatch = $"one taking {built.Parameters.Count} argument(s), not {takes.Length}"; return false; }
+
+            for (int i = 0; i < takes.Length; i++)
+                if (built.Parameters[i].ParameterType.FullName != takes[i])
+                {
+                    mismatch = $"argument {i + 1} as {built.Parameters[i].ParameterType.FullName}, "
+                             + $"not {takes[i]}";
+                    return false;
+                }
+
             return true;
         }
 

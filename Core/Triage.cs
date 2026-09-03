@@ -224,8 +224,9 @@ namespace Polyfill.Core
                 CollectNamespaces(module, report);
 
                 var repaired = new Dictionary<string, TypeDefinition>(StringComparer.Ordinal);
-                var missingTypes = CheckTypes(module, index, report, repaired);
-                CheckMembers(module, index, report, missingTypes, repaired);
+                var standIns = new Dictionary<string, InteropAugmentor.TypeForward>(StringComparer.Ordinal);
+                var missingTypes = CheckTypes(module, index, report, repaired, standIns);
+                CheckMembers(module, index, report, missingTypes, repaired, standIns);
                 HarmonyTargets.Check(module, index, report);
 
                 // Last, and it repairs nothing: a mod can pass every check above and still be
@@ -255,13 +256,15 @@ namespace Polyfill.Core
                 members.Add(new FacadeTypes.Member
                 {
                     Name = answer.Name, Returns = answer.Returns, Takes = answer.Takes,
+                    Emit = answer.Emit,
                 });
             return members;
         }
 
         /// <summary>Every game type the mod names, and whether it is still there.</summary>
         private static HashSet<string> CheckTypes(ModuleDefinition module, InteropIndex index, ModReport report,
-                                                  Dictionary<string, TypeDefinition> repaired)
+                                                  Dictionary<string, TypeDefinition> repaired,
+                                                  Dictionary<string, InteropAugmentor.TypeForward> standIns)
         {
             var missing = new HashSet<string>(StringComparer.Ordinal);
 
@@ -277,6 +280,27 @@ namespace Polyfill.Core
                 string hint = "", reason = "type no longer exists in " + scope;
                 string repairKey = null;
                 TypeDefinition became = null;
+
+                // A TYPE A RULE CREATES IS NOT MISSING. A member whose type the game deleted needs the type
+                // back before the member can name it, so a few emitters make one - and nothing here knew,
+                // so the report said "type no longer exists" about a name the running game had, and the
+                // mod read as blocked over it. The finding carries that rule's key, so it says applied when
+                // the member was emitted and refused when it was not, which is when the type is and is not
+                // there.
+                var creator = Bridges.Registry.Creator(scope, reference.FullName);
+                if (creator != null)
+                {
+                    report.Findings.Add(new Finding
+                    {
+                        Kind = (index.Kind(scope) == "game" ? "" : "library-") + "type",
+                        Scope = scope, Symbol = reference.FullName,
+                        Reason = $"type no longer exists in {scope}, and nothing replaced it",
+                        Hint = "an empty stand-in, made by the rule for "
+                             + creator.DeclaringType + "::" + creator.OldName + ": " + creator.Because,
+                        RepairKey = Key(creator),
+                    });
+                    continue;
+                }
 
                 // A person naming the pair outranks a name that merely matches, for the same reason a
                 // bridge outranks a spelling rule on a member: one of the two was read out of both builds.
@@ -324,6 +348,16 @@ namespace Polyfill.Core
                     };
                     _forwards.Add(forward);
                     repairKey = forward.Key;
+                    if (forward.ByNativeClass) standIns[reference.FullName] = forward;
+                }
+
+                // A type nothing can stand in for, whose only use a named fix takes out. Said as a hint
+                // and not an outcome, like the member form: this knows a fix EXISTS, not that it ran.
+                if (string.IsNullOrEmpty(hint))
+                {
+                    var covered = CoveredElsewhere.ForType(reference.FullName);
+                    if (covered != null)
+                        hint = "covered by the fix " + covered.FixId + ": " + covered.Because;
                 }
 
                 report.Findings.Add(new Finding
@@ -339,7 +373,8 @@ namespace Polyfill.Core
         /// <summary>Every game member the mod calls or reads, and whether it is still there.</summary>
         private static void CheckMembers(ModuleDefinition module, InteropIndex index, ModReport report,
                                          HashSet<string> missingTypes,
-                                         Dictionary<string, TypeDefinition> repaired)
+                                         Dictionary<string, TypeDefinition> repaired,
+                                         Dictionary<string, InteropAugmentor.TypeForward> standIns)
         {
             foreach (var reference in module.GetMemberReferences())
             {
@@ -366,12 +401,85 @@ namespace Polyfill.Core
                     && missingTypes.Contains(declaringReference.FullName)) continue;
                 if (declaring == null) continue;
 
+                // A STAND-IN AROUND A NATIVE CLASS INHERITS NOTHING, so the sentence above it does not hold
+                // for one: what it carries is what its own rule declared, and the successor's members are
+                // not reachable through it. Checking those members against the successor is wrong in both
+                // directions - it calls a member missing that the stand-in answers, and it would let a
+                // repair be emitted onto a type the mod never touches, which reports success and changes
+                // nothing.
+                if (declaringReference != null
+                    && standIns.TryGetValue(declaringReference.FullName, out var standIn))
+                {
+                    CheckStandIn(reference, standIn, declaringReference.FullName,
+                                 index.Kind(scope) == "game" ? "" : "library-", scope, report);
+                    continue;
+                }
+
                 // A library break is a different repair from a game break - the game's missing names go back
                 // into the interop assemblies, a library's cannot - so the two are never one finding kind.
                 string prefix = index.Kind(scope) == "game" ? "" : "library-";
                 if (reference is MethodReference method) CheckMethod(method, declaring, scope, prefix, report, index, repaired);
                 else if (reference is FieldReference field) CheckField(field, declaring, scope, prefix, report, index);
             }
+        }
+
+        /// <summary>
+        /// Does the stand-in carry this member, under the name the mod spells?
+        /// </summary>
+        /// <remarks>
+        /// The declared answers are the whole surface. A stand-in around a native class derives from a
+        /// generic closed over ITSELF, not from the type it stands in for, so it inherits none of the
+        /// successor's members and none of its fields - and the report has to say that about a member the
+        /// rule did not list, rather than let the member be checked against a type the mod cannot reach
+        /// through this one.
+        ///
+        /// NO HINT AND NO REPAIR KEY on purpose. A candidate on the successor would be emitted onto the
+        /// successor, where this mod would never see it.
+        /// </remarks>
+        private static void CheckStandIn(MemberReference wanted, InteropAugmentor.TypeForward standIn,
+                                         string oldFullName, string kindPrefix, string scope,
+                                         ModReport report)
+        {
+            if (wanted is MethodReference call)
+            {
+                foreach (var answer in standIn.Answers ?? new List<FacadeTypes.Member>())
+                {
+                    if (answer.Name != call.Name) continue;
+
+                    var takes = answer.Takes ?? Array.Empty<string>();
+                    if (call.Parameters.Count != takes.Length) continue;
+
+                    bool same = true;
+                    for (int i = 0; i < takes.Length && same; i++)
+                        same = call.Parameters[i].ParameterType.FullName == takes[i];
+                    if (same) return;                            // the stand-in answers this call
+                }
+
+                report.Findings.Add(new Finding
+                {
+                    Kind = kindPrefix + "member", Scope = scope,
+                    Symbol = oldFullName + "::" + call.Name + "(" + Shape(call) + ")",
+                    Reason = "the name is put back as a class around " + standIn.TargetFullName
+                           + "'s native class, and that stand-in does not carry this member",
+                });
+                return;
+            }
+
+            report.Findings.Add(new Finding
+            {
+                Kind = kindPrefix + "field", Scope = scope,
+                Symbol = oldFullName + "::" + wanted.Name,
+                Reason = "the name is put back as a class around " + standIn.TargetFullName
+                       + "'s native class, and a stand-in of that kind carries no fields",
+            });
+        }
+
+        /// <summary>The parameter type list of a call, as the report spells one.</summary>
+        private static string Shape(MethodReference call)
+        {
+            var parts = new List<string>(call.Parameters.Count);
+            foreach (var parameter in call.Parameters) parts.Add(parameter.ParameterType.FullName);
+            return string.Join(", ", parts);
         }
 
         /// <summary>Is that name on the live type at all? The history says what a build called something,
@@ -554,14 +662,26 @@ namespace Polyfill.Core
             if (authored != null)
             {
                 hint = "hand-written rule: " + authored.Because;
+
+                // THE BRIDGE'S OWN TYPES, NOT THE CALLER'S, and the difference is a repair reported as
+                // failed. The key carries the parameter types, so a request naming the call's types and the
+                // Harmony pass's request naming the bridge's produced two keys for ONE bridge - the second
+                // survived the deduplication, reached the injector, and was refused as "the name is already
+                // taken here" by the first. That refusal is what the public listing shows, so
+                // DealOptimizer read blocked over CounterofferInterface::ChangePrice while the repair had
+                // gone in, and Tweakables the same over AmountSelector::get_Price.
+                //
+                // Nothing is lost by using the bridge's: Find has just matched this bridge against the
+                // call's types, so a bridge that names its own fits them, and one that names none was
+                // never choosing by them.
                 repairKey = Collect(new InteropAugmentor.MemberForward
                 {
-                    InAssembly = scope,
-                    DeclaringType = declaring.FullName,
-                    OldName = wanted.Name,
+                    InAssembly = authored.Assembly,
+                    DeclaringType = authored.DeclaringType,
+                    OldName = authored.OldName,
                     NewName = null,
-                    ParameterCount = parameters,
-                    ParameterTypes = parameterTypes,
+                    ParameterCount = authored.ParameterCount,
+                    ParameterTypes = authored.ParameterTypes,
                     Rule = "curated",
                 });
             }
@@ -728,6 +848,23 @@ namespace Polyfill.Core
             _members.Add(member);
             return member.Key;
         }
+
+        /// <summary>
+        /// The key a bridge's repair will be recorded under, without asking for the repair.
+        /// </summary>
+        /// <remarks>
+        /// Built through MemberForward rather than written out, so a finding that borrows another repair's
+        /// outcome cannot go on matching a key format that has since changed - which would show as an
+        /// outcome that never arrives rather than as an error.
+        /// </remarks>
+        private static string Key(Bridges.Bridge bridge) => new InteropAugmentor.MemberForward
+        {
+            InAssembly = bridge.Assembly,
+            DeclaringType = bridge.DeclaringType,
+            OldName = bridge.OldName,
+            ParameterCount = bridge.ParameterCount,
+            ParameterTypes = bridge.ParameterTypes,
+        }.Key;
 
         /// <summary>The same, for the Harmony pass - a patch target is a reason to repair too.</summary>
         internal static string Request(InteropAugmentor.MemberForward member) => Collect(member);

@@ -88,6 +88,8 @@
     <Reference Include="UnityEngine.TerrainModule"><HintPath>$(GameManagedPath)/UnityEngine.TerrainModule.dll</HintPath><Private>false</Private></Reference>
     <!-- VerticalLayoutGroup and the rest of uGUI. See MediaPlayerAppLayout. -->
     <Reference Include="UnityEngine.UI"><HintPath>$(GameManagedPath)/UnityEngine.UI.dll</HintPath><Private>false</Private></Reference>
+    <!-- Font is here, not in UI. See MoreRealisticSleepingPhoneFonts. -->
+    <Reference Include="UnityEngine.TextRenderingModule"><HintPath>$(GameManagedPath)/UnityEngine.TextRenderingModule.dll</HintPath><Private>false</Private></Reference>
     <!-- GUI and ScaleMode are here, not in CoreModule. See GuiDrawTexture. -->
     <Reference Include="UnityEngine.IMGUIModule"><HintPath>$(GameManagedPath)/UnityEngine.IMGUIModule.dll</HintPath><Private>false</Private></Reference>
   </ItemGroup>
