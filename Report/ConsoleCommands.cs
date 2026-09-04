@@ -285,6 +285,18 @@ namespace Polyfill.Report
                 try { type = System.Reflection.Assembly.Load(assembly)?.GetType(typeName, false); } catch { }
                 if (type != null) break;
             }
+
+            // A MOD'S OWN TYPE COUNTS TOO, and that is the only way to prove the repair a player reported.
+            // RainsCarMod died with MissingMethodException on PlayerCamera.FreeMouse - not where the game
+            // is called, but at the JIT of the mod method that names it. Nothing proves the bridge landed
+            // except compiling that method, and compiling it means calling it.
+            if (type == null)
+                foreach (var loaded in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    try { type = loaded.GetType(typeName, false); } catch { }
+                    if (type != null) break;
+                }
+
             if (type == null) { Core.Log.Warning($"type {typeName} not found at runtime."); return; }
 
             // Collected by hand rather than through GetMethod(name), which THROWS on a name carried by more
@@ -329,6 +341,25 @@ namespace Polyfill.Report
             }
 
             object[] arguments = argument == null ? null : new object[] { argument };
+
+            // COMPILING IT IS THE PROOF FOR A WHOLE CLASS OF BREAKAGE, and it needs no instance. A method
+            // that names a member the assembly has not got throws MissingMethodException when it is JIT
+            // compiled, not where the call sits - which is why a mod dies in a method that never ran a
+            // line, and why its own try/catch never sees it. RainsCarMod is the case: it named
+            // PlayerCamera.FreeMouse, and the whole CarDealerInterface.Open went with it.
+            //
+            // PrepareMethod does exactly that step and nothing else, so it answers "would this method run
+            // at all" for a member the probe cannot reach an instance of.
+            try
+            {
+                System.Runtime.CompilerServices.RuntimeHelpers.PrepareMethod(method.MethodHandle);
+                Core.Log.Msg("  COMPILES: every member it names is on this build.");
+            }
+            catch (Exception e)
+            {
+                Core.Log.Error("  does NOT compile: " + (e.InnerException ?? e).Message);
+                return;
+            }
 
             // A STATIC GETTER IS HALF OF WHAT POLYFILL REPAIRS, so refusing to call one left the more
             // interesting half unverifiable. Singleton<T>.Instance is the case that made this matter: the

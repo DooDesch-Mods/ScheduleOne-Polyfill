@@ -353,18 +353,22 @@ namespace Polyfill.Core
 
                 // A type nothing can stand in for, whose only use a named fix takes out. Said as a hint
                 // and not an outcome, like the member form: this knows a fix EXISTS, not that it ran.
+                bool coveredType = false;
                 if (string.IsNullOrEmpty(hint))
                 {
                     var covered = CoveredElsewhere.ForType(reference.FullName);
                     if (covered != null)
+                    {
                         hint = "covered by the fix " + covered.FixId + ": " + covered.Because;
+                        coveredType = true;
+                    }
                 }
 
                 report.Findings.Add(new Finding
                 {
                     Kind = (index.Kind(scope) == "game" ? "" : "library-") + "type",
                     Scope = scope, Symbol = reference.FullName,
-                    Reason = reason, Hint = hint, RepairKey = repairKey,
+                    Reason = reason, Hint = hint, RepairKey = repairKey, Covered = coveredType,
                 });
             }
             return missing;
@@ -753,7 +757,7 @@ namespace Polyfill.Core
             {
                 Kind = kindPrefix + "member", Scope = scope,
                 Symbol = declaring.FullName + "::" + wanted.Name + Signature(wanted, full: nameExists),
-                Reason = reason, Hint = hint, RepairKey = repairKey,
+                Reason = reason, Hint = hint, RepairKey = repairKey, Covered = covered != null,
             });
         }
 
