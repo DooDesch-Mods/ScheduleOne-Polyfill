@@ -35,6 +35,13 @@ namespace Polyfill.ModFixes
     /// on a worker at all - whatever a mod does in one and however many mods are installed. Guarding Deep
     /// Pockets instead was tried twice and closed one door each time (0 of 5 and 5 of 6).
     ///
+    /// THE TWO GUARDS ARE NOT INTERCHANGEABLE, and switching one off alone is worth knowing about.
+    /// Measured on the same 27-mod install by disabling each through <c>DisabledFixes</c>: with both off
+    /// the game died 3 of 3 with 0xC0000005. With ONLY this one off - so Deep Pockets was still kept away
+    /// from Unity - the game reached the menu both times, and the loop ran wide open behind it: 41 turns
+    /// in one launch and 2,386 in the other, against 19 with both guards on. That is a machine rewriting
+    /// its settings file hundreds of times a second while it looks like nothing is wrong.
+    ///
     /// The version range is closed on purpose. The claim above is only true while all three watcher
     /// callbacks still route through this one method.
     /// </remarks>
