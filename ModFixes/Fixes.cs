@@ -56,6 +56,8 @@ namespace Polyfill.ModFixes
             new OverTheCounterHandover(),
             new MeetPointsLobbyChat(),
             new MoreRealisticSleepingPhoneFonts(),
+            new DeepPocketsEarlyBroadcast(),
+            new MulesPrefsReloadOnAWorker(),
             new SupplierMeetingNeverStarts(),
             new PhoneAppIconWithoutFile(),
             new ThmButtonCodes(),
@@ -81,13 +83,20 @@ namespace Polyfill.ModFixes
 
         private static MelonPreferences_Entry<string> _disabled;
 
-        internal static void Run(MelonLogger.Instance log)
+        /// <summary>The fixes that have to be installed before other mods start. See Fix.Early.</summary>
+        internal static void RunEarly(MelonLogger.Instance log) => Run(log, early: true);
+
+        internal static void Run(MelonLogger.Instance log) => Run(log, early: false);
+
+        private static void Run(MelonLogger.Instance log, bool early)
         {
             ReadPreference();
             string game = GameVersion();
 
             foreach (var fix in All)
             {
+                if (fix.Early != early) continue;
+
                 var outcome = new Outcome { Fix = fix, Mod = InstalledVersion(fix.Mod) };
                 Results.Add(outcome);
 
