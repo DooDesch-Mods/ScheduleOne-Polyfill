@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.11.16] - 2026-09-04
+
+### Fixed
+- Smart Employees syncs employee changes between players again. The game moved where lobby chat arrives,
+  so the mod switched its multiplayer sync off.
+
 ## [0.11.15] - 2026-09-04
 
 ### Fixed
