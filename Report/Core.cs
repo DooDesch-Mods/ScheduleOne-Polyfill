@@ -36,6 +36,14 @@ namespace Polyfill.Report
             if (clash != null) LoggerInstance.Warning(clash);
 
             ReportReader.Load();
+
+            // BEFORE the other mods initialise, and that is the whole point of it being here rather than
+            // in OnUpdate with the rest. A guard around another mod startup code has to be in place while
+            // that startup is still ahead of it; by the first frame the call it guards has run a dozen
+            // times. Every mod ASSEMBLY is already loaded at this moment, so the type is findable - what
+            // is not available yet is the game, which is why an early fix may only read metadata.
+            ModFixes.Fixes.RunEarly(LoggerInstance);
+
             if (ReportReader.Mods.Count == 0)
             {
                 LoggerInstance.Warning(ReportReader.Problem

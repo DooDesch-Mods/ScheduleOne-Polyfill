@@ -52,6 +52,24 @@ namespace Polyfill.ModFixes
         /// </remarks>
         internal virtual string StandsDownBecause => null;
 
+        /// <summary>
+        /// Must this be in place before the OTHER mods run their own startup?
+        /// </summary>
+        /// <remarks>
+        /// Fixes normally run on the first frame the game can answer, because almost all of them need a
+        /// prefab, a scene or a screen. A guard around another mod's STARTUP code cannot wait that long:
+        /// by then the code it guards has already run, and in the case this was added for it has already
+        /// taken the process down. Measured in a clean 0.4.6f13 copy, the call being guarded fires 1.7
+        /// seconds before the first frame, and the game is gone before Polyfill OnUpdate runs once.
+        ///
+        /// An early fix pays for that with a smaller world. Nothing is loaded, so it may only look at
+        /// metadata - a type, a method, a signature - and it may not ask the game anything. Every mod
+        /// ASSEMBLY is loaded by then, which is what makes the other mod type findable at all; the order
+        /// mods INITIALISE in is not ours to choose, so an early fix has to expect that a few calls have
+        /// already gone through before it is installed.
+        /// </remarks>
+        internal virtual bool Early => false;
+
         /// <summary>Does this repair only mean anything with a screen in front of it?</summary>
         /// <remarks>
         /// A dedicated server loads the same mods and the same game assembly, so a fix aimed at what a
