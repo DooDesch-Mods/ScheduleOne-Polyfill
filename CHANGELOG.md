@@ -2,6 +2,23 @@
 
 All notable changes to this project are documented here.
 
+## [0.11.14] - 2026-09-04
+
+### Fixed
+- Rains Car Dealership opens its dealer screen. Interacting with a car did nothing at all, and the
+  interaction broke off there.
+- Mods that free or lock your mouse work again. The game moved both away from the camera, so a mod
+  asking for either one got nothing.
+- Dealer mods set the cut and the signing fee again, and employee mods set an NPC's health and walking
+  speed.
+- Mods that hide an NPC's chat work again.
+- Your character's appearance is readable again, and so is whether a conversation is open.
+
+### Changed
+- The listing stops calling a mod fixed when it is not. Anything Polyfill had an idea for counted as
+  repaired, so a mod that still crashed could read "Works with Polyfill".
+- A gap Polyfill cannot close now says why, instead of naming a lookalike and leaving it at that.
+
 ## [0.11.13] - 2026-09-03
 
 ### Fixed
