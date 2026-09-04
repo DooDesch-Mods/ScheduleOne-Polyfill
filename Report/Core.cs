@@ -77,6 +77,18 @@ namespace Polyfill.Report
         /// scene and its NetworkManager are up. So the trigger is not a lifecycle event but the state
         /// itself: the first frame it is there, they run, once. Nothing here polls after that.
         /// </remarks>
+        /// <summary>
+        /// Main thread, and the only place the game scene may be asked about.
+        /// </summary>
+        /// <remarks>
+        /// Two guards need to know whether the game is up, and both of them run on threads that are not
+        /// Unity's - MelonLoader hands a preference callback to whatever thread saved, and one installed
+        /// mod does that from a Task. Asking Unity there is the fault they exist to prevent, so the answer
+        /// is taken here and read as a flag.
+        /// </remarks>
+        public override void OnSceneWasLoaded(int buildIndex, string sceneName)
+            => ModFixes.MainSceneLatch.Note(sceneName);
+
         public override void OnUpdate()
         {
             if (_fixesRun) return;

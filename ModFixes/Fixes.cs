@@ -57,6 +57,7 @@ namespace Polyfill.ModFixes
             new MeetPointsLobbyChat(),
             new MoreRealisticSleepingPhoneFonts(),
             new DeepPocketsEarlyBroadcast(),
+            new MulesPrefsReloadOnAWorker(),
             new SupplierMeetingNeverStarts(),
             new PhoneAppIconWithoutFile(),
             new ThmButtonCodes(),
