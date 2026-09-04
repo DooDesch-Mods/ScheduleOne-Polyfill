@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.11.15] - 2026-09-04
+
+### Fixed
+- The game starts again with Deep Pockets and Mules installed together. It closed before the main menu
+  with nothing in the log, and more mods made it more likely.
+
 ## [0.11.14] - 2026-09-04
 
 ### Fixed
