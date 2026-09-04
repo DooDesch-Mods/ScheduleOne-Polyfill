@@ -102,8 +102,12 @@ namespace Polyfill.ModFixes
             // The finding names the OLD method, because that is what the mod asked for.
             Fixes.Repaired.Add("HUB.SmartEmployees|Il2CppScheduleOne.Networking.Lobby::OnLobbyChatMessage");
 
+            // NAMING THE MOD'S OWN LINE, because it is already in the log above this one and says the
+            // opposite. The mod gives up during its startup and fixes run on the first frame after, so a
+            // reader comparing the two has no way to tell which one is current.
             log.Msg("[fix] smartemployees-lobby-chat: Smart Employees listens on "
-                  + "SteamLobbyService.OnLobbyChatMessage, where 0.4.6 moved the lobby chat callback.");
+                  + "SteamLobbyService.OnLobbyChatMessage, where 0.4.6 moved the lobby chat callback. Its "
+                  + "own earlier line saying multiplayer sync is disabled is out of date.");
             return true;
         }
 
