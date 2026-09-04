@@ -55,6 +55,7 @@ namespace Polyfill.ModFixes
             new OverTheCounterSmartFill(),
             new OverTheCounterHandover(),
             new MeetPointsLobbyChat(),
+            new SmartEmployeesLobbyChat(),
             new MoreRealisticSleepingPhoneFonts(),
             new DeepPocketsEarlyBroadcast(),
             new MulesPrefsReloadOnAWorker(),
