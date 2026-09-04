@@ -158,6 +158,9 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         private static readonly string[] BasicInfo = { "NPCData", "BasicInfo" };
         private static readonly string[] Appearance = { "NPCData", "Appearance" };
         private static readonly string[] Interaction = { "NPCData", "Interaction" };
+        private static readonly string[] Messaging = { "NPCData", "Messaging" };
+
+        private const string SpeedController = "Il2CppScheduleOne.NPCs.NPCSpeedController";
 
         /// <summary>NPCInventory is a component, not the NPC, so its path starts at its own back-reference -
         /// the same one the component itself now reads through (NPCInventory.cs:62, 113, 122).</summary>
@@ -209,6 +212,9 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                                        + "form is what passing false always did (Avatar.cs:292-297)";
 
         private const string NameSplit = "NPC.cs:63-69 until 0.4.5f2, now BasicInfo.cs:4-7";
+        private const string Hideable = "NPC.cs:130 until 0.4.5f2, now Messaging.cs:11 - the same default "
+                                      + "and the same use, moved into the NPCData object with the rest of "
+                                      + "the per-NPC settings";
         private const string Summon = "NPC.cs:116 until 0.4.5f2, now Interaction.cs:8 - and the game reads it "
                                     + "from there in NPCEnterableBuilding.cs:96";
         private const string SlotCount = "NPCInventory.cs:45 until 0.4.5f2, now Inventory.InventorySlotCount, "
@@ -230,6 +236,13 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         /// </remarks>
         private const string PriceSelectorType = "Il2CppScheduleOne.UI.AmountSelector";
         private static readonly string[] DealerData = { "DealerData" };
+        private const string CutMoved = "Dealer.cs:102 until 0.4.5f2, now DealerNPCData.SalesCutPercentage "
+                                      + "(:20) - and the payout reads it from there with the same "
+                                      + "expression the old field was used in (Dealer.cs:1892 against "
+                                      + ":2031 in 0.4.5f2)";
+        private const string SigningMoved = "Dealer.cs:100 until 0.4.5f2, now DealerNPCData.cs:17 with the "
+                                          + "same 500 default, copied across when a dealer's data is built "
+                                          + "(:40) - the same move DealerType made";
 
         private const string Movement = "Il2CppScheduleOne.NPCs.NPCMovement";
         private const string Amount = "Il2CppScheduleOne.UI.AmountSelector";
@@ -242,6 +255,10 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         /// <summary>NPCMovement is a component, so its path starts at its own back-reference to the NPC -
         /// the same one its surviving getters use.</summary>
         private static readonly string[] NpcSpeed = { "npc", "NPCData", "Movement" };
+
+        /// <summary>NPCHealth reads its own values through the same back-reference the speed does
+        /// (NPCHealth.cs:28, :82), so the write goes down the same path.</summary>
+        private static readonly string[] NpcHealthData = { "npc", "NPCData", "Health" };
         private static readonly string[] SupplierData = { "SupplierData" };
 
         private const string ShopListings = "the same PhoneShopInterface.Listing[]; 0.4.6 keeps it on "
@@ -422,6 +439,20 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                   "NPC.cs:71 until 0.4.5f2, now Appearance.Mugshot"),
             Moved(Npc, "CanBeSummoned", Write, Interaction, "CanBeSummoned", Summon),
             Moved(Npc, "CanBeSummoned", Read, Interaction, "CanBeSummoned", Summon),
+
+            // An NPC's default walk speed. 0.4.5f2 had it as a public field on the controller
+            // (NPCSpeedController.cs:29) and never assigned it anywhere: every use in that build reads it
+            // - NPCActions.cs:110 and four places in NPCSignal_WaitForDelivery. 0.4.6 says so outright,
+            // as `public const float DefaultNormalizedSpeed = 0.08f` (NPCSpeedController.cs:27), the same
+            // number. So the value stopped varying per controller, which it never did.
+            NowStatic(SpeedController, "get_DefaultWalkSpeed", 0, "get_DefaultNormalizedSpeed",
+                      "NPCSpeedController.cs:29 until 0.4.5f2, where nothing ever wrote it; 0.4.6 makes it "
+                    + "the const DefaultNormalizedSpeed = 0.08f (:27), the same value it was initialised to"),
+
+            // Whether an NPC's chat can be hidden. Nine mod builds on the public listing block on the
+            // setter alone, which is the most of any member gap there.
+            Moved(Npc, "ConversationCanBeHidden", Write, Messaging, "ConversationCanBeHidden", Hideable),
+            Moved(Npc, "ConversationCanBeHidden", Read, Messaging, "ConversationCanBeHidden", Hideable),
             Moved(Inv, "SlotCount", Write, Inventory, "InventorySlotCount", SlotCount),
             Moved(Inv, "SlotCount", Read, Inventory, "InventorySlotCount", SlotCount),
             Moved(Inv, "ClearInventoryEachNight", Write, Inventory, "ClearInventoryOnNewDay", Renamed),
@@ -450,6 +481,14 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
 
             // Walk and run speed became read-only views over the NPC's data object. Writing one wrote the
             // value the getter still reads, so the write goes to the same place.
+            // An NPC's maximum health. 0.4.5f2 had it as a settable field (NPCHealth.cs:32); 0.4.6 keeps
+            // the number on the NPC's own data and reads it back through a getter that cannot be assigned
+            // (:82). The write lands where that getter reads, which is the same field with the same 100
+            // default (Health.cs:8).
+            Moved("Il2CppScheduleOne.NPCs.NPCHealth", "MaxHealth", Write, NpcHealthData, "MaxHealth",
+                  "NPCHealth.cs:32 until 0.4.5f2, now Health.cs:8 - and NPCHealth.cs:82 reads it straight "
+                + "back from there, so a write goes to the value the getter answers with"),
+
             Moved(Movement, "WalkSpeed", Write, NpcSpeed, "WalkSpeed", Speed),
             Moved(Movement, "RunSpeed", Write, NpcSpeed, "SprintSpeed", Speed),
 
@@ -485,6 +524,18 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             // under the same names (MouseController.cs:9,13,25). Reading it is what a mod does with it -
             // "is the cursor up right now" - and the write is bookkeeping in both builds: neither the old
             // field nor the new property moves the cursor by itself.
+            // The two calls that go with the flag. Both bodies are line for line the same in the two
+            // builds, and the argument 0.4.6 added guards exactly the line the old one ran every time -
+            // so true is what reproduces the old behaviour, not a value picked from the declaration.
+            ElsewhereStatic(PlayerCameraType, "LockMouse", 0, MouseControllerType,
+                            "PlayerCamera.cs:523 until 0.4.5f2, now MouseController.cs:11 with the same "
+                          + "body; its showCrosshair guards the line the old one ran unconditionally, so "
+                          + "true is the old behaviour", new object[] { true }),
+            ElsewhereStatic(PlayerCameraType, "FreeMouse", 0, MouseControllerType,
+                            "PlayerCamera.cs:534 until 0.4.5f2, now MouseController.cs:23 with the same "
+                          + "body; its hideCrosshair guards the line the old one ran unconditionally, so "
+                          + "true is the old behaviour", new object[] { true }),
+
             Elsewhere(PlayerCameraType, "get_isCursorShowing", NoParameters, MouseControllerType,
                       CursorMoved, "get_IsMouseVisible"),
             Elsewhere(PlayerCameraType, "set_isCursorShowing", OneBool, MouseControllerType,
@@ -499,11 +550,21 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             Elsewhere(PlayerType, "GetRandomPlayer", new[] { "System.Boolean", "System.Boolean" },
                       PlayerManager, PlayerLookups),
 
-            // GetClosestPlayer moved with them and is NOT here. Its third parameter is an interop list, and
-            // naming that type would put the game's own surface into a plugin that runs before the game
-            // exists - the build refuses the assembly over it, rightly. Arity alone cannot stand in: 0.4.6
-            // added a second three-argument overload taking a single Player, so a count would pick blind.
-            // No mod has asked for it; the day one does, it needs a rule that matches without naming the type.
+            Elsewhere(PlayerType, "AreAllPlayersReadyToSleep", NoParameters, PlayerManager, PlayerLookups),
+
+            // GetClosestPlayer moved with them, and until now it was left out with a note saying why: its
+            // third parameter is an interop list, naming that type would put Il2CppSystem into a plugin
+            // the CI checks for exactly that, and arity alone cannot choose because 0.4.6 added a SECOND
+            // three-argument overload taking a single Player (PlayerManager.cs:305 and :329).
+            //
+            // The note ended "no mod has asked for it; the day one does, it needs a rule that matches
+            // without naming the type". Five mod builds ask for it on the public listing now, so here is
+            // that rule: the overload is chosen by the SHAPE of its third parameter rather than by its
+            // name. One is a generic instance and the other is not, which decides it without a string, and
+            // the emitted signature is built from the parameter Cecil hands back - so the type is never
+            // spelled here at all.
+            ElsewhereByShape(PlayerType, "GetClosestPlayer", 3, PlayerManager, PlayerLookups,
+                             m => m.Parameters[2].ParameterType.IsGenericInstance),
 
             // The station screens that KEPT their name still lost this one to the new shared base.
             FromBase(Stations + "PackagingStationCanvas", "Canvas", "_canvas", StationCanvas),
@@ -562,6 +623,22 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                   "Dealer.cs held the type itself until 0.4.5f2; 0.4.6 keeps every dealer-specific value "
                 + "on DealerNPCData and Dealer.DealerData is the way in"),
 
+            // The signing fee went the same way and under the same name. Dealer.cs:100 until 0.4.5f2,
+            // DealerNPCData.cs:17 now, with the same 500 default and copied straight across when a
+            // dealer's data is built (:40).
+            // The dealer's take went the same way and changed its word: Cut on Dealer until 0.4.5f2
+            // (:102), SalesCutPercentage on the data object now - and Dealer.cs:1892 pays out with
+            // `payment * (1f - DealerData.SalesCutPercentage)`, the same expression :2031 used with Cut.
+            Moved("Il2CppScheduleOne.Economy.Dealer", "Cut", Read, DealerData, "SalesCutPercentage",
+                  CutMoved),
+            Moved("Il2CppScheduleOne.Economy.Dealer", "Cut", Write, DealerData, "SalesCutPercentage",
+                  CutMoved),
+
+            Moved("Il2CppScheduleOne.Economy.Dealer", "SigningFee", Write, DealerData, "SigningFee",
+                  SigningMoved),
+            Moved("Il2CppScheduleOne.Economy.Dealer", "SigningFee", Read, DealerData, "SigningFee",
+                  SigningMoved),
+
             // Members that were renamed past what a name rule can see: the new name shares no stem with the
             // old one, or it stopped being an accessor. Each one is a member of the same type holding the
             // same value, read out of both versions of the body.
@@ -599,6 +676,20 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                         + "null, so this answers the empty string there instead of throwing",
                 Emit = EmitNpcFullName,
             },
+            // The dialogue screen kept the question and changed the word for it. Both builds answer
+            // "is a handler attached": `currentHandler != null` at DialogueCanvas.cs:57 in 0.4.5f2 and
+            // the same expression at :60 now, under IsOpen.
+            // The player's appearance kept its type and its job and changed its word. Both builds write
+            // the same line - `appearanceString = (X != null) ? X.GetJson() : string.Empty` at
+            // Player.cs:865 in 0.4.5f2 and :754 now - and both declare it the same way.
+            NowCalled(PlayerType, "get_CurrentAvatarSettings", 0, "get_CurrentBasicAppearance",
+                      "Player.cs:450 until 0.4.5f2, now :415 as CurrentBasicAppearance - the same "
+                    + "BasicAvatarSettings with the same protected setter, saved by the same line (:754)"),
+
+            NowCalled("Il2CppScheduleOne.UI.DialogueCanvas", "get_isActive", 0, "get_IsOpen",
+                      "DialogueCanvas.cs:57 until 0.4.5f2 and :60 now - the same `currentHandler != null`, "
+                    + "renamed from isActive to IsOpen"),
+
             NowCalled("Il2CppScheduleOne.UI.Relations.RelationCircle", "get_AssignedNPC_ID", 0, "get_NPCId",
                     "RelationCircle.cs:23 until 0.4.5f2 cached the id in a field; NPCId reads it off the "
                   + "assigned NPC and returns string.Empty for none, which is what the field held"),
@@ -1164,6 +1255,143 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                 Emit = (module, type) => EmitElsewhere(module, type, name, parameters, nowOn,
                                                        nowCalled ?? name),
             };
+
+        /// <summary>
+        /// The same move, where which overload it became is decided by shape instead of by name.
+        /// </summary>
+        /// <remarks>
+        /// Polyfill.Boot must not carry the game's type names: it runs before the interop assemblies
+        /// exist, and CI greps the built plugin for Il2CppSystem and friends. So an overload whose
+        /// parameter is an interop generic cannot be picked the way the others are, by writing the type
+        /// out - the string alone would fail the build.
+        ///
+        /// <paramref name="pick"/> decides from the metadata instead. The signature that gets emitted is
+        /// still built from the parameters Cecil hands back, so the name never appears here.
+        /// </remarks>
+        private static Bridge ElsewhereByShape(string declaringType, string name, int parameterCount,
+                                               string nowOn, string because,
+                                               Func<MethodDefinition, bool> pick)
+            => new()
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = declaringType,
+                OldName = name,
+                ParameterCount = parameterCount,
+                AllowOverload = true,
+                Because = because,
+                Emit = (module, type) => EmitPicked(module, type, name, parameterCount, nowOn, pick),
+            };
+
+        private static MethodDefinition EmitPicked(ModuleDefinition module, TypeDefinition owner,
+                                                   string name, int parameterCount, string nowOn,
+                                                   Func<MethodDefinition, bool> pick)
+        {
+            var host = module.GetType(nowOn);
+            if (host == null) return null;
+
+            MethodDefinition target = null;
+            foreach (var candidate in host.Methods)
+            {
+                if (candidate.Name != name || !candidate.IsStatic
+                    || candidate.Parameters.Count != parameterCount) continue;
+
+                bool fits;
+                try { fits = pick(candidate); }
+                catch { return null; }                        // a shape test that throws has not decided
+                if (!fits) continue;
+
+                if (target != null) return null;              // two that fit; choosing would be a guess
+                target = candidate;
+            }
+            if (target == null || target.HasGenericParameters) return null;
+
+            var method = new MethodDefinition(name,
+                MethodAttributes.Public | MethodAttributes.Static | MethodAttributes.HideBySig,
+                module.ImportReference(target.ReturnType));
+
+            foreach (var parameter in target.Parameters)
+                method.Parameters.Add(new ParameterDefinition(parameter.Name, ParameterAttributes.None,
+                                                              module.ImportReference(parameter.ParameterType)));
+
+            var il = method.Body.GetILProcessor();
+            foreach (var parameter in method.Parameters) il.Emit(OpCodes.Ldarg, parameter);
+            il.Emit(OpCodes.Call, module.ImportReference(target));
+            il.Emit(OpCodes.Ret);
+            return method;
+        }
+
+        /// <summary>
+        /// An instance method whose work moved to a static on another type, which asks for more.
+        /// </summary>
+        /// <remarks>
+        /// Three of the existing shapes each cover a piece of this and none covers it whole: Elsewhere
+        /// moves a static and keeps the signature, NowStatic keeps the type and drops the instance, and
+        /// EmitWithDefaults fills arguments on the same type. This one crosses a type, drops the instance
+        /// AND fills what the new form added.
+        ///
+        /// The emitted method keeps the OLD arity, because that is what the callsite passes. Anything the
+        /// target wants beyond that comes from <paramref name="defaults"/>, and each of those values has
+        /// to be the one that reproduces the old body rather than the one the C# declaration happens to
+        /// default to - they are the same number here and that is a fact to check, not to assume.
+        /// </remarks>
+        private static Bridge ElsewhereStatic(string declaringType, string oldName, int oldParameterCount,
+                                              string nowOn, string because, object[] defaults = null)
+            => new()
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = declaringType,
+                OldName = oldName,
+                ParameterCount = oldParameterCount,
+                Because = because,
+                Emit = (module, type) => EmitElsewhereStatic(module, oldName, oldParameterCount, nowOn,
+                                                             defaults ?? Array.Empty<object>()),
+            };
+
+        private static MethodDefinition EmitElsewhereStatic(ModuleDefinition module, string name,
+                                                            int oldParameterCount, string nowOn,
+                                                            object[] defaults)
+        {
+            var host = module.GetType(nowOn);
+            if (host == null) return null;
+
+            int wanted = oldParameterCount + defaults.Length;
+            MethodDefinition target = null;
+            foreach (var candidate in host.Methods)
+            {
+                if (candidate.Name != name || !candidate.IsStatic
+                    || candidate.Parameters.Count != wanted) continue;
+                if (target != null) return null;               // two that fit; choosing would be a guess
+                target = candidate;
+            }
+            if (target == null || target.HasGenericParameters) return null;
+
+            // The emitted method is an INSTANCE one: the mod calls it on a PlayerCamera, and a static of
+            // the same name does not answer a callsite that carries a `this`.
+            var method = new MethodDefinition(name,
+                MethodAttributes.Public | MethodAttributes.HideBySig,
+                module.ImportReference(target.ReturnType));
+
+            for (int i = 0; i < oldParameterCount; i++)
+                method.Parameters.Add(new ParameterDefinition(target.Parameters[i].Name,
+                                                              ParameterAttributes.None,
+                                                              module.ImportReference(target.Parameters[i].ParameterType)));
+
+            var il = method.Body.GetILProcessor();
+            foreach (var parameter in method.Parameters) il.Emit(OpCodes.Ldarg, parameter);
+            for (int i = 0; i < defaults.Length; i++)
+            {
+                var expects = target.Parameters[oldParameterCount + i].ParameterType;
+                if (defaults[i] is bool flag && expects.MetadataType == MetadataType.Boolean)
+                    il.Emit(flag ? OpCodes.Ldc_I4_1 : OpCodes.Ldc_I4_0);
+                else if (defaults[i] is int number && expects.MetadataType == MetadataType.Int32)
+                    il.Emit(OpCodes.Ldc_I4, number);
+                else
+                    return null;                              // a value this cannot push is not a repair
+            }
+            il.Emit(OpCodes.Call, module.ImportReference(target));
+            il.Emit(OpCodes.Ret);
+            return method;
+        }
 
         private static MethodDefinition EmitElsewhere(ModuleDefinition module, TypeDefinition owner,
                                                       string name, string[] parameters, string nowOn,
@@ -1999,6 +2227,53 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         }
 
         /// <summary>A method with the target's signature under the old name, whose body is one call.</summary>
+        /// <summary>
+        /// An instance member whose value the game made the same for everyone.
+        /// </summary>
+        /// <remarks>
+        /// The mirror of <see cref="Elsewhere"/>: that one keeps the shape and changes the type, this one
+        /// keeps the type and changes the shape. The old member is called on an instance, so what is put
+        /// back has to be an instance method - a static of the same name does not answer a callsite that
+        /// carries a `this`, and EmitCall would emit exactly that, because it copies the staticness of
+        /// whatever it found.
+        ///
+        /// The instance is then dropped, which is the whole claim being made: the value no longer varies
+        /// per object. That is only honest where nothing ever wrote the old member, so the Because has to
+        /// say where that was checked.
+        /// </remarks>
+        private static Bridge NowStatic(string declaringType, string oldName, int parameterCount,
+                                        string newName, string because)
+            => new()
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = declaringType,
+                OldName = oldName,
+                ParameterCount = parameterCount,
+                Because = because,
+                Emit = (module, type) => EmitFromStatic(module, type, oldName, newName, parameterCount),
+            };
+
+        private static MethodDefinition EmitFromStatic(ModuleDefinition module, TypeDefinition type,
+                                                       string oldName, string newName, int parameterCount)
+        {
+            var target = Method(type, newName, parameterCount);
+            if (target == null || !target.IsStatic || target.HasGenericParameters) return null;
+
+            var method = new MethodDefinition(oldName,
+                MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName,
+                module.ImportReference(target.ReturnType));
+
+            foreach (var parameter in target.Parameters)
+                method.Parameters.Add(new ParameterDefinition(parameter.Name, ParameterAttributes.None,
+                                                              module.ImportReference(parameter.ParameterType)));
+
+            var il = method.Body.GetILProcessor();
+            foreach (var parameter in method.Parameters) il.Emit(OpCodes.Ldarg, parameter);
+            il.Emit(OpCodes.Call, module.ImportReference(target));
+            il.Emit(OpCodes.Ret);
+            return method;
+        }
+
         private static MethodDefinition EmitCall(ModuleDefinition module, TypeDefinition type,
                                                  string oldName, string newName, int parameterCount,
                                                  string[] keptArgumentNames = null)

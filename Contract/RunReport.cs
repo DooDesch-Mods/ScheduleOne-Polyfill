@@ -50,6 +50,20 @@ namespace Polyfill.Contract
         internal string OutcomeDetail;
 
         /// <summary>
+        /// A named fix answers what this member was FOR, so the gap does not block even unrepaired.
+        /// </summary>
+        /// <remarks>
+        /// Distinct from a Hint, and the distinction is the whole point. A hint says "there is something
+        /// here that could be meant"; this says "a person decided this is answered elsewhere". Only the
+        /// second is a reason to call a mod workable, and reading the first as the second is what put
+        /// "Works with Polyfill" over a mod that threw on the first interaction.
+        ///
+        /// It is not written to the report file: the fix reports its own fate through Fixes.Record, and
+        /// this only has to survive from CoveredElsewhere to the verdict in the same run.
+        /// </remarks>
+        internal bool Covered;
+
+        /// <summary>
         /// Which repair this finding turned into, when it turned into one. Not written to the file - it
         /// exists to carry the answer from the injector back to the finding it came from, since the two are
         /// deduplicated across every mod and cannot be matched by name afterwards.
@@ -89,8 +103,9 @@ namespace Polyfill.Contract
                                  : System.IO.Path.GetFileName(Path ?? "");
 
         /// <summary>
-        /// clean - nothing missing. adaptable - everything missing has exactly one candidate on this
-        /// machine. blocked - at least one thing is gone with nothing to point at.
+        /// clean - nothing missing. adaptable - everything missing was repaired on this machine, or is
+        /// answered by a named fix. blocked - anything else, including a gap Polyfill had a candidate for
+        /// and did not use.
         /// </summary>
         internal string Verdict
         {
@@ -102,13 +117,19 @@ namespace Polyfill.Contract
                     if (finding.Note) continue;          // a note is not a missing name
                     any = true;
 
-                    // REPAIRED IS NOT BLOCKING, whatever the hint said. A finding with no candidate is
-                    // normally the definition of blocked, and one kind of repair does not produce a
-                    // candidate at all: a runtime fix moves a mod's patch onto the method the game calls
-                    // and records the outcome only afterwards. Reading the hint alone called those mods
-                    // blocked while their patches were demonstrably working.
-                    if (finding.Outcome == Contract.Outcome.Applied) continue;
-                    if (string.IsNullOrEmpty(finding.Hint)) return "blocked";
+                    // A CANDIDATE IS NOT A REPAIR, and treating it as one is the worst thing this file
+                    // can do. The rule used to be "no candidate means blocked", so a finding that HAD a
+                    // candidate and whose repair was refused - or was never asked for - fell through both
+                    // checks and made the mod read adaptable. The listing renders that as "Works with
+                    // Polyfill", and a player installed Rains Car Dealership on the strength of it: the
+                    // gap was PlayerCamera.FreeMouse, nothing put it back, and the dealer screen threw
+                    // MissingMethodException on the first interaction.
+                    //
+                    // So what clears a finding is what actually happened to it. Applied, or a named fix
+                    // that answers what the member was for. A hint on its own is a lead for us and not a
+                    // promise to anybody.
+                    if (finding.Outcome == Contract.Outcome.Applied || finding.Covered) continue;
+                    return "blocked";
                 }
                 return any ? "adaptable" : "clean";
             }

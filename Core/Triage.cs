@@ -353,18 +353,22 @@ namespace Polyfill.Core
 
                 // A type nothing can stand in for, whose only use a named fix takes out. Said as a hint
                 // and not an outcome, like the member form: this knows a fix EXISTS, not that it ran.
+                bool coveredType = false;
                 if (string.IsNullOrEmpty(hint))
                 {
                     var covered = CoveredElsewhere.ForType(reference.FullName);
                     if (covered != null)
+                    {
                         hint = "covered by the fix " + covered.FixId + ": " + covered.Because;
+                        coveredType = true;
+                    }
                 }
 
                 report.Findings.Add(new Finding
                 {
                     Kind = (index.Kind(scope) == "game" ? "" : "library-") + "type",
                     Scope = scope, Symbol = reference.FullName,
-                    Reason = reason, Hint = hint, RepairKey = repairKey,
+                    Reason = reason, Hint = hint, RepairKey = repairKey, Covered = coveredType,
                 });
             }
             return missing;
@@ -753,7 +757,7 @@ namespace Polyfill.Core
             {
                 Kind = kindPrefix + "member", Scope = scope,
                 Symbol = declaring.FullName + "::" + wanted.Name + Signature(wanted, full: nameExists),
-                Reason = reason, Hint = hint, RepairKey = repairKey,
+                Reason = reason, Hint = hint, RepairKey = repairKey, Covered = covered != null,
             });
         }
 
@@ -787,7 +791,24 @@ namespace Polyfill.Core
             string reason = hits.Count > 1
                 ? $"field missing; {hits.Count} members could be meant, so none is chosen"
                 : hits.Count == 1 && hits[0].KindChanged
-                    ? "the field became a property" + where
+                    // SAYING WHY IT STAYS, NOT JUST WHAT IT BECAME. This is the largest single group on
+                    // the public listing - 166 of 378 open blockers and 413 of 872 blocked builds - and it
+                    // read as a repair somebody had not got round to: the successor was named and the
+                    // outcome was "none". It is not that.
+                    //
+                    // The mod asks for a FIELD. Il2CppInterop projects a game field as a property over
+                    // native memory (Player.Local's getter calls il2cpp_field_static_get_value, il2cpp
+                    // Player.cs:1981-1994), so there is no managed storage to put back: a field emitted
+                    // here would be read by the mod and written by nothing.
+                    //
+                    // Nor can the instruction be swapped for the accessor at runtime. HarmonyX 2.10.2
+                    // pins the original method before any transpiler runs - Harmony.Patch ->
+                    // ManagedMethodPatcher.DetourTo -> ILHook -> Pin -> RuntimeHelpers.PrepareMethod -
+                    // so the JIT reaches the missing field and throws MissingFieldException while the
+                    // patch is being installed. Rewriting the mod's own bytes before MelonLoader loads
+                    // them is the one route left, and it is a loader change rather than a bridge.
+                    ? "the field became a property" + where + ", and a field cannot be answered with one - "
+                    + "the mod needs rebuilding against the MelonLoader it runs on"
                     : "field missing, with nothing on this type to point at";
 
             report.Findings.Add(new Finding
