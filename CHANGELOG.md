@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here.
 
+## [0.11.18] - 2026-09-06
+
+### Fixed
+- Storage containers show the Delivery Manifest again, with its have and needed list and the Smart Fill
+  button.
+- A hired manager is called by their own name. They were taking the name of another character.
+
 ## [0.11.17] - 2026-09-06
 
 ### Fixed
