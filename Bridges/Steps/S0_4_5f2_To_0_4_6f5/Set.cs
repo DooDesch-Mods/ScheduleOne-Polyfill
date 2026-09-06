@@ -501,6 +501,35 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             Moved("Il2CppScheduleOne.Economy.Supplier", "OnlineShopItems", Write, SupplierData,
                   "DeliveryShopListings", ShopListings),
 
+            // THE SAME MOVE, the same header block. 0.4.5f2 kept the supplier's own spend ceiling on the
+            // Supplier component under [Header("Supplier Settings")] (Supplier.cs:69-73); 0.4.6 emptied
+            // that block onto the NPC's data object in one go, which is why OnlineShopItems above hops
+            // through the same SupplierData. The number is one-for-one and not merely similar: the lerp
+            // that decides a meeting's spend reads MinimumDeaddropOrderLimit and MaximumDeaddropOrderLimit
+            // where it used to read MinOrderLimit and MaxOrderLimit (0.4.5f2 Supplier.cs:680, now :659),
+            // and :722, :724 and :501 are the other three readers, unchanged in shape. Same type, same
+            // 500 default (SupplierNPCData.cs:13).
+            //
+            // ONE HOP DEEPER THAN A FIELD, and that has a visible edge: EmitThrough null-guards each hop
+            // and answers with the default when one is null, so this reads 0 rather than the old 500
+            // during NPC construction, before GetRuntimeData has run. Answering 0 for that window beats
+            // throwing, which is the same failure with a worse message.
+            //
+            // READ ONLY, on purpose. MaxOrderLimit was settable and the destination has a setter, so the
+            // write twin is this line with Write in place of Read - but only the getter was reported
+            // missing, and a bridge nobody asked for is one more name for reflection to trip over. Add it
+            // when a mod reports it.
+            Moved(Supplier, "MaxOrderLimit", Read, SupplierData, "MaximumDeaddropOrderLimit",
+                  "Supplier.cs:71 until 0.4.5f2, now SupplierNPCData.cs:13 with the same 500 default - "
+                + "and the four lines that read it read it from there (Supplier.cs:501, 659, 722, 724)"),
+
+            // Its twin, which no mod has reported yet and which moved in the same commit. A bridge stays
+            // dormant until something asks for it, so declaring it costs nothing and saves the next
+            // report.
+            Moved(Supplier, "MinOrderLimit", Read, SupplierData, "MinimumDeaddropOrderLimit",
+                  "Supplier.cs:70 until 0.4.5f2, now SupplierNPCData.cs:11 - the other half of the lerp "
+                + "at Supplier.cs:659"),
+
             // The blackjack table kept its screen and moved the betting half of it into a panel every
             // casino game now shares. The slider, the handler on its onValueChanged and the label refresh
             // all went together, so all three are reached through the panel the screen holds.
