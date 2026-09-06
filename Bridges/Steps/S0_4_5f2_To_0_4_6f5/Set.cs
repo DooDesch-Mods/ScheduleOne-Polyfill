@@ -729,6 +729,23 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                   + "(StorageMenu.cs:24)"),
             NowCalled(Inv, "get_PickpocketIntObj", 0, "get__interactable", Pickpocketed),
 
+            // The handover screen's two slot arrays, renamed and nothing else. 0.4.5f2 carried
+            // CustomerSlots and CustomerSlotUIs; 0.4.6 spells them _customerSlots and _customerSlotUIs,
+            // same element types and same length, and the screen still fills and reads them the same way.
+            //
+            // WORTH SAYING WHAT DID NOT CHANGE, because the obvious reading of the dumps is wrong: both
+            // were ALREADY private fields in 0.4.5f2 (mono HandoverScreen.cs:112 and :114). The api dump
+            // prints them as "F public ... nativeField=1" at both ends because that is how Il2CppInterop
+            // projects a native field, private or not - so this is a rename, not a member that was made
+            // private, and reading it the other way would send the repair looking for a visibility trick
+            // that never happened.
+            //
+            // Read AND write, because a mod that lays out its own handover row assigns the array back.
+            NowCalled(Handover, "get_CustomerSlots", 0, "get__customerSlots", HandoverSlots),
+            NowCalled(Handover, "set_CustomerSlots", 1, "set__customerSlots", HandoverSlots),
+            NowCalled(Handover, "get_CustomerSlotUIs", 0, "get__customerSlotUIs", HandoverSlots),
+            NowCalled(Handover, "set_CustomerSlotUIs", 1, "set__customerSlotUIs", HandoverSlots),
+
             // The price control kept its two members and renamed both when it stopped being about prices.
             NowCalled(Amount, "SetPrice", 1, "SetAmount", PriceControl, new[] { "price" }),
             NowCalled(Amount, "get_Price", 0, "get_SelectedAmount", PriceControl),
@@ -1032,6 +1049,14 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
 
         private const string ExitActionOld = "Il2CppScheduleOne.DevUtilities.ExitAction";
         private const string Supplier = "Il2CppScheduleOne.Economy.Supplier";
+        private const string Handover = "Il2CppScheduleOne.UI.Handover.HandoverScreen";
+
+        /// <summary>Why both handover slot arrays moved: an underscore, and nothing else.</summary>
+        private const string HandoverSlots =
+            "0.4.6 renamed the handover screen's slot arrays to _customerSlots and "
+          + "_customerSlotUIs (HandoverScreen.cs:604 and :619). Same element types, same "
+          + "length, same use - both were already private fields in 0.4.5f2 (:112, :114), so "
+          + "the only change is the spelling";
         private const string Controller = "Il2CppScheduleOne.Dialogue.DialogueController";
 
         private const string MeetingWhy =
