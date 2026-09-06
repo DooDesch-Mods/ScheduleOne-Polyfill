@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.12.0] - 2026-09-06
+
+### Fixed
+- Four supplier mods load again: Auto Pay Suppliers, BFG Better Supplier, Legal Produce and SkillTree.
+  They read a supplier's order limit, which the game moved onto the NPC's own data.
+
 ## [0.11.18] - 2026-09-06
 
 ### Fixed
