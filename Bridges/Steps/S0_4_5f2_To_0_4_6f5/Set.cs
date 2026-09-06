@@ -908,9 +908,26 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             Defaulted(Storage, "Open", new[] { Text, Text, Owner }, OneCallback,
                       "the same callback, on the overload that names the storage last "
                     + "(StorageMenu.cs:62)"),
-            Defaulted(Storage, "Open", new[] { "Il2CppScheduleOne.Storage.StorageEntity" }, OneCallback,
-                      "the same callback, on the overload that takes a storage entity "
-                    + "(StorageMenu.cs:50)"),
+            // UNPROMPTED, because the mod that needs it cannot be seen asking. OverTheCounter reaches this
+            // overload from a bare [HarmonyPatch] with a TargetMethod() body, so HarmonyTargets never sees
+            // a method name to collect (Core/HarmonyTargets.cs:42-44), and the mod's IL never names Open
+            // either - the lookup is built by reflection inside TargetMethod. Demand-driven collection
+            // therefore asks for nothing, the bridge is never emitted, and the mod logs "Could not find
+            // method for type Il2CppScheduleOne.UI.StorageMenu and name Open" on every launch.
+            //
+            // What goes with it is a whole feature rather than a message. StorageMenuOpenPatch.Postfix is
+            // the only caller of SmartStashOverlayUI.Show(), so opening any container shows no Delivery
+            // Manifest: no per-product have/needed list, no delivery-window toggles, and no Smart Fill
+            // button, which nothing else in the mod can reach.
+            //
+            // THE HAZARD THIS FLAG CARRIES DOES NOT APPLY HERE. It is that a member nobody asked for makes
+            // reflection BY NAME ALONE ambiguous - and StorageMenu.Open is already ambiguous on this build
+            // without Polyfill, because the game declares three overloads of it (il2cpp StorageMenu.cs:354,
+            // :369 and :382). A fourth cannot take that name from unique to ambiguous; it never was.
+            Unprompted(
+                Defaulted(Storage, "Open", new[] { "Il2CppScheduleOne.Storage.StorageEntity" }, OneCallback,
+                          "the same callback, on the overload that takes a storage entity "
+                        + "(StorageMenu.cs:50)")),
 
             new Bridge
             {

@@ -7,7 +7,7 @@ using MelonLoader;
 namespace Polyfill.ModFixes
 {
     /// <summary>
-    /// A drifter, customer or budtender keeps its own name instead of the one it was cloned from.
+    /// A drifter, customer, budtender or hired manager keeps its own name, not the one it was cloned from.
     /// </summary>
     /// <remarks>
     /// MEASURED, not reasoned. On a loaded save with OverTheCounter 2.0.10 the mod prints the NPC's own
@@ -35,10 +35,27 @@ namespace Polyfill.ModFixes
     /// prefab the clone is active, the mod's own writes land, and this stands down without touching
     /// anything.
     ///
-    /// NOT COVERED: ManagerSpawner's own spawn. It returns a ValueTuple rather than an NPC, so a postfix
-    /// taking <c>NPC __result</c> cannot bind to it, and Harmony would reject the whole patch rather than
-    /// that one target. A hired manager may still carry a borrowed identity; that needs its own repair and
-    /// its own measurement.
+    /// THE HIRED MANAGER IS THE SAME BUG WITH A DIFFERENT SHAPE, and it is repaired here too - at a
+    /// different point, because two things rule out the obvious one. ManagerSpawner.Spawn returns a
+    /// ValueTuple (otc-src:41059), so a postfix taking <c>NPC __result</c> cannot bind to it at all. And
+    /// even if it could, it would be too late: Spawn builds the manager's phone conversation INSIDE itself
+    /// at :41163, and MSGConversation copies the name into a plain field in its constructor
+    /// (MSGConversation.cs:113) that nothing ever writes again. Repairing the NPC after Spawn returns
+    /// would leave every message, notification and conversation header addressed to the template
+    /// character.
+    ///
+    /// So the manager is repaired at <c>ApplyAppearance(NPC, int seed)</c> (otc-src:41209), which Spawn
+    /// calls at :41162 - after <c>SetActive(true)</c> at :41132, so NPCData exists, and one line before
+    /// the messaging is built. It carries the seed, and the mod's name generator is deterministic and
+    /// side-effect free: DetermineGender saves and restores Random.state around its own draw
+    /// (otc-src:40995-41002), and the mod itself already calls GetManagerName a second time from
+    /// elsewhere (otc-src:39463). The id is not there, so it is captured from a prefix on Spawn, which
+    /// takes it as its first argument.
+    ///
+    /// WHAT THAT COSTS IF IT IS WRONG: the manager half is NOT verified in a running game. Hiring a
+    /// manager needs the phone, and nothing here can drive a mouse. Every step of it is guarded and logs
+    /// what it could not do, so the failure mode is a line in the log and the identity staying as it is
+    /// today - not a throw inside somebody else's spawn.
     /// </remarks>
     internal sealed class OverTheCounterSpawnedIdentity : Fix
     {
@@ -55,6 +72,19 @@ namespace Polyfill.ModFixes
         /// same place the mod meant it to go, through the same route, only later.
         /// </remarks>
         private static MethodInfo _setId, _setFirst, _setLast;
+
+        /// <summary>The manager's own name generator, reached by seed. See the remarks.</summary>
+        private static MethodInfo _gender, _firstName, _lastName;
+
+        /// <summary>The id of the manager currently being spawned, and the seed it was asked for with.</summary>
+        /// <remarks>
+        /// Spawn calls ApplyAppearance itself, on the same thread, before it returns, so a single pending
+        /// pair is enough - and the seed is checked rather than assumed, so a nested or reordered call
+        /// leaves the identity alone instead of stamping the wrong one.
+        /// </remarks>
+        private static string _pendingId;
+        private static int _pendingSeed;
+        private static bool _pending;
 
         internal override string Id => "otc-spawned-identity";
         internal override string Mod => "OverTheCounter";
@@ -111,9 +141,59 @@ namespace Polyfill.ModFixes
                 return false;
             }
 
+            int managers = AttachManager(log);
+
             log.Msg("[fix] otc-spawned-identity: a spawned drifter or customer gets its own name, instead "
-                  + "of the one belonging to the character it was cloned from.");
+                  + "of the one belonging to the character it was cloned from."
+                  + (managers == 2 ? " A hired manager does too." : ""));
             return true;
+        }
+
+        /// <summary>
+        /// The manager half. Returns how many of its two targets bound; anything under two does nothing.
+        /// </summary>
+        /// <remarks>
+        /// Kept separate and non-fatal on purpose: the civilian repair above is measured working, and a
+        /// manager target that this build does not have must not take it down with it.
+        /// </remarks>
+        private static int AttachManager(MelonLogger.Instance log)
+        {
+            var spawner = AccessTools.TypeByName("OverTheCounter.Logic.ManagerSpawner");
+            if (spawner == null) return 0;
+
+            var spawn = AccessTools.Method(spawner, "Spawn");
+            var appearance = AccessTools.Method(spawner, "ApplyAppearance");
+            _gender = AccessTools.Method(spawner, "DetermineGender");
+            _firstName = AccessTools.Method(spawner, "GetRandomFirstName");
+            _lastName = AccessTools.Method(spawner, "GetRandomLastName");
+
+            if (spawn == null || appearance == null || _gender == null || _firstName == null
+                || _lastName == null)
+            {
+                log.Warning("[fix] otc-spawned-identity: ManagerSpawner is missing "
+                          + (spawn == null ? "Spawn " : "") + (appearance == null ? "ApplyAppearance " : "")
+                          + (_gender == null ? "DetermineGender " : "")
+                          + (_firstName == null ? "GetRandomFirstName " : "")
+                          + (_lastName == null ? "GetRandomLastName " : "")
+                          + "on this build, so a hired manager keeps the name it is cloned from.");
+                return 0;
+            }
+
+            try
+            {
+                var harmony = new HarmonyLib.Harmony("doodesch.polyfill.fixes");
+                harmony.Patch(spawn, prefix: new HarmonyMethod(
+                    AccessTools.Method(typeof(OverTheCounterSpawnedIdentity), nameof(RememberManager))));
+                harmony.Patch(appearance, postfix: new HarmonyMethod(
+                    AccessTools.Method(typeof(OverTheCounterSpawnedIdentity), nameof(NameTheManager))));
+                return 2;
+            }
+            catch (Exception e)
+            {
+                log.Warning("[fix] otc-spawned-identity: could not attach to ManagerSpawner ("
+                          + e.Message + "), so a hired manager keeps the name it is cloned from.");
+                return 0;
+            }
         }
 
         /// <summary>
@@ -173,6 +253,56 @@ namespace Polyfill.ModFixes
                             + (_repaired == 6 ? " (further repairs are not logged)" : ""));
                 }
                 catch { }
+            }
+        }
+
+        /// <summary>Spawn knows the id; ApplyAppearance, where the repair has to happen, does not.</summary>
+        private static void RememberManager(string id, int seed)
+        {
+            _pendingId = id;
+            _pendingSeed = seed;
+            _pending = !string.IsNullOrEmpty(id);
+        }
+
+        /// <summary>
+        /// After the clone is active and before its phone conversation is built.
+        /// </summary>
+        private static void NameTheManager(NPC npc, int seed)
+        {
+            if (!_pending || npc == null) return;
+            // The pair belongs to THIS spawn or to nothing.
+            if (seed != _pendingSeed) return;
+
+            string id = _pendingId;
+            _pending = false;
+
+            string carried;
+            try { carried = npc.ID; }
+            catch (Exception e)
+            {
+                _log?.Warning("[fix] otc-spawned-identity: could not read the manager's id (" + e.Message
+                            + "), so it was left as it is.");
+                return;
+            }
+            if (carried == id) return;
+
+            try
+            {
+                bool female = (float)_gender.Invoke(null, new object[] { seed }) >= 0.5f;
+                var first = (string)_firstName.Invoke(null, new object[] { seed, female });
+                var last = (string)_lastName.Invoke(null, new object[] { seed });
+
+                _setId.Invoke(npc, new object[] { id });
+                _setFirst.Invoke(npc, new object[] { first });
+                _setLast.Invoke(npc, new object[] { last });
+
+                _log?.Msg("[fix] otc-spawned-identity: manager '" + id + "' had been given the identity of '"
+                        + carried + "', and is now " + first + " " + last + ".");
+            }
+            catch (Exception e)
+            {
+                _log?.Warning("[fix] otc-spawned-identity: could not name the manager '" + id + "': "
+                            + e.Message);
             }
         }
     }
