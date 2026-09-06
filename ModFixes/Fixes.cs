@@ -48,6 +48,7 @@ namespace Polyfill.ModFixes
             new S1MapiInstancedTrees(),
             new OverTheCounterNetworkLib(),
             new OverTheCounterDrifterPrefab(),
+            new OverTheCounterSpawnedIdentity(),
             new OverTheCounterAdoptsOnlyClones(),
             new OverTheCounterButtonCodes(),
             new OverTheCounterClipboard(),

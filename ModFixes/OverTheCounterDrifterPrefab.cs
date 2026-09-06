@@ -144,12 +144,68 @@ namespace Polyfill.ModFixes
                 try
                 {
                     _log?.Msg($"[fix] otc-drifter-prefab: handover {_handed} -> {better.gameObject.name}"
+                            + $", asked for by {Caller()}, prefab active={Active(better.gameObject)}"
                             + (_handed == 8 ? " (further handovers are not logged)" : ""));
                 }
                 catch { }
             }
 
             __result = better;
+        }
+
+
+        /// <summary>
+        /// Which of the mod's three spawners asked. Best effort, and worth the effort.
+        /// </summary>
+        /// <remarks>
+        /// The patched method has three callers inside OverTheCounter - the shop customers, the budtenders
+        /// and the drifters - and the handover line named none of them. A player reporting "the drifters
+        /// are broken" therefore produced a log in which nothing said whether a single one of these
+        /// handovers was a drifter at all, and a five-way investigation stalled on exactly that: the
+        /// leading explanation could not be tied to the reported symptom, and could not be ruled out
+        /// either. One name in this line is the difference.
+        ///
+        /// A managed stack walk is the only thing available here. Harmony can hand a patch its own target
+        /// but not its caller, and the clone is renamed to Drifter_/Customer_/Budtender_ only AFTER this
+        /// runs. It is bounded to the first eight handovers by the caller, so the cost is eight walks a
+        /// session, and it answers "unknown" rather than throwing when the frames are not there - an
+        /// IL2CPP build inlines aggressively and may simply not have them.
+        /// </remarks>
+        private static string Caller()
+        {
+            try
+            {
+                var trace = new System.Diagnostics.StackTrace(false);
+                for (int i = 0; i < trace.FrameCount; i++)
+                {
+                    var method = trace.GetFrame(i)?.GetMethod();
+                    var type = method?.DeclaringType;
+                    if (type == null) continue;
+
+                    string ns = type.Namespace ?? "";
+                    if (!ns.StartsWith("OverTheCounter")) continue;
+                    // Skip the method this patch is attached to; the interesting frame is above it.
+                    if (method.Name == "GetBasePrefab" || method.Name == "SpawnCivilianNpc") continue;
+                    return type.Name + "." + method.Name;
+                }
+            }
+            catch { }
+            return "unknown";
+        }
+
+        /// <summary>
+        /// Whether the prefab being handed over is active, which decides whether the clone runs Awake.
+        /// </summary>
+        /// <remarks>
+        /// S1API keeps its templates deactivated on purpose (NPCPrefabContainer.cs:91). A clone of an
+        /// inactive source does not run Awake during Instantiate, so anything the mod writes before it
+        /// activates the clone lands on an object whose runtime data is not built yet. Whether that
+        /// actually costs the drifter its identity is unmeasured - which is the point of printing it.
+        /// </remarks>
+        private static string Active(GameObject go)
+        {
+            try { return go.activeSelf ? "yes" : "no"; }
+            catch { return "unknown"; }
         }
 
         private static int _handed;
