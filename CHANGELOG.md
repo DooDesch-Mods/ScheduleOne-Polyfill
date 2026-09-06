@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.11.17] - 2026-09-06
+
+### Fixed
+- Drifters and shop customers keep their own name. They were taking the name of the character they were
+  built from, so every one of them was somebody else.
+
 ## [0.11.16] - 2026-09-04
 
 ### Fixed
