@@ -261,6 +261,9 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         private static readonly string[] NpcHealthData = { "npc", "NPCData", "Health" };
         private static readonly string[] SupplierData = { "SupplierData" };
 
+        /// <summary>The NPC's own data object, for values that used to sit on the NPC component itself.</summary>
+        private static readonly string[] NpcRelationship = { "NPCData", "Relationship" };
+
         private const string ShopListings = "the same PhoneShopInterface.Listing[]; 0.4.6 keeps it on "
                                           + "SupplierNPCData and Supplier.SupplierData is the way in";
 
@@ -327,6 +330,9 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             + "SelectedAmount on it - same float, same meaning (AmountSelector.cs:27)";
         private const string Packaging = "Il2CppScheduleOne.ObjectScripts.PackagingStation";
         private const string Bool = "System.Boolean";
+
+        private const string MessageBubble = "Il2CppScheduleOne.UI.Phone.Messages.MessageBubble";
+        private const string BubbleAlignment = MessageBubble + "/Alignment";
         private const string GameplayMenu = "Il2CppScheduleOne.UI.GameplayMenu";
         private const string SleepCanvas = "Il2CppScheduleOne.UI.SleepCanvas";
         private const string DealerType = "Il2CppScheduleOne.Economy.Dealer";
@@ -500,6 +506,38 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                 + "damage lands read it from there (NPCHealth.cs:230, 249, 268)"),
             Moved("Il2CppScheduleOne.NPCs.NPCHealth", "Invincible", Write, NpcHealthData, "Invincible",
                   "the write half, landing on the value those same three lines read"),
+
+            // Whether the messages app shows a relationship bar above a conversation. It was a plain field
+            // on the NPC and is now a field on that NPC's relationship data.
+            //
+            // Read out of the one method that uses it, in both versions: MSGConversation.SetIsOpen tested
+            // sender.ShowRelationshipInfo before calling DisplayRelationshipInfo and again to nudge the
+            // name label down by 20 (MSGConversation.cs:263, :268 on 0.4.5f2). The same two lines on 0.4.6
+            // read sender.NPCData.Relationship.DisplayRelationshipValue (:255, :260). Same decision, same
+            // consequence, one object further in - and both default to true (NPC.cs:123 then
+            // Relationship.cs:12).
+            //
+            // Write comes first here because that is what a mod does with it: TextYourFriends builds a
+            // stand-in NPC for another player and turns the bar off, since a player has no relationship
+            // value to show. Read is the pair, for a mod that puts it back.
+            Moved(Npc, "ShowRelationshipInfo", Write, NpcRelationship, "DisplayRelationshipValue",
+                  "NPC.cs:123 until 0.4.5f2, now Relationship.cs:12 - and MSGConversation.cs:255 and :260 "
+                + "read it from there to decide whether the conversation shows a relationship bar"),
+            Moved(Npc, "ShowRelationshipInfo", Read, NpcRelationship, "DisplayRelationshipValue",
+                  "the read half, answering with the value those two lines consult"),
+
+            // A message bubble gained a clickable flag, and it went in the MIDDLE of the argument list
+            // rather than on the end - so the third argument of the old call is the fourth of the new one.
+            //
+            // false is what the method did before the parameter existed: the 0.4.5f2 body never touched
+            // button.interactable and left the prefab's own value standing (MessageBubble.cs:65-124), while
+            // 0.4.6 assigns it on every call (MessageBubble.cs:92). The game's own message history passes
+            // false for exactly this kind of bubble and keeps true for the response buttons
+            // (MSGConversation.cs:327 against :654), which is the same reading from the other side.
+            Interposed(MessageBubble, "SetupBubble", new[] { Text, BubbleAlignment, Bool }, 2, false,
+                       "MessageBubble.cs:65 until 0.4.5f2, now :67 with an interactable flag pushed in "
+                     + "third - the old body never set it (:65-124), and the game passes false for a "
+                     + "message bubble (MSGConversation.cs:327)"),
 
             Moved(Movement, "WalkSpeed", Write, NpcSpeed, "WalkSpeed", Speed),
             Moved(Movement, "RunSpeed", Write, NpcSpeed, "SprintSpeed", Speed),
@@ -1634,6 +1672,39 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         /// <param name="leading">The parameter types the old form had, by full name. Needed whenever the
         /// name carries more than one overload of the new arity - StorageMenu has two four-argument
         /// Opens, and picking by count alone would pick whichever came first.</param>
+        /// <summary>
+        /// The same as <see cref="Defaulted"/>, except the new argument was pushed in BETWEEN the old ones
+        /// instead of onto the end.
+        /// </summary>
+        /// <remarks>
+        /// It needs its own shape because the difference is not cosmetic. Appending lets every old argument
+        /// keep its slot; inserting moves each one after the new parameter along by one, and forwarding
+        /// positionally would then hand the caller's last value to a parameter that means something else.
+        ///
+        /// MessageBubble.SetupBubble is the case: 0.4.5f2 took (text, alignment, alignCenter) and 0.4.6
+        /// takes (text, alignment, interactable, alignCenter). A three-argument call forwarded by position
+        /// would pass the caller's alignCenter as interactable and leave the text alignment to a default -
+        /// two wrong things from one right call, and neither would look like a fault in the bridge.
+        /// </remarks>
+        /// <param name="oldTypes">The parameter types of the call as it was written, by full name.</param>
+        /// <param name="at">Where the new parameter sits in the NEW list, counted from zero.</param>
+        /// <param name="value">What to pass there. It has to be what the method did before the parameter
+        /// existed, read out of the game's own source and cited in the rule - an interop assembly carries
+        /// no default values to read it from.</param>
+        private static Bridge Interposed(string declaringType, string name, string[] oldTypes,
+                                       int at, object value, string because)
+            => new()
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = declaringType,
+                OldName = name,
+                ParameterCount = oldTypes.Length,
+                ParameterTypes = oldTypes,
+                AllowOverload = true,
+                Because = because,
+                Emit = (module, type) => EmitInterposed(module, type, name, oldTypes, at, value),
+            };
+
         private static Bridge Defaulted(string declaringType, string name, string[] leading,
                                       object[] defaults, string because)
             => new()
@@ -2423,6 +2494,68 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             {
                 var expected = target.Parameters[parameterCount + i].ParameterType;
                 if (!PushConstant(il, defaults[i], expected)) return null;
+            }
+
+            il.Emit(OpCodes.Call, module.ImportReference(target));
+            il.Emit(OpCodes.Ret);
+            return method;
+        }
+
+        /// <summary>
+        /// Rebuilds the old call as the new one with a constant slotted in at <paramref name="at"/>.
+        /// </summary>
+        /// <remarks>
+        /// The candidate has to match the old types around the inserted slot, not merely have one more
+        /// parameter: a name with two overloads of the new arity would otherwise be settled by whichever
+        /// came first in the metadata, which is not a decision this table gets to make silently.
+        /// </remarks>
+        private static MethodDefinition EmitInterposed(ModuleDefinition module, TypeDefinition type,
+                                                       string name, string[] oldTypes, int at, object value)
+        {
+            if (at < 0 || at > oldTypes.Length) return null;
+
+            MethodDefinition target = null;
+            foreach (var candidate in type.Methods)
+            {
+                if (candidate.Name != name || candidate.Parameters.Count != oldTypes.Length + 1) continue;
+
+                bool matches = true;
+                for (int i = 0; i < oldTypes.Length && matches; i++)
+                {
+                    int slot = i < at ? i : i + 1;
+                    if (candidate.Parameters[slot].ParameterType.FullName != oldTypes[i]) matches = false;
+                }
+                if (!matches) continue;
+                if (target != null) return null;              // more than one; choosing would be a guess
+                target = candidate;
+            }
+            if (target == null || target.HasGenericParameters) return null;
+
+            var method = new MethodDefinition(name,
+                MethodAttributes.Public | MethodAttributes.HideBySig
+                    | (target.IsStatic ? MethodAttributes.Static : 0),
+                module.ImportReference(target.ReturnType));
+
+            // The parameters keep the names the SURVIVING method gives them, which is what a Harmony patch
+            // written against the old call binds by - see the keptArgumentNames note on NowCalled.
+            for (int i = 0; i < oldTypes.Length; i++)
+            {
+                int slot = i < at ? i : i + 1;
+                method.Parameters.Add(new ParameterDefinition(target.Parameters[slot].Name,
+                    ParameterAttributes.None, module.ImportReference(target.Parameters[slot].ParameterType)));
+            }
+
+            var il = method.Body.GetILProcessor();
+            if (!target.IsStatic) il.Emit(OpCodes.Ldarg_0);
+
+            for (int slot = 0; slot < target.Parameters.Count; slot++)
+            {
+                if (slot == at)
+                {
+                    if (!PushConstant(il, value, target.Parameters[slot].ParameterType)) return null;
+                    continue;
+                }
+                il.Emit(OpCodes.Ldarg, method.Parameters[slot < at ? slot : slot - 1]);
             }
 
             il.Emit(OpCodes.Call, module.ImportReference(target));
