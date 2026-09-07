@@ -489,6 +489,18 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                   "NPCHealth.cs:32 until 0.4.5f2, now Health.cs:8 - and NPCHealth.cs:82 reads it straight "
                 + "back from there, so a write goes to the value the getter answers with"),
 
+            // The invincibility flag made the same move in the same commit, onto the same object. Read AND
+            // write, because a mod that protects an NPC sets it and then usually checks it back.
+            //
+            // The game reads it live at three places - NPCHealth.cs:230, :249 and :268 all test
+            // npc.NPCData.Health.Invincible before applying damage, a knockout or death - so a write here
+            // is the value those three lines consult, not a copy of it.
+            Moved("Il2CppScheduleOne.NPCs.NPCHealth", "Invincible", Read, NpcHealthData, "Invincible",
+                  "NPCHealth.cs:33 until 0.4.5f2, now Health.cs:10 - the three lines that decide whether "
+                + "damage lands read it from there (NPCHealth.cs:230, 249, 268)"),
+            Moved("Il2CppScheduleOne.NPCs.NPCHealth", "Invincible", Write, NpcHealthData, "Invincible",
+                  "the write half, landing on the value those same three lines read"),
+
             Moved(Movement, "WalkSpeed", Write, NpcSpeed, "WalkSpeed", Speed),
             Moved(Movement, "RunSpeed", Write, NpcSpeed, "SprintSpeed", Speed),
 
