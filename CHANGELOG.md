@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented here.
 
+## [0.12.2] - 2026-09-07
+
+### Added
+- The mod page on polyfill.doomods.com now says why Polyfill refused a repair, instead of only
+  that it did.
+
+### Fixed
+- Mules and Lithium stop being listed as broken. What they asked the game for was there all
+  along, in a form Polyfill did not recognise.
+- Text Your Friends draws its message bubbles and its player conversations again.
+
 ## [0.12.1] - 2026-09-07
 
 ### Fixed
