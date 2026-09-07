@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.12.1] - 2026-09-07
+
+### Fixed
+- Mods that lay out the handover screen work again. The game renamed the two slot lists they fill.
+- Mods that make an NPC invincible work again. The game moved that flag onto the NPC's own data.
+
 ## [0.12.0] - 2026-09-06
 
 ### Fixed
