@@ -171,13 +171,13 @@ namespace Polyfill.Core
         /// inside Polyfill: it is published against somebody else's mod as a symbol the game no longer
         /// has, and an author reading that would go looking for a rename that never happened.
         /// </remarks>
-        private static Match Same(List<TypeReference> wanted, MethodDefinition method)
+        private static Match Same(List<TypeReference> wanted, List<int> variations, MethodDefinition method)
         {
             if (wanted.Count != method.Parameters.Count) return Match.No;
 
             for (int i = 0; i < wanted.Count; i++)
             {
-                string a = wanted[i]?.FullName;
+                string a = Decorated(wanted[i]?.FullName, variations, i);
                 string b = method.Parameters[i].ParameterType?.FullName;
                 if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b)) return Match.Unknown;
                 if (a != b) return Match.No;
@@ -185,10 +185,45 @@ namespace Polyfill.Core
             return Match.Yes;
         }
 
-        /// <summary>The names a patch asked for, for the line an author reads.</summary>
-        private static IEnumerable<string> Spelled(List<TypeReference> types)
+        /// <summary>
+        /// One argument type as the patch actually means it, by-ref marker and all.
+        /// </summary>
+        /// <remarks>
+        /// A patch cannot write <c>typeof(NavMeshPath&amp;)</c>, so Harmony carries the by-ref-ness in a
+        /// separate <c>ArgumentType[]</c> beside the types. Reading the types alone therefore asks the
+        /// game for a signature nobody wrote: Mules names
+        /// <c>CanGetTo(Vector3, float, NavMeshPath)</c> with the third argument marked Out, the game has
+        /// <c>CanGetTo(Vector3, float, out NavMeshPath)</c> in both 0.4.5f2 and 0.4.6f13, and this pass
+        /// published the mod as blocked on a method that never moved. Harmony had bound it the whole
+        /// time.
+        ///
+        /// Cecil spells a by-ref parameter <c>T&amp;</c> and a pointer <c>T*</c>, which is what these two
+        /// append. Ref and Out are the same thing to the runtime and differ only in who writes first.
+        /// </remarks>
+        private static string Decorated(string typeName, List<int> variations, int index)
         {
-            foreach (var type in types) yield return type?.FullName ?? "?";
+            if (string.IsNullOrEmpty(typeName)) return typeName;
+            if (variations == null || index >= variations.Count) return typeName;
+
+            switch (variations[index])
+            {
+                case Ref:
+                case Out: return typeName + "&";
+                case Pointer: return typeName + "*";
+                default: return typeName;
+            }
+        }
+
+        // HarmonyLib.ArgumentType, which is an enum and therefore reaches Cecil as a bare int.
+        private const int Ref = 1;
+        private const int Out = 2;
+        private const int Pointer = 3;
+
+        /// <summary>The names a patch asked for, for the line an author reads.</summary>
+        private static IEnumerable<string> Spelled(List<TypeReference> types, List<int> variations)
+        {
+            for (int i = 0; i < types.Count; i++)
+                yield return Decorated(types[i]?.FullName, variations, i) ?? "?";
         }
 
         /// <summary>The method half of the check, once the type it is on has been settled.</summary>
@@ -226,7 +261,7 @@ namespace Polyfill.Core
                 // finding. After: the row below, and MelonLoader refusing the same patch class at
                 // startup with "Undefined target method" - the two agreeing is the point.
                 if (spec.ArgumentTypes == null) continue;
-                switch (Same(spec.ArgumentTypes, method))
+                switch (Same(spec.ArgumentTypes, spec.ArgumentVariations, method))
                 {
                     case Match.Yes: exact ??= method; comparable++; break;
                     case Match.No: comparable++; break;
@@ -243,7 +278,7 @@ namespace Polyfill.Core
                     Kind = "harmony-target",
                     Scope = declaring.Module?.Assembly?.Name?.Name ?? "",
                     Symbol = (under ?? declaring.FullName) + "::" + name
-                           + "(" + string.Join(", ", Spelled(spec.ArgumentTypes)) + ")",
+                           + "(" + string.Join(", ", Spelled(spec.ArgumentTypes, spec.ArgumentVariations)) + ")",
                     Reason = $"this build has {matches} method(s) called {name} with that many parameters "
                            + "and none of them takes those types, so the patch resolves nothing. Harmony "
                            + "throws out of PatchAll, which costs this patch class and every one after it",
@@ -478,6 +513,7 @@ namespace Polyfill.Core
             internal string TypeName;
             internal string MethodName;
             internal List<TypeReference> ArgumentTypes;
+            internal List<int> ArgumentVariations;
             internal int? MethodType;
         }
 
@@ -490,6 +526,7 @@ namespace Polyfill.Core
                 TypeName = inner.TypeName ?? outer.TypeName,
                 MethodName = inner.MethodName ?? outer.MethodName,
                 ArgumentTypes = inner.ArgumentTypes ?? outer.ArgumentTypes,
+                ArgumentVariations = inner.ArgumentVariations ?? outer.ArgumentVariations,
                 MethodType = inner.MethodType ?? outer.MethodType,
             };
         }
@@ -525,6 +562,9 @@ namespace Polyfill.Core
                         case CustomAttributeArgument[] array when IsTypeArray(argument.Type):
                             spec.ArgumentTypes ??= TypesIn(array);
                             break;
+                        case CustomAttributeArgument[] array when IsVariationArray(argument.Type):
+                            spec.ArgumentVariations ??= VariationsIn(array);
+                            break;
                         case int enumValue when argument.Type?.Name == "MethodType":
                             spec.MethodType ??= enumValue;
                             break;
@@ -559,6 +599,9 @@ namespace Polyfill.Core
                 case "argumentTypes" when named.Argument.Value is CustomAttributeArgument[] array:
                     spec.ArgumentTypes ??= TypesIn(array);
                     break;
+                case "argumentVariations" when named.Argument.Value is CustomAttributeArgument[] array:
+                    spec.ArgumentVariations ??= VariationsIn(array);
+                    break;
             }
         }
 
@@ -579,12 +622,24 @@ namespace Polyfill.Core
         private static bool IsTypeArray(TypeReference arrayType)
             => (arrayType as ArrayType)?.ElementType?.FullName == "System.Type";
 
+        /// <summary>The by-ref markers that travel beside the types; see <see cref="Decorated"/>.</summary>
+        private static bool IsVariationArray(TypeReference arrayType)
+            => (arrayType as ArrayType)?.ElementType?.FullName == "HarmonyLib.ArgumentType";
+
         private static List<TypeReference> TypesIn(CustomAttributeArgument[] array)
         {
             var types = new List<TypeReference>();
             foreach (var element in array)
                 if (element.Value is TypeReference elementType) types.Add(elementType);
             return types;
+        }
+
+        private static List<int> VariationsIn(CustomAttributeArgument[] array)
+        {
+            var variations = new List<int>();
+            foreach (var element in array)
+                variations.Add(element.Value is int value ? value : 0);
+            return variations;
         }
 
     }
