@@ -41,8 +41,11 @@ namespace Polyfill.Report
         /// one E line per distinct error. The version is bumped rather than the columns quietly appended,
         /// because a reader that guesses at an unfamiliar shape is how a wrong verdict gets published under
         /// the right heading.
+        ///
+        /// 3 appends the reason to an F line whose outcome is a refusal, and to no other. See
+        /// <see cref="Why"/> for what that column may and may not carry.
         /// </remarks>
-        private const int Format = 2;
+        private const int Format = 3;
 
         private static bool _sent;
 
@@ -122,7 +125,11 @@ namespace Polyfill.Report
                     text.Append("F|").Append(Clean(mod.Display)).Append('|')
                         .Append(finding.Kind).Append('|')
                         .Append(Clean(finding.Symbol)).Append('|')
-                        .Append(Clean(finding.Outcome ?? "none")).Append('\n');
+                        .Append(Clean(finding.Outcome ?? "none"));
+
+                    string why = Why(finding);
+                    if (why.Length > 0) text.Append('|').Append(why);
+                    text.Append('\n');
                 }
             }
 
@@ -197,6 +204,46 @@ namespace Polyfill.Report
         /// fields; both are removed anyway, because "expected" is not a guarantee and this payload
         /// leaves the machine.
         /// </remarks>
+        /// <summary>
+        /// Why a repair was refused, when that is safe to say out loud.
+        /// </summary>
+        /// <remarks>
+        /// A refusal is the one outcome nobody downstream can act on. Polyfill knows exactly why - the
+        /// name was already taken, the successor turned out to be overloaded, the rule needed a member
+        /// this build has not got - and it wrote that into the local report all along, but it stopped
+        /// there. CompassOverhaul sat on the public board as refused for a member whose bridge applies
+        /// cleanly on a test machine, and there was no way from the outside to tell which of eleven
+        /// refusal paths it took.
+        ///
+        /// ONLY REFUSALS. Every other outcome's detail is the rule text, which is in this repository
+        /// already, so sending it would widen a payload whose whole virtue is that it fits on a screen.
+        ///
+        /// AND ONLY WHEN IT LOOKS LIKE A SENTENCE. One of the eleven reasons is built by appending an
+        /// exception's Message, and an exception writes whatever the throwing code chose - which can be
+        /// a file path, and a path here reads C:\Users\&lt;name&gt;. That single case is why this drops
+        /// anything carrying a backslash or a URL rather than trimming it: a refusal nobody can read is
+        /// a nuisance, and a player's name on a public page is not.
+        /// </remarks>
+        private static string Why(Finding finding)
+        {
+            if (finding.Outcome != Contract.Outcome.Refused) return "";
+
+            string detail = finding.OutcomeDetail;
+            if (string.IsNullOrEmpty(detail)) return "";
+            if (detail.IndexOf('\\') >= 0 || detail.IndexOf("://", StringComparison.Ordinal) >= 0)
+                return "";
+
+            var text = new StringBuilder(detail.Length);
+            foreach (char c in detail)
+            {
+                if (c == '|' || c == '\n' || c == '\r') { text.Append(' '); continue; }
+                text.Append(c);
+            }
+
+            string cleaned = text.ToString().Trim();
+            return cleaned.Length > 240 ? cleaned.Substring(0, 240) : cleaned;
+        }
+
         private static string Clean(string value)
         {
             if (string.IsNullOrEmpty(value)) return "";
