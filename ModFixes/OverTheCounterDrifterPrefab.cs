@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
 using Il2CppFishNet;
@@ -237,8 +239,148 @@ namespace Polyfill.ModFixes
             }
 
             if (_pool.Count == 0) return null;
-            return _pool[_next++ % _pool.Count];
+            return Neutral(_pool[_next++ % _pool.Count]);
         }
+
+        /// <summary>The private, unowned copy of one donor prefab - built once, then reused.</summary>
+        private static readonly Dictionary<int, NetworkObject> _neutral = new();
+
+        /// <summary>Where the private copies live, so nothing in the world can find them.</summary>
+        private static Transform _shelf;
+
+        /// <summary>
+        /// A body that belongs to nobody, made from one that belongs to somebody.
+        /// </summary>
+        /// <remarks>
+        /// THE DONOR IS ANOTHER MOD'S CHARACTER, AND THAT WAS THE BUG. Handing the donor straight back
+        /// made every drifter a copy of a registered NPC, and the mod that registered it went on driving
+        /// its copy: the reporter's drifter chat was headed "Shady Guy", the buttons in it said
+        /// "Accept for today" - a string from BulkDeals, not from OverTheCounter - and the drifter itself
+        /// stayed at OfferSent for ever because its own accept was never among the answers. Talking to it
+        /// gave the default greeting, because the dialogue belonged to a character the donor mod thinks is
+        /// somewhere else.
+        ///
+        /// Renaming the clone afterwards does not fix that, and this used to try: the identity is read
+        /// during Awake (NPC.cs:3072, NPCData = _npcData.GetRuntimeData()), so by the time anything can
+        /// rename it, the dialogue, the voice, the registrations and the phone conversation have all been
+        /// built from the donor.
+        ///
+        /// So the identity is taken off the TEMPLATE instead, before any clone exists. The data object is
+        /// a ScriptableObject shared with the donor, so it is copied first - editing it in place would
+        /// rename that mod's own character across the whole game. What is left is a nameless townsperson
+        /// wearing a body OverTheCounter randomises anyway, and no mod can recognise it, because there is
+        /// nothing left to recognise.
+        /// </remarks>
+        private static NetworkObject Neutral(NetworkObject donor)
+        {
+            if (donor == null) return null;
+
+            int key;
+            try { key = donor.GetInstanceID(); } catch { return donor; }
+            if (_neutral.TryGetValue(key, out var made) && made != null) return made;
+
+            try
+            {
+                if (_shelf == null)
+                {
+                    var holder = new GameObject("Polyfill.NeutralBodies");
+                    holder.SetActive(false);
+                    UnityEngine.Object.DontDestroyOnLoad(holder);
+                    _shelf = holder.transform;
+                }
+
+                // The donor prefab is inactive, so the copy is too and its Awake does not run. That is what
+                // keeps this off every registry until OverTheCounter activates a clone of it.
+                var copy = UnityEngine.Object.Instantiate(donor, _shelf, false);
+                copy.gameObject.SetActive(false);
+                copy.gameObject.name = "Polyfill_Civilian";
+
+                var npc = copy.gameObject.GetComponent<NPC>();
+                if (npc == null)
+                {
+                    UnityEngine.Object.Destroy(copy.gameObject);
+                    _log?.Warning("[fix] otc-drifter-prefab: the copy of '" + donor.gameObject.name
+                                + "' has no NPC component, so the donor was handed over unchanged.");
+                    return donor;
+                }
+
+                if (!Anonymise(npc, donor.gameObject.name))
+                {
+                    UnityEngine.Object.Destroy(copy.gameObject);
+                    return donor;
+                }
+
+                _neutral[key] = copy;
+                _log?.Msg("[fix] otc-drifter-prefab: built a body of its own from '" + donor.gameObject.name
+                        + "', with that character's name and id taken off it, so no mod can adopt what "
+                        + "OverTheCounter spawns from it.");
+                return copy;
+            }
+            catch (Exception e)
+            {
+                _log?.Warning("[fix] otc-drifter-prefab: could not build an unowned body from '"
+                            + donor.gameObject.name + "', so the donor was handed over unchanged: "
+                            + e.Message);
+                return donor;
+            }
+        }
+
+        /// <summary>
+        /// Take the character off a template: its own copy of the data object, and a name nobody owns.
+        /// </summary>
+        /// <remarks>
+        /// Refuses rather than half-does it. A template that still carries the donor's id is the bug this
+        /// exists to end, and handing one over while reporting success would be worse than handing over the
+        /// donor and saying so.
+        /// </remarks>
+        private static bool Anonymise(NPC npc, string donorName)
+        {
+            // NOT AccessTools.Field. Il2CppInterop projects a native field as a PROPERTY over native
+            // memory, so the reflection lookup answers null and the first version of this reported "NPC
+            // has no _npcData on this build" about a member that is right there. Named directly instead,
+            // which is also the only spelling that can be checked at compile time.
+            var shared = npc._npcData;
+            if (shared == null)
+            {
+                _log?.Warning("[fix] otc-drifter-prefab: '" + donorName + "' carries no NPC data object.");
+                return false;
+            }
+
+            // A COPY FIRST. This object is the donor mod's asset and every NPC built from it reads the
+            // same instance, so writing an id into it renames that mod's character everywhere.
+            var mine = UnityEngine.Object.Instantiate(shared);
+            var data = mine.GetOriginalData();
+            var basics = data?.BasicInfo;
+            if (basics == null)
+            {
+                UnityEngine.Object.Destroy(mine);
+                _log?.Warning("[fix] otc-drifter-prefab: the copied data object for '" + donorName
+                            + "' has no BasicInfo, so the character could not be taken off it.");
+                return false;
+            }
+
+            basics.ID = NeutralId;
+            basics.FirstName = "Passerby";
+            basics.LastName = string.Empty;
+            basics.HasLastName = false;
+
+            npc._npcData = mine;
+
+            // A baked GUID is the other half of the same problem: every copy claims that id and displaces
+            // whoever held it. Cleared here rather than warned about, because this template is ours.
+            try { npc.BakedGUID = string.Empty; } catch { }
+            return true;
+        }
+
+        /// <summary>
+        /// The id every unowned body carries.
+        /// </summary>
+        /// <remarks>
+        /// One id for all of them on purpose. OverTheCounter writes its own id onto each clone the moment
+        /// it is awake, so this is only ever what the NPC is called between Awake and that write - and a
+        /// name that is obviously ours is what a reader needs if one ever escapes into a save.
+        /// </remarks>
+        private const string NeutralId = "polyfill_unowned_body";
 
         private static void Gather()
         {
