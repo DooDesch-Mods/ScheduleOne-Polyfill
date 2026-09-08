@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here.
 
+## [0.12.3] - 2026-09-08
+
+### Fixed
+- Over The Counter's drifters answer you again. The message has its accept and decline buttons,
+  and the drifter has the deal instead of a stranger's greeting.
+- The game no longer dies when a drifter deal is paid out.
+
+### Added
+- The compatibility index now says why a missing name is missing, not only that it is.
+
 ## [0.12.2] - 2026-09-07
 
 ### Added
