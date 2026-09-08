@@ -295,6 +295,10 @@ namespace Polyfill.ModFixes
                 copy.gameObject.SetActive(false);
                 copy.gameObject.name = "Polyfill_Civilian";
 
+                // Named and flagged so that whatever walks the scene next can tell what it found. It will
+                // be walked: anything doing FindObjectsOfType<NPC>(true) sees an inactive object too.
+                copy.gameObject.hideFlags = HideFlags.HideAndDontSave;
+
                 var npc = copy.gameObject.GetComponent<NPC>();
                 if (npc == null)
                 {
@@ -349,6 +353,16 @@ namespace Polyfill.ModFixes
             // A COPY FIRST. This object is the donor mod's asset and every NPC built from it reads the
             // same instance, so writing an id into it renames that mod's character everywhere.
             var mine = UnityEngine.Object.Instantiate(shared);
+
+            // AND IT HAS TO OUTLIVE THE SCENE, which the first version did not and it crashed the game.
+            // The holder was DontDestroyOnLoad and this was not, so on the next load the template kept its
+            // NPC component and lost the data behind it. NPC.get_ID falls back to
+            // _npcData.GetOriginalData() when NPCData is null - which it is, because a template's Awake
+            // never runs - so reading the id threw. S1API reads exactly that, on exactly this object:
+            // ContactsAppPatches.WaitForNPCs does FindObjectsOfType<NPC>(true), and the true means it
+            // sees inactive ones.
+            UnityEngine.Object.DontDestroyOnLoad(mine);
+            mine.hideFlags = HideFlags.HideAndDontSave;
             var data = mine.GetOriginalData();
             var basics = data?.BasicInfo;
             if (basics == null)
