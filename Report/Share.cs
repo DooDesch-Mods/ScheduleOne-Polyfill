@@ -42,10 +42,13 @@ namespace Polyfill.Report
         /// because a reader that guesses at an unfamiliar shape is how a wrong verdict gets published under
         /// the right heading.
         ///
-        /// 3 appends the reason to an F line whose outcome is a refusal, and to no other. See
-        /// <see cref="Why"/> for what that column may and may not carry.
+        /// 3 appends the reason to an F line whose outcome is a refusal, and to no other. 4 fills the
+        /// same column for EVERY finding: a refusal explains the repair, everything else explains why
+        /// the name is missing, and the second is the sentence with the volume behind it. The column did
+        /// not move, so the bump is about what it means rather than where it is. See
+        /// <see cref="Why"/> for what it may and may not carry.
         /// </remarks>
-        private const int Format = 3;
+        private const int Format = 4;
 
         private static bool _sent;
 
@@ -215,8 +218,12 @@ namespace Polyfill.Report
         /// cleanly on a test machine, and there was no way from the outside to tell which of eleven
         /// refusal paths it took.
         ///
-        /// ONLY REFUSALS. Every other outcome's detail is the rule text, which is in this repository
-        /// already, so sending it would widen a payload whose whole virtue is that it fits on a screen.
+        /// A REFUSAL EXPLAINS THE REPAIR; EVERYTHING ELSE EXPLAINS THE FINDING. Format 3 sent the first
+        /// and argued the second was only the rule text, which is in this repository already. That was
+        /// right about OutcomeDetail and wrong about Reason: a reason is computed per symbol against the
+        /// build that ran - "the field became a property, and a field cannot be answered with one" - and
+        /// it exists nowhere else. It is also the largest class on the public listing, so leaving it here
+        /// was leaving out most of what an author would want.
         ///
         /// AND ONLY WHEN IT LOOKS LIKE A SENTENCE. One of the eleven reasons is built by appending an
         /// exception's Message, and an exception writes whatever the throwing code chose - which can be
@@ -226,9 +233,12 @@ namespace Polyfill.Report
         /// </remarks>
         private static string Why(Finding finding)
         {
-            if (finding.Outcome != Contract.Outcome.Refused) return "";
-
-            string detail = finding.OutcomeDetail;
+            // A refusal explains the REPAIR; everything else explains the FINDING. Both are one
+            // sentence about one symbol, and the reader wants whichever one applies.
+            string detail = finding.Outcome == Contract.Outcome.Refused
+                            && !string.IsNullOrEmpty(finding.OutcomeDetail)
+                ? finding.OutcomeDetail
+                : finding.Reason;
             if (string.IsNullOrEmpty(detail)) return "";
             if (detail.IndexOf('\\') >= 0 || detail.IndexOf("://", StringComparison.Ordinal) >= 0)
                 return "";
