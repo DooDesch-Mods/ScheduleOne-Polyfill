@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.12.6] - 2026-09-12
+
+### For mod authors
+- An error on your mod's page now carries the path through your own code that led to it, up to
+  five frames, not just the one where it failed.
+
 ## [0.12.5] - 2026-09-12
 
 ### For mod authors
