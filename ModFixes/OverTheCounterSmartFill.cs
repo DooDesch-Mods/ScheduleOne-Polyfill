@@ -74,6 +74,10 @@ namespace Polyfill.ModFixes
                 return false;
             }
 
+            // BEFORE HARMONY IS ASKED. Patching pins the target, which JIT-compiles it, and a body that
+            // does not resolve dies there as a fatal CLR error rather than an exception. See Patchable.
+            if (!Patchable.Check(target, Id, log)) return false;
+
             _removed = 0;
             try
             {
