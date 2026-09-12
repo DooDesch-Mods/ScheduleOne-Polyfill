@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.12.4] - 2026-09-12
+
+### Fixed
+- A repair that takes the game down is remembered and skipped on the next start, so one bad
+  combination cannot stop you playing. The log names it.
+
 ## [0.12.3] - 2026-09-08
 
 ### Fixed
