@@ -47,8 +47,14 @@ namespace Polyfill.Report
         /// the name is missing, and the second is the sentence with the volume behind it. The column did
         /// not move, so the bump is about what it means rather than where it is. See
         /// <see cref="Why"/> for what it may and may not carry.
+        ///
+        /// 5 appends to an E line the frame where it actually threw, beside the mod's own frame that
+        /// was already there. One without the other is not actionable: the author's frame alone says
+        /// which of their methods was running and not what failed inside it, and the innermost frame
+        /// alone is usually the runtime's own innards with nothing of theirs on it.
+        ///
         /// </remarks>
-        private const int Format = 4;
+        private const int Format = 5;
 
         private static bool _sent;
 
@@ -137,14 +143,15 @@ namespace Polyfill.Report
             }
 
             // What went wrong, per mod, WITHOUT the message. An exception's text is whatever the throwing
-            // code chose to put in it and can carry a path or a save name; the type and the top frame are
+            // code chose to put in it and can carry a path or a save name; the type and the two frames are
             // code identifiers, and they are all that leaves.
             if (troubles != null)
                 foreach (var trouble in troubles)
                     text.Append("E|").Append(Clean(trouble.Mod)).Append('|')
                         .Append(Clean(trouble.Kind)).Append('|')
                         .Append(Clean(trouble.Frame)).Append('|')
-                        .Append(trouble.Count).Append('\n');
+                        .Append(trouble.Count).Append('|')
+                        .Append(Clean(trouble.Site)).Append('\n');
 
             return text.ToString();
         }
