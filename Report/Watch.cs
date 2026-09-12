@@ -33,6 +33,7 @@ namespace Polyfill.Report
             internal string Kind;        // the exception type, e.g. NullReferenceException
             internal string Frame;       // the topmost frame belonging to the mod
             internal string Site;        // the innermost frame, whoever owns it
+            internal string Path;        // every frame of the mod's own, innermost first
             internal int Count;
         }
 
@@ -175,7 +176,11 @@ namespace Polyfill.Report
             if (text.IndexOf("Exception", StringComparison.Ordinal) < 0) return;
 
             string owner = melon.Trim();
-            try { Remember(owner, Kind(text), OwnFrame(text, owner), TopFrame(text)); }
+            try
+            {
+                string path = OwnFrames(text, owner);
+                Remember(owner, Kind(text), First(path), TopFrame(text), path);
+            }
             catch { }
         }
 
@@ -209,10 +214,13 @@ namespace Polyfill.Report
         /// threw entirely inside something it called - and that is an answer too, kept apart from the
         /// site rather than papered over with it.
         /// </remarks>
-        private static string OwnFrame(string text, string melon)
+        private static string OwnFrames(string text, string melon)
         {
+            var mine = new List<string>();
             foreach (string line in text.Split('\n'))
             {
+                if (mine.Count >= PathFrames) break;
+
                 string candidate = line.Trim();
                 if (!candidate.StartsWith("at ", StringComparison.Ordinal)) continue;
 
@@ -221,10 +229,38 @@ namespace Polyfill.Report
                 {
                     if (!frame.StartsWith(pair.Key, StringComparison.Ordinal)) continue;
                     if (!string.Equals(pair.Value, melon, StringComparison.Ordinal)) continue;
-                    return Cut(frame);
+                    mine.Add(Cut(frame));
+                    break;
                 }
             }
-            return "";
+            return string.Join(Step, mine);
+        }
+
+        /// <summary>How many of the mod's own frames are worth keeping.</summary>
+        /// <remarks>
+        /// Five. One frame says where a call failed and leaves the question an author actually has -
+        /// which of their own call sites fed it the bad value - unanswered. Five reaches the entry point
+        /// of nearly any callback without turning the column into a log file, and the frames beyond it
+        /// are the loader's rather than theirs.
+        /// </remarks>
+        private const int PathFrames = 5;
+
+        /// <summary>
+        /// What sits between two frames of the path.
+        /// </summary>
+        /// <remarks>
+        /// Not a pipe: the share document is pipe-separated and one inside a value moves every column
+        /// after it. Not a comma either - a generic frame is full of them. This pair of characters
+        /// cannot occur in a frame, and it reads as "called from" in the direction the frames are in.
+        /// </remarks>
+        private const string Step = " < ";
+
+        /// <summary>The first frame of a path, which is the one an author reads first.</summary>
+        private static string First(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return "";
+            int step = path.IndexOf(Step, StringComparison.Ordinal);
+            return step < 0 ? path : path.Substring(0, step);
         }
 
         private static void OnLog(string message, string stackTrace, UnityEngine.LogType type)
@@ -241,6 +277,7 @@ namespace Polyfill.Report
             if (string.IsNullOrEmpty(stackTrace)) return;
 
             string owner = null, frame = null, site = null;
+            var mine = new List<string>();
             foreach (string line in stackTrace.Split('\n'))
             {
                 string candidate = line.Trim();
@@ -254,20 +291,26 @@ namespace Polyfill.Report
                 foreach (var pair in Owners)
                 {
                     if (!candidate.StartsWith(pair.Key, StringComparison.Ordinal)) continue;
-                    owner = pair.Value;
-                    frame = candidate;
+
+                    // The first owned frame settles WHOSE it is; the rest of that mod's frames are the
+                    // path. A frame belonging to a different mod further out is not this mod's call
+                    // path and is passed over rather than joined onto it.
+                    owner ??= pair.Value;
+                    frame ??= candidate;
+                    if (string.Equals(pair.Value, owner, StringComparison.Ordinal)
+                        && mine.Count < PathFrames)
+                        mine.Add(Cut(candidate));
                     break;
                 }
-                if (owner != null) break;               // topmost frame that belongs to somebody wins
             }
 
             if (owner == null) return;                  // the game's own, or a mod we cannot name
 
-            Remember(owner, Kind(message), Cut(frame), Cut(site));
+            Remember(owner, Kind(message), Cut(frame), Cut(site), string.Join(Step, mine));
         }
 
         /// <summary>Book one error against one mod, deduplicated and capped.</summary>
-        private static void Remember(string owner, string kind, string frame, string site)
+        private static void Remember(string owner, string kind, string frame, string site, string path)
         {
             // A separator that cannot appear in a namespace, a type name or a frame.
             const char Unit = (char)31;
@@ -279,7 +322,10 @@ namespace Polyfill.Report
             foreach (var trouble in Seen.Values) if (trouble.Mod == owner) forThisMod++;
             if (forThisMod >= PerModCap) return;
 
-            Seen[key] = new Trouble { Mod = owner, Kind = kind, Frame = frame, Site = site, Count = 1 };
+            Seen[key] = new Trouble
+            {
+                Mod = owner, Kind = kind, Frame = frame, Site = site, Path = path, Count = 1,
+            };
         }
 
         /// <summary>The exception's type name, and nothing else from the message.</summary>

@@ -53,8 +53,12 @@ namespace Polyfill.Report
         /// which of their methods was running and not what failed inside it, and the innermost frame
         /// alone is usually the runtime's own innards with nothing of theirs on it.
         ///
+        /// 6 appends the call path through the mod's own code, innermost first, up to five frames. One
+        /// frame leaves the question an author actually has - which of their own call sites fed the bad
+        /// value - unanswered.
+        ///
         /// </remarks>
-        private const int Format = 5;
+        private const int Format = 6;
 
         private static bool _sent;
 
@@ -151,7 +155,8 @@ namespace Polyfill.Report
                         .Append(Clean(trouble.Kind)).Append('|')
                         .Append(Clean(trouble.Frame)).Append('|')
                         .Append(trouble.Count).Append('|')
-                        .Append(Clean(trouble.Site)).Append('\n');
+                        .Append(Clean(trouble.Site)).Append('|')
+                        .Append(Path(trouble.Path)).Append('\n');
 
             return text.ToString();
         }
@@ -259,6 +264,29 @@ namespace Polyfill.Report
 
             string cleaned = text.ToString().Trim();
             return cleaned.Length > 240 ? cleaned.Substring(0, 240) : cleaned;
+        }
+
+        /// <summary>
+        /// The call path, cleaned the way a single frame is but allowed to be longer.
+        /// </summary>
+        /// <remarks>
+        /// Five frames of a real name do not fit in the 120 characters one field gets, and cutting them
+        /// there would leave a path ending mid-identifier - which reads as a frame that does not exist.
+        /// Same rules otherwise: no separator, no newline, nothing the throwing code chose to write.
+        /// </remarks>
+        private static string Path(string value)
+        {
+            if (string.IsNullOrEmpty(value)) return "";
+
+            var text = new StringBuilder(value.Length);
+            foreach (char c in value)
+            {
+                if (c == '|' || c == '\n' || c == '\r') { text.Append(' '); continue; }
+                text.Append(c);
+            }
+
+            string cleaned = text.ToString().Trim();
+            return cleaned.Length > 1000 ? cleaned.Substring(0, 1000) : cleaned;
         }
 
         private static string Clean(string value)
