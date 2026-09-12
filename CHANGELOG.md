@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here.
 
+## [0.12.5] - 2026-09-12
+
+### For mod authors
+- An error on your mod's page now carries two frames: your own method, and the frame that threw.
+- Errors are no longer misattributed. Every mod claimed the `System` namespace, so any frame from
+  inside .NET was booked against whichever mod was listed first.
+
 ## [0.12.4] - 2026-09-12
 
 ### Fixed
