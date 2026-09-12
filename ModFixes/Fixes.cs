@@ -140,7 +140,14 @@ namespace Polyfill.ModFixes
                     continue;
                 }
 
+                if (string.Equals(fix.Id, CrashGuard.Blamed(log), StringComparison.OrdinalIgnoreCase))
+                {
+                    outcome.State = "skipped after a crash";
+                    continue;
+                }
+
                 bool did;
+                CrashGuard.Entering(fix.Id, log);
                 try { did = fix.Apply(log); }
                 catch (Exception e)
                 {
@@ -148,6 +155,7 @@ namespace Polyfill.ModFixes
                     log.Warning($"[fix] {fix.Id} failed and changed nothing: {e.Message}");
                     continue;
                 }
+                finally { CrashGuard.Left(log); }
 
                 outcome.State = did ? "applied" : "did nothing";
                 if (did) log.Msg($"[fix] {fix.Id}: {fix.What}");
