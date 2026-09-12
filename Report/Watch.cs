@@ -32,6 +32,7 @@ namespace Polyfill.Report
             internal string Mod;
             internal string Kind;        // the exception type, e.g. NullReferenceException
             internal string Frame;       // the topmost frame belonging to the mod
+            internal string Site;        // the innermost frame, whoever owns it
             internal int Count;
         }
 
@@ -173,7 +174,8 @@ namespace Polyfill.Report
             if (string.IsNullOrEmpty(melon) || string.IsNullOrEmpty(text)) return;
             if (text.IndexOf("Exception", StringComparison.Ordinal) < 0) return;
 
-            try { Remember(melon.Trim(), Kind(text), TopFrame(text)); }
+            string owner = melon.Trim();
+            try { Remember(owner, Kind(text), OwnFrame(text, owner), TopFrame(text)); }
             catch { }
         }
 
@@ -185,6 +187,42 @@ namespace Polyfill.Report
                 string candidate = line.Trim();
                 if (candidate.StartsWith("at ", StringComparison.Ordinal))
                     return Cut(candidate.Substring(3));
+            }
+            return "";
+        }
+
+        /// <summary>
+        /// The topmost frame that belongs to this mod, which is the one its author can act on.
+        /// </summary>
+        /// <remarks>
+        /// THE INNERMOST FRAME IS ALMOST NEVER THEIRS. MelonLoader wraps every melon callback and logs
+        /// what it caught, so nearly every mod error arrives through this path - and it used to record
+        /// whatever `at ` line came first. That is the runtime's own innards:
+        /// `Dictionary`2.TryInsert`, `EnumerableSorter`1.ComputeKeys`, `HashSet`1.Enumerator.MoveNext`.
+        ///
+        /// The author of Organized Crime read three of those on his own listing, with no frame of his
+        /// anywhere on any of them, and could not tell whether they were even his mod. They were: the
+        /// melon name comes from MelonLoader and is right. Only the frame was somebody else's.
+        ///
+        /// So the stack is walked for the first frame under a namespace this mod owns, exactly as the
+        /// Unity path already did. Empty when the mod has no frame on the stack at all - a callback that
+        /// threw entirely inside something it called - and that is an answer too, kept apart from the
+        /// site rather than papered over with it.
+        /// </remarks>
+        private static string OwnFrame(string text, string melon)
+        {
+            foreach (string line in text.Split('\n'))
+            {
+                string candidate = line.Trim();
+                if (!candidate.StartsWith("at ", StringComparison.Ordinal)) continue;
+
+                string frame = candidate.Substring(3);
+                foreach (var pair in Owners)
+                {
+                    if (!frame.StartsWith(pair.Key, StringComparison.Ordinal)) continue;
+                    if (!string.Equals(pair.Value, melon, StringComparison.Ordinal)) continue;
+                    return Cut(frame);
+                }
             }
             return "";
         }
@@ -202,11 +240,16 @@ namespace Polyfill.Report
         {
             if (string.IsNullOrEmpty(stackTrace)) return;
 
-            string owner = null, frame = null;
+            string owner = null, frame = null, site = null;
             foreach (string line in stackTrace.Split('\n'))
             {
                 string candidate = line.Trim();
                 if (candidate.Length == 0) continue;
+
+                // The first line of a Unity trace is where it threw, whoever owns it. Kept before the
+                // search, because the frame the author needs and the frame that failed are different
+                // answers and an author reading only one of them is guessing.
+                site ??= candidate;
 
                 foreach (var pair in Owners)
                 {
@@ -220,11 +263,11 @@ namespace Polyfill.Report
 
             if (owner == null) return;                  // the game's own, or a mod we cannot name
 
-            Remember(owner, Kind(message), Cut(frame));
+            Remember(owner, Kind(message), Cut(frame), Cut(site));
         }
 
         /// <summary>Book one error against one mod, deduplicated and capped.</summary>
-        private static void Remember(string owner, string kind, string frame)
+        private static void Remember(string owner, string kind, string frame, string site)
         {
             // A separator that cannot appear in a namespace, a type name or a frame.
             const char Unit = (char)31;
@@ -236,7 +279,7 @@ namespace Polyfill.Report
             foreach (var trouble in Seen.Values) if (trouble.Mod == owner) forThisMod++;
             if (forThisMod >= PerModCap) return;
 
-            Seen[key] = new Trouble { Mod = owner, Kind = kind, Frame = frame, Count = 1 };
+            Seen[key] = new Trouble { Mod = owner, Kind = kind, Frame = frame, Site = site, Count = 1 };
         }
 
         /// <summary>The exception's type name, and nothing else from the message.</summary>

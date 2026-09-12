@@ -175,9 +175,21 @@ namespace Polyfill.Core
         /// Root segment only - "BreedToSeed" rather than "BreedToSeed.Genetics.Tent" - because a stack frame
         /// names a type and the cheapest reliable question to ask of it is which mod's root it starts with.
         ///
-        /// TWO GUARDS, and both matter. A namespace shorter than four characters is dropped: "UI" or "App"
-        /// would claim frames from half the mods installed. And a type with no namespace at all contributes
-        /// nothing rather than an empty string, which would match every frame ever logged.
+        /// THREE GUARDS, and all three matter. A namespace shorter than four characters is dropped: "UI"
+        /// or "App" would claim frames from half the mods installed. A type with no namespace at all
+        /// contributes nothing rather than an empty string, which would match every frame ever logged.
+        ///
+        /// AND A MOD DOES NOT OWN THE FRAMEWORK. Every assembly built by a modern Roslyn declares its own
+        /// copies of compiler plumbing - System.Runtime.CompilerServices.NullableAttribute,
+        /// Microsoft.CodeAnalysis.EmbeddedAttribute - so the root walk handed almost every mod on the
+        /// machine the namespaces `System` and `Microsoft`. The list read
+        /// "AllYourClientsWillOrder,Microsoft,System", and every mod's read the same.
+        ///
+        /// That is not a cosmetic error in a list. The watcher blames the first mod whose root a stack
+        /// frame starts with, so `System.Collections.Generic.Dictionary`2.TryInsert` matched `System.` and
+        /// was booked against whichever mod came first - and then published, under that author's name, on
+        /// a public listing. The author of Organized Crime found three such errors on his page, none of
+        /// them with a frame of his on it, and his own logs clean. He was right to doubt they were his.
         /// </remarks>
         private static void CollectNamespaces(ModuleDefinition module, ModReport report)
         {
@@ -192,6 +204,7 @@ namespace Polyfill.Core
                     int dot = space.IndexOf('.');
                     string root = dot > 0 ? space.Substring(0, dot) : space;
                     if (root.Length < 4) continue;
+                    if (Foreign(root)) continue;
                     roots.Add(root);
                 }
             }
@@ -199,6 +212,43 @@ namespace Polyfill.Core
 
             foreach (string root in roots) report.Namespaces.Add(root);
             report.Namespaces.Sort(StringComparer.Ordinal);
+        }
+
+        /// <summary>Roots that belong to the runtime, the engine or the loader, never to a mod.</summary>
+        /// <remarks>
+        /// Named rather than guessed at by shape. A rule like "drop anything a second mod also claims"
+        /// would drop a genuinely shared library root the day two mods ship it, and a mod that owns
+        /// nothing left is reported as unattributable - which is the right failure and a bad default.
+        ///
+        /// The cost of a name missing from this list is a frame booked against the wrong mod; the cost of
+        /// one wrongly ON it is silence about a real crash. Both are bad, so it holds only the roots no
+        /// mod can own: the BCL, the compiler's own plumbing, Unity, the interop assemblies, the loader
+        /// and the patcher.
+        /// </remarks>
+        private static bool Foreign(string root)
+        {
+            if (root.StartsWith("Il2Cpp", StringComparison.Ordinal)) return true;
+
+            switch (root)
+            {
+                case "System":
+                case "Microsoft":
+                case "Windows":
+                case "Internal":
+                case "Unity":
+                case "UnityEngine":
+                case "UnityEditor":
+                case "Mono":
+                case "MelonLoader":
+                case "HarmonyLib":
+                case "MonoMod":
+                case "Newtonsoft":
+                case "JetBrains":
+                case "NUnit":
+                    return true;
+                default:
+                    return false;
+            }
         }
 
         private static ModReport Analyse(ModCandidate candidate, InteropIndex index, Contract.ILog log)
