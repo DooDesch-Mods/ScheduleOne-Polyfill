@@ -20,6 +20,9 @@ namespace Polyfill.Contract
         {
             ("Il2CppScheduleOne.PlayerScripts.PlayerManager", "TryGetPlayerData", 6,
              "0.4.7 bundles the five out values into one FullPlayerData and takes whether the asker is the host"),
+            ("Il2CppScheduleOne.Economy.Customer", "ProcessHandover", 5,
+             "0.4.7 dropped the leading outcome argument along with the enum, so a patch naming it binds "
+             + "only on the stand-in"),
         };
 
         /// <summary>The arity of the stand-in a name-only lookup should get, or -1.</summary>
