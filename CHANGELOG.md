@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.12.11] - 2026-09-23
+
+### Fixed
+- On the 0.4.7 beta, mods that react to a finished deal see it again, like Over The Counter's handover.
+- On the 0.4.7 beta, mods that open a phone chat with a character work again, like Over The Counter's drifters.
+
 ## [0.12.10] - 2026-09-23
 
 ### Fixed
