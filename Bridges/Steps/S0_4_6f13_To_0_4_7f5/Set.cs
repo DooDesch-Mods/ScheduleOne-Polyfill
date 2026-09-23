@@ -148,7 +148,140 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                 Because = AvatarSettingsGone,
                 Emit = EmitLoadAvatarSettingsStandIn,
             },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = "Il2CppScheduleOne.NPCs.Framework.Appearance",
+                OldName = "set_AvatarSettings",
+                ParameterCount = 1,
+                ParameterTypes = new[] { AvatarSettingsType },
+                Because = "0.4.6 NPC data carried the AvatarSettings an NPC is set up with (Appearance.cs:10-15, "
+                        + "NPC.cs:335-344 on 0.4.6f13); 0.4.7 carries a DefaultAppearance and a DefaultOutfit "
+                        + "(Appearance.cs:10-16, NPC.cs:536-546 on 0.4.7f6), and Polyfill translates one into "
+                        + "the other",
+                Emit = EmitDataAvatarSettingsStandIn,
+            },
+
+            // SLEEP MOVED OFF THE CLOCK. 0.4.6 kept the sleep hooks on TimeManager: two public Action fields
+            // and IsSleepInProgress, raised in its StartSleep RPC (TimeManager.cs:65-67, 104, 802-840 on
+            // 0.4.6f13). 0.4.7 moved all three to SleepController, raised in the same places - its own
+            // StartSleep RPC on every peer, OnSleepEnd after the clock skipped (SleepController.cs:60,
+            // 95-97, 217-280 on 0.4.7f6). S1API reads them in a static initialiser, so without these
+            // every S1API time call throws and takes the mods built on it along.
+            OnSleepController("get_onSleepStart", 0, "get_OnSleepStart"),
+            OnSleepController("set_onSleepStart", 1, "set_OnSleepStart"),
+            OnSleepController("get_onSleepEnd", 0, "get_OnSleepEnd"),
+            OnSleepController("set_onSleepEnd", 1, "set_OnSleepEnd"),
+            OnSleepController("get_IsSleepInProgress", 0, "get_IsSleepInProgress"),
+
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = "Il2CppScheduleOne.NPCs.NPCManager",
+                OldName = "get_NPCContainer",
+                ParameterCount = 0,
+                Because = "0.4.6 parented every NPC under NPCManager.NPCContainer (NPC.cs:444, :1704 on "
+                        + "0.4.6f13); 0.4.7 has no container and puts each NPC back under the parent it was "
+                        + "placed with (NPC.cs:437-442, :3302 on 0.4.7f6), so there is nothing to hand back",
+                Emit = EmitNoNpcContainer,
+            },
         };
+
+        private const string SleepControllerType = "Il2CppScheduleOne.GameTime.SleepController";
+
+        private const string SleepMoved = "0.4.6 raised the sleep hooks on TimeManager (TimeManager.cs:65-67, "
+            + "104, 802-840 on 0.4.6f13); 0.4.7 raises them on SleepController at the same points "
+            + "(SleepController.cs:60, 95-97, 217-280 on 0.4.7f6)";
+
+        private static Bridge OnSleepController(string oldName, int arity, string target) => new Bridge
+        {
+            Assembly = "Assembly-CSharp",
+            DeclaringType = "Il2CppScheduleOne.GameTime.TimeManager",
+            OldName = oldName,
+            ParameterCount = arity,
+            Because = SleepMoved,
+            Emit = (module, clock) => EmitOnSleepController(module, clock, oldName, arity, target),
+        };
+
+        /// <summary>
+        /// A TimeManager accessor that reads or writes the same member on the SleepController instance.
+        /// </summary>
+        /// <remarks>
+        /// With no SleepController yet (the menu), a getter answers the default and a setter drops the
+        /// value - which is what the old field held before a save loaded, since TimeManager clears both
+        /// hooks on its own start (TimeManager.cs:179-180 on 0.4.6f13).
+        /// </remarks>
+        private static MethodDefinition EmitOnSleepController(ModuleDefinition module, TypeDefinition clock,
+                                                              string oldName, int arity, string targetName)
+        {
+            var sleep = module.GetType(SleepControllerType);
+            var target = Method(sleep, targetName, arity);
+            var open = module.GetType("Il2CppScheduleOne.DevUtilities.NetworkSingleton`1");
+            var getInstance = Method(open, "get_Instance", 0);
+            if (target == null || getInstance == null || !getInstance.IsStatic) return null;
+
+            var owner = new GenericInstanceType(module.ImportReference(open));
+            owner.GenericArguments.Add(module.ImportReference(sleep));
+            var instance = Against(module, getInstance, owner);
+
+            var returns = arity == 0 ? module.ImportReference(target.ReturnType) : module.TypeSystem.Void;
+            var method = new MethodDefinition(oldName,
+                MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName, returns);
+            if (arity == 1)
+                method.Parameters.Add(new ParameterDefinition("value", ParameterAttributes.None,
+                                                              module.ImportReference(target.Parameters[0].ParameterType)));
+
+            var il = method.Body.GetILProcessor();
+            var have = il.Create(OpCodes.Nop);
+            il.Emit(OpCodes.Call, module.ImportReference(instance));
+            il.Emit(OpCodes.Dup);
+            il.Emit(OpCodes.Brtrue_S, have);
+            il.Emit(OpCodes.Pop);
+            if (arity == 0) EmitDefault(method, il, returns);
+            il.Emit(OpCodes.Ret);
+            il.Append(have);
+            if (arity == 1) il.Emit(OpCodes.Ldarg_1);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(target));
+            il.Emit(OpCodes.Ret);
+
+            // The old member was a field or a property; either way reflection looks for a property now.
+            string name = oldName.Substring(4);
+            PropertyDefinition property = null;
+            foreach (var existing in clock.Properties)
+                if (existing.Name == name) property = existing;
+            if (property == null)
+            {
+                property = new PropertyDefinition(name, PropertyAttributes.None,
+                                                  arity == 0 ? returns : method.Parameters[0].ParameterType);
+                clock.Properties.Add(property);
+            }
+            if (arity == 0) property.GetMethod = method;
+            else property.SetMethod = method;
+            return method;
+        }
+
+        /// <summary><c>NPCManager.NPCContainer</c>: null, which every caller already had to expect.</summary>
+        /// <remarks>
+        /// The field was scene wiring and could be unset; S1API, the one reported caller, checks for null
+        /// and then leaves the NPC where it is - which is what 0.4.7 does with its own NPCs.
+        /// </remarks>
+        private static MethodDefinition EmitNoNpcContainer(ModuleDefinition module, TypeDefinition manager)
+        {
+            // The Transform reference this module already carries, so it points at the right assembly.
+            TypeReference transform = null;
+            foreach (var reference in module.GetTypeReferences())
+                if (reference.FullName == "UnityEngine.Transform") { transform = reference; break; }
+            if (transform == null) return null;
+
+            var method = new MethodDefinition("get_NPCContainer",
+                MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName, transform);
+            var il = method.Body.GetILProcessor();
+            il.Emit(OpCodes.Ldnull);
+            il.Emit(OpCodes.Ret);
+            manager.Properties.Add(new PropertyDefinition("NPCContainer", PropertyAttributes.None,
+                                                          method.ReturnType) { GetMethod = method });
+            return method;
+        }
 
         private const string AvatarType = "Il2CppScheduleOne.AvatarFramework.Avatar";
         private const string AvatarSettingsType = "Il2CppScheduleOne.AvatarFramework.AvatarSettings";
@@ -179,6 +312,26 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             avatar.Properties.Add(new PropertyDefinition("CurrentSettings", PropertyAttributes.None,
                                                          module.ImportReference(settings)) { GetMethod = getter });
             return getter;
+        }
+
+        /// <summary>The NPC data's <c>AvatarSettings</c> setter, with no body of its own.</summary>
+        private static MethodDefinition EmitDataAvatarSettingsStandIn(ModuleDefinition module, TypeDefinition appearance)
+        {
+            var settings = module.GetType(AvatarSettingsType);
+            if (settings == null) return null;
+            foreach (var property in appearance.Properties)
+                if (property.Name == "AvatarSettings") return null;
+
+            var setter = new MethodDefinition("set_AvatarSettings",
+                MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName,
+                module.TypeSystem.Void);
+            setter.Parameters.Add(new ParameterDefinition("value", ParameterAttributes.None,
+                                                          module.ImportReference(settings)));
+            setter.Body.GetILProcessor().Emit(OpCodes.Ret);
+
+            appearance.Properties.Add(new PropertyDefinition("AvatarSettings", PropertyAttributes.None,
+                                                             module.ImportReference(settings)) { SetMethod = setter });
+            return setter;
         }
 
         /// <summary><c>Avatar.LoadAvatarSettings(settings)</c>, with no body of its own.</summary>

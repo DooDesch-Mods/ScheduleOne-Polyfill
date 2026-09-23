@@ -70,9 +70,11 @@ namespace Polyfill.ModFixes
             var avatar = typeof(Il2CppScheduleOne.AvatarFramework.Avatar);
             var current = Declared(avatar, "get_CurrentSettings", 0);
             var load = Declared(avatar, "LoadAvatarSettings", 1);
-            if (current == null && load == null)
+            var dataLook = Declared(typeof(Il2CppScheduleOne.NPCs.Framework.Appearance), "set_AvatarSettings", 1);
+            if (current == null && load == null && dataLook == null)
             {
-                log.Msg($"[fix] {Id}: no mod uses CurrentSettings or LoadAvatarSettings; nothing to translate.");
+                log.Msg($"[fix] {Id}: no mod uses CurrentSettings, LoadAvatarSettings or an NPC's AvatarSettings; "
+                      + "nothing to translate.");
                 return false;
             }
 
@@ -118,10 +120,12 @@ namespace Polyfill.ModFixes
                 harmony.Patch(current, prefix: new HarmonyMethod(typeof(AvatarSettingsBridge), nameof(Current)));
             if (load != null)
                 harmony.Patch(load, prefix: new HarmonyMethod(typeof(AvatarSettingsBridge), nameof(Load)));
+            if (dataLook != null)
+                harmony.Patch(dataLook, prefix: new HarmonyMethod(typeof(AvatarSettingsBridge), nameof(SetDataLook)));
 
-            log.Msg($"[fix] {Id}: {(current != null ? "CurrentSettings" : "")}"
-                  + $"{(current != null && load != null ? " and " : "")}{(load != null ? "LoadAvatarSettings" : "")} "
-                  + "now translate to the 0.4.7 appearance.");
+            var bridged = new[] { current != null ? "CurrentSettings" : null, load != null ? "LoadAvatarSettings" : null,
+                                  dataLook != null ? "an NPC's AvatarSettings" : null }.Where(x => x != null);
+            log.Msg($"[fix] {Id}: {string.Join(", ", bridged)} now translate to the 0.4.7 appearance.");
             return true;
         }
 
@@ -296,6 +300,30 @@ namespace Polyfill.ModFixes
                 _log?.Warning($"[fix] avatar-settings-bridge: {Who(avatar)} has no Appearance; settings not applied.");
                 return;
             }
+
+            var look = Translate(settings, Who(avatar));
+            _applying = true;
+            try
+            {
+                Call(appearance, "ApplyNakedAppearance", look.Naked);
+                if (look.ReplacesOutfit) Call(appearance, "ApplyOutfit", look.Worn);
+            }
+            finally { _applying = false; }
+            Applied[avatar.GetInstanceID()] = settings;
+
+            if (settings.ImpostorTexture != null) Call(avatar, "SetImpostorTexture", settings.ImpostorTexture);
+        }
+
+        /// <summary>A body and an outfit in the 0.4.7 form, and whether the outfit replaces the one worn.</summary>
+        private sealed class Look
+        {
+            internal object Naked;
+            internal object Worn;
+            internal bool ReplacesOutfit;
+        }
+
+        private static Look Translate(AvatarSettings settings, string who)
+        {
             var index = Legacy.Index;
 
             var equivalentNaked = Get(settings, "EquivalentNakedAppearance");
@@ -389,25 +417,61 @@ namespace Polyfill.ModFixes
                 foreach (var entry in Objects(Get(equivalentOutfit, "AvatarObjects")))
                     if (!index.ById.ContainsKey(ObjectId(entry))) Call(worn, "Add", entry);
 
-            _applying = true;
+            if (missing.Count > 0)
+                _log?.Warning($"[fix] avatar-settings-bridge: {who}: {missing.Count} part(s) have "
+                            + "no 0.4.7 equivalent and were left off: " + string.Join(", ", missing.Distinct()));
+
+            // 0.4.6 replaced the clothes with what the settings listed. A settings object that lists none
+            // and came with a 0.4.7 body of its own is a game asset describing a body, and the clothes the
+            // game put on stay.
+            return new Look
+            {
+                Naked = naked,
+                Worn = worn,
+                ReplacesOutfit = equivalentOutfit != null || fromLists > 0 || equivalentNaked == null,
+            };
+        }
+
+        // ------------------------------------------------------------------ NPC data
+
+        /// <summary>
+        /// <c>NPCs.Framework.Appearance.AvatarSettings = value</c>: the look an NPC is built with.
+        /// </summary>
+        /// <remarks>
+        /// 0.4.6 NPC data carried one AvatarSettings, applied when the NPC was set up (NPC.cs:335-344 on
+        /// 0.4.6f13). 0.4.7 carries a body and an outfit and applies those at the same point
+        /// (Appearance.cs:10-16, NPC.cs:536-546 on 0.4.7f6), so the settings are translated into the two
+        /// and the game applies them itself - which is how S1API gives a custom NPC its look.
+        /// </remarks>
+        private static bool SetDataLook(object __instance, AvatarSettings value)
+        {
+            if (value == null)
+            {
+                _log?.Warning("[fix] avatar-settings-bridge: an NPC's AvatarSettings was set to null; its look is left as it was.");
+                return false;
+            }
+
             try
             {
-                Call(appearance, "ApplyNakedAppearance", naked);
+                var look = Translate(value, value.name);
+                var body = Cast(ScriptableObject.CreateInstance(Il2CppInterop.Runtime.Il2CppType.From(_nakedObject)), _nakedObject);
+                Set(body, "Appearance", look.Naked);
+                Set(__instance, "DefaultAppearance", body);
 
-                // 0.4.6 replaced the clothes with what the settings listed. A settings object that lists
-                // none and came with a 0.4.7 body of its own is a game asset describing a body, and the
-                // clothes the game put on stay.
-                if (equivalentOutfit != null || fromLists > 0 || equivalentNaked == null)
-                    Call(appearance, "ApplyOutfit", worn);
+                if (look.ReplacesOutfit)
+                {
+                    var outfit = Cast(ScriptableObject.CreateInstance(Il2CppInterop.Runtime.Il2CppType.From(_outfit)), _outfit);
+                    Set(outfit, "AvatarObjects", Call(look.Worn, "ToArray"));
+                    Set(__instance, "DefaultOutfit", outfit);
+                }
+                if (value.ImpostorTexture != null) Set(__instance, "Impostor", value.ImpostorTexture);
+                _log?.Msg($"[fix] avatar-settings-bridge: NPC data took the look '{value.name}'.");
             }
-            finally { _applying = false; }
-            Applied[avatar.GetInstanceID()] = settings;
-
-            if (settings.ImpostorTexture != null) Call(avatar, "SetImpostorTexture", settings.ImpostorTexture);
-
-            if (missing.Count > 0)
-                _log?.Warning($"[fix] avatar-settings-bridge: {Who(avatar)}: {missing.Count} part(s) have "
-                            + "no 0.4.7 equivalent and were left off: " + string.Join(", ", missing.Distinct()));
+            catch (Exception e)
+            {
+                _log?.Warning("[fix] avatar-settings-bridge: an NPC's AvatarSettings could not be translated: " + e);
+            }
+            return false;
         }
 
         // ------------------------------------------------------------------ the legacy assets
