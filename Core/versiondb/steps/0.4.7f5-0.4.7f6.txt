@@ -1,0 +1,43 @@
+# polyfill-versiondb 1
+# from=0.4.7f5
+# to=0.4.7f6
+# counts=R:1 -:9 ?:28
+# op|kind|type|from|to|arity|origin|rule|confidence|note
+R|F|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|consumeRoutine|_consumeRoutine|0|derived|name-underscore|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|StrafeBlendMultiplierCurve||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|UpdateBlend||7|derived|removed|high|
+-|M|ScheduleOne.Economy.Customer|SampleConsumed||0|derived|removed|high|
+-|P|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|ConsumedProduct||0|derived|removed|high|
+-|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|RpcLogic___SetProduct_Client_3964170259||2|derived|removed|high|
+-|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|RpcWriter___Observers_SetProduct_Client_3964170259||2|derived|removed|high|
+-|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|SetProduct_Client||2|derived|removed|high|
+-|F|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|onConsumeDone||0|derived|removed|high|
+-|F|ScheduleOne.NPCs.NPCMovement|_avatarColliders||0|derived|removed|high|
+?|F|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|BlendIncreaseMultiplier||0|derived|ambiguous|high|2->1 of that shape moved at once
+?|F|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|BlendReduceMultiplier||0|derived|ambiguous|high|2->1 of that shape moved at once
+?|F|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|_currentDirectionBlend||0|derived|ambiguous|high|5->4 of that shape moved at once
+?|F|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|_currentStrafeBlend||0|derived|ambiguous|high|5->4 of that shape moved at once
+?|F|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|_lastMotionTime||0|derived|ambiguous|high|5->4 of that shape moved at once
+?|F|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|_lastTargetDirection||0|derived|ambiguous|high|5->4 of that shape moved at once
+?|F|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|_lastTargetStrafe||0|derived|ambiguous|high|5->4 of that shape moved at once
+?|F|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|_smoothedMotion||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|Activate||0|derived|ambiguous|high|6->2 of that shape moved at once
+?|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|ApplyEffects||0|derived|ambiguous|high|11->3 of that shape moved at once
+?|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|Clear||0|derived|ambiguous|high|11->3 of that shape moved at once
+?|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|ClearEffects||0|derived|ambiguous|high|6->2 of that shape moved at once
+?|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|ConsumeCocaine||0|derived|ambiguous|high|11->3 of that shape moved at once
+?|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|ConsumeDone||0|derived|ambiguous|high|11->3 of that shape moved at once
+?|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|ConsumeMeth||0|derived|ambiguous|high|11->3 of that shape moved at once
+?|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|ConsumeShrooms||0|derived|ambiguous|high|11->3 of that shape moved at once
+?|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|ConsumeWeed||0|derived|ambiguous|high|11->3 of that shape moved at once
+?|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|Deactivate||0|derived|ambiguous|high|6->2 of that shape moved at once
+?|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|Disable||0|derived|ambiguous|high|6->2 of that shape moved at once
+?|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|Resume||0|derived|ambiguous|high|6->2 of that shape moved at once
+?|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|RpcLogic___ApplyEffects_2166136261||0|derived|ambiguous|high|11->3 of that shape moved at once
+?|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|RpcLogic___ClearEffects_2166136261||0|derived|ambiguous|high|6->2 of that shape moved at once
+?|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|RpcReader___Observers_ApplyEffects_2166136261||0|derived|ambiguous|high|3->3 of that shape moved at once
+?|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|RpcReader___Observers_ClearEffects_2166136261||0|derived|ambiguous|high|3->3 of that shape moved at once
+?|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|RpcReader___Observers_SetProduct_Client_3964170259||0|derived|ambiguous|high|3->3 of that shape moved at once
+?|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|RpcWriter___Observers_ApplyEffects_2166136261||0|derived|ambiguous|high|11->3 of that shape moved at once
+?|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|RpcWriter___Observers_ClearEffects_2166136261||0|derived|ambiguous|high|11->3 of that shape moved at once
+?|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|TryConsume||0|derived|ambiguous|high|11->3 of that shape moved at once
