@@ -340,6 +340,20 @@ namespace Polyfill.Core
                 var creator = Bridges.Registry.Creator(scope, reference.FullName);
                 if (creator != null)
                 {
+                    // Naming the type is reason enough to make it. A mod that only PATCHES the member holds
+                    // the type in its patch signature and calls nothing, and without the type that patch
+                    // class does not compile, so it never registers.
+                    Collect(new InteropAugmentor.MemberForward
+                    {
+                        InAssembly = creator.Assembly,
+                        DeclaringType = creator.DeclaringType,
+                        OldName = creator.OldName,
+                        NewName = null,
+                        ParameterCount = creator.ParameterCount,
+                        ParameterTypes = creator.ParameterTypes,
+                        Rule = "curated",
+                    });
+
                     report.Findings.Add(new Finding
                     {
                         Kind = (index.Kind(scope) == "game" ? "" : "library-") + "type",
