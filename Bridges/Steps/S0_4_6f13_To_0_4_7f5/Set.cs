@@ -90,7 +90,142 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                         + "DestroyCustomerItems for the two (HandoverScreen.cs:273-312 on 0.4.7f6)",
                 Emit = EmitClearCustomerSlots,
             },
+
+            // THE PLAYER LOAD PATH WAS REBUILT, and a patch on either end of it lost its target. The two
+            // stand-ins below exist so a patch CLASS registers - Harmony drops the whole class over one
+            // missing target, and OG Backpack keeps its save hook (WriteData) in the same class as its
+            // Load hook, so without them a backpack is never written to the save. What the patches then
+            // get to see is the Report half's job: PlayerLoadRelay calls them at the moment 0.4.7 does the
+            // work, with the arguments translated.
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = "Il2CppScheduleOne.PlayerScripts.Player",
+                OldName = "Load",
+                ParameterCount = 2,
+                ParameterTypes = new[] { "Il2CppScheduleOne.Persistence.Datas.PlayerData", "System.String" },
+                Because = "0.4.6 loaded the host's own player through Player.Load(data, containerPath) "
+                        + "(PlayerManager.cs:108-126 on 0.4.6f13); 0.4.7 loads every player through "
+                        + "SetPlayerData_Client (Player.cs:2768-2811 on 0.4.7f6), and Polyfill relays a "
+                        + "patch on the old method there",
+                Emit = EmitPlayerLoadStandIn,
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = PlayerManager,
+                OldName = "TryGetPlayerData",
+                ParameterCount = 6,
+                AllowOverload = true,
+                Because = "0.4.6 handed a joining player's save back as five out values "
+                        + "(PlayerManager.cs:163 on 0.4.6f13); 0.4.7 bundles them into one FullPlayerData "
+                        + "and takes whether the asker is the host (PlayerManager.cs:152-240 on 0.4.7f6)",
+                Emit = EmitTryGetPlayerDataStandIn,
+            },
         };
+
+        private const string PlayerManager = "Il2CppScheduleOne.PlayerScripts.PlayerManager";
+
+        /// <summary>
+        /// <c>Player.Load(data, containerPath)</c>, with no body.
+        /// </summary>
+        /// <remarks>
+        /// Nothing in 0.4.7 calls it and nothing it did can be done from here: positioning, inventory,
+        /// appearance, clothing and variables all arrive through SetPlayerData_Client now. It is a target
+        /// for a patch to bind to, and PlayerLoadRelay is what makes that patch run.
+        /// </remarks>
+        private static MethodDefinition EmitPlayerLoadStandIn(ModuleDefinition module, TypeDefinition player)
+        {
+            var data = module.GetType("Il2CppScheduleOne.Persistence.Datas.PlayerData");
+            if (data == null) return null;
+
+            var method = new MethodDefinition("Load",
+                MethodAttributes.Public | MethodAttributes.HideBySig, module.TypeSystem.Void);
+            method.Parameters.Add(new ParameterDefinition("data", ParameterAttributes.None, data));
+            method.Parameters.Add(new ParameterDefinition("containerPath", ParameterAttributes.None,
+                                                          module.TypeSystem.String));
+            method.Body.GetILProcessor().Emit(OpCodes.Ret);
+            return method;
+        }
+
+        /// <summary>
+        /// <c>PlayerManager.TryGetPlayerData(code, out data, out inventory, out appearance, out clothing,
+        /// out variables)</c>, answered from the 0.4.7 lookup.
+        /// </summary>
+        /// <remarks>
+        /// Asked as a joining player, which is what the old method was for (Player.cs:2698 on 0.4.6f13).
+        /// The appearance comes back empty: 0.4.7 reads it into a PlayerAppearance object and no longer
+        /// holds the JSON the old out value carried.
+        /// </remarks>
+        private static MethodDefinition EmitTryGetPlayerDataStandIn(ModuleDefinition module, TypeDefinition manager)
+        {
+            MethodDefinition lookup = null;
+            foreach (var candidate in manager.Methods)
+                if (candidate.Name == "TryGetPlayerData" && candidate.Parameters.Count == 3
+                    && candidate.Parameters[2].ParameterType.IsByReference)
+                    lookup = candidate;
+            if (lookup == null) return null;
+
+            var full = ((ByReferenceType)lookup.Parameters[2].ParameterType).ElementType.Resolve();
+            var getBasic = Getter(full, "BasicData");
+            var getInventory = Getter(full, "InventoryString");
+            var getClothing = Getter(full, "ClothingString");
+            var getVariables = Getter(full, "Variables");
+            if (full == null || getBasic == null || getInventory == null || getClothing == null || getVariables == null)
+                return null;
+
+            var method = new MethodDefinition("TryGetPlayerData",
+                MethodAttributes.Public | MethodAttributes.HideBySig, module.TypeSystem.Boolean);
+            method.Parameters.Add(new ParameterDefinition("playerCode", ParameterAttributes.None, module.TypeSystem.String));
+            void Out(string name, TypeReference type)
+                => method.Parameters.Add(new ParameterDefinition(name, ParameterAttributes.Out,
+                                                                 new ByReferenceType(module.ImportReference(type))));
+            Out("data", getBasic.ReturnType);
+            Out("inventoryString", module.TypeSystem.String);
+            Out("appearanceString", module.TypeSystem.String);
+            Out("clothingString", module.TypeSystem.String);
+            Out("variables", getVariables.ReturnType);
+
+            var slot = new VariableDefinition(module.ImportReference(full));
+            var found = new VariableDefinition(module.TypeSystem.Boolean);
+            method.Body.Variables.Add(slot);
+            method.Body.Variables.Add(found);
+            method.Body.InitLocals = true;
+            var il = method.Body.GetILProcessor();
+
+            // found = this.TryGetPlayerData(playerCode, false, out slot);
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Ldarg_1);
+            il.Emit(OpCodes.Ldc_I4_0);
+            il.Emit(OpCodes.Ldloca_S, slot);
+            il.Emit(OpCodes.Call, module.ImportReference(lookup));
+            il.Emit(OpCodes.Stloc, found);
+
+            // every out value first gets the answer the old method gave for "no data"
+            il.Emit(OpCodes.Ldarg_2); il.Emit(OpCodes.Ldnull); il.Emit(OpCodes.Stind_Ref);
+            foreach (int index in new[] { 3, 4, 5 })
+            { il.Emit(OpCodes.Ldarg, method.Parameters[index - 1]); il.Emit(OpCodes.Ldstr, ""); il.Emit(OpCodes.Stind_Ref); }
+            il.Emit(OpCodes.Ldarg, method.Parameters[5]); il.Emit(OpCodes.Ldnull); il.Emit(OpCodes.Stind_Ref);
+
+            // and then, when there was data, what the bundle holds
+            var done = il.Create(OpCodes.Ldloc, found);
+            il.Emit(OpCodes.Ldloc, slot);
+            il.Emit(OpCodes.Brfalse_S, done);
+            void Unpack(int argument, MethodDefinition getter)
+            {
+                il.Emit(OpCodes.Ldarg, method.Parameters[argument - 1]);
+                il.Emit(OpCodes.Ldloc, slot);
+                il.Emit(OpCodes.Call, module.ImportReference(getter));
+                il.Emit(OpCodes.Stind_Ref);
+            }
+            Unpack(2, getBasic);
+            Unpack(3, getInventory);
+            Unpack(5, getClothing);
+            Unpack(6, getVariables);
+            il.Append(done);
+            il.Emit(OpCodes.Ret);
+            return method;
+        }
 
         /// <summary>
         /// <c>HandoverScreen.ClearCustomerSlots(returnToOriginals)</c>: return or destroy, by the flag.

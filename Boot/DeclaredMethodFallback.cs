@@ -39,9 +39,11 @@ namespace Polyfill.Boot
     internal static class DeclaredMethodFallback
     {
         private const string Id = "doodesch.polyfill.declaredmethod";
+        private static MelonLogger.Instance _log;
 
         internal static void Install(MelonLogger.Instance log)
         {
+            _log = log;
             try
             {
                 var target = AccessTools.Method(typeof(AccessTools), nameof(AccessTools.DeclaredMethod),
@@ -181,6 +183,44 @@ namespace Polyfill.Boot
         private static bool Unambiguous(Type type, string name, Type[] parameters, ref MethodInfo __result)
         {
             if (type == null || name == null || parameters != null) return true;
+
+            // A reshaped method: the patch was written for the old form, and only the stand-in has it.
+            // On a build that still has the old form, that is simply the game's own method of that arity.
+            int standIn = ReshapedMethods.StandIn(type.FullName, name);
+            if (standIn >= 0)
+            {
+                try
+                {
+                    MethodInfo only = null;
+                    foreach (var candidate in type.GetMethods(AccessTools.all))
+                    {
+                        if (candidate.Name != name || candidate.DeclaringType != type
+                            || candidate.GetParameters().Length != standIn) continue;
+                        if (only != null)
+                        {
+                            _log?.Warning($"[harmony] {type.FullName}.{name} has two methods of {standIn} "
+                                        + "parameters; the lookup is left to Harmony.");
+                            return true;
+                        }
+                        only = candidate;
+                    }
+                    if (only == null)
+                    {
+                        _log?.Msg($"[harmony] {type.FullName}.{name} has no method of {standIn} parameters "
+                                + "on this build; the lookup is left to Harmony.");
+                        return true;
+                    }
+                    __result = only;
+                    return false;
+                }
+                catch (Exception e)
+                {
+                    _log?.Warning($"[harmony] {type.FullName}.{name}: the reshaped lookup failed, left to "
+                                + "Harmony: " + e.Message);
+                    return true;
+                }
+            }
+
             if (!GrownOverloads.Doubled(type.FullName, name)) return true;
 
             try
