@@ -122,7 +122,78 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                         + "and takes whether the asker is the host (PlayerManager.cs:152-240 on 0.4.7f6)",
                 Emit = EmitTryGetPlayerDataStandIn,
             },
+
+            // THE AVATAR LOST ITS SETTINGS OBJECT. 0.4.6 drew a look from one AvatarSettings
+            // (Avatar.cs:328-354 on 0.4.6f13); 0.4.7 draws it from a NakedAppearance plus an outfit through
+            // Avatar.Appearance (AvatarAppearance.cs:96-147 on 0.4.7f6). The legacy assets still load and
+            // point at their 0.4.7 object (AvatarLayer.cs:26, Accessory.cs:32), so the translation is
+            // possible, but it is far past what a body of IL should carry: these are targets, and
+            // AvatarSettingsBridge in the Report half gives them their behaviour.
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = AvatarType,
+                OldName = "get_CurrentSettings",
+                ParameterCount = 0,
+                Because = AvatarSettingsGone,
+                Emit = EmitCurrentSettingsStandIn,
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = AvatarType,
+                OldName = "LoadAvatarSettings",
+                ParameterCount = 1,
+                ParameterTypes = new[] { AvatarSettingsType },
+                Because = AvatarSettingsGone,
+                Emit = EmitLoadAvatarSettingsStandIn,
+            },
         };
+
+        private const string AvatarType = "Il2CppScheduleOne.AvatarFramework.Avatar";
+        private const string AvatarSettingsType = "Il2CppScheduleOne.AvatarFramework.AvatarSettings";
+
+        private const string AvatarSettingsGone = "0.4.6 applied a look from one AvatarSettings and kept it as "
+            + "CurrentSettings (Avatar.cs:328-354 on 0.4.6f13); 0.4.7 applies a NakedAppearance and an outfit "
+            + "through Avatar.Appearance (AvatarAppearance.cs:96-147 on 0.4.7f6), and Polyfill translates one "
+            + "into the other";
+
+        /// <summary><c>Avatar.CurrentSettings</c>, answering nothing until the Report half answers for it.</summary>
+        /// <remarks>
+        /// Gets its PropertyDefinition, so a mod that looks the property up by name finds it as well.
+        /// </remarks>
+        private static MethodDefinition EmitCurrentSettingsStandIn(ModuleDefinition module, TypeDefinition avatar)
+        {
+            var settings = module.GetType(AvatarSettingsType);
+            if (settings == null) return null;
+            foreach (var property in avatar.Properties)
+                if (property.Name == "CurrentSettings") return null;
+
+            var getter = new MethodDefinition("get_CurrentSettings",
+                MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName,
+                module.ImportReference(settings));
+            var il = getter.Body.GetILProcessor();
+            il.Emit(OpCodes.Ldnull);
+            il.Emit(OpCodes.Ret);
+
+            avatar.Properties.Add(new PropertyDefinition("CurrentSettings", PropertyAttributes.None,
+                                                         module.ImportReference(settings)) { GetMethod = getter });
+            return getter;
+        }
+
+        /// <summary><c>Avatar.LoadAvatarSettings(settings)</c>, with no body of its own.</summary>
+        private static MethodDefinition EmitLoadAvatarSettingsStandIn(ModuleDefinition module, TypeDefinition avatar)
+        {
+            var settings = module.GetType(AvatarSettingsType);
+            if (settings == null) return null;
+
+            var method = new MethodDefinition("LoadAvatarSettings",
+                MethodAttributes.Public | MethodAttributes.HideBySig, module.TypeSystem.Void);
+            method.Parameters.Add(new ParameterDefinition("settings", ParameterAttributes.None,
+                                                          module.ImportReference(settings)));
+            method.Body.GetILProcessor().Emit(OpCodes.Ret);
+            return method;
+        }
 
         private const string PlayerManager = "Il2CppScheduleOne.PlayerScripts.PlayerManager";
 
