@@ -177,6 +177,22 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             new Bridge
             {
                 Assembly = "Assembly-CSharp",
+                DeclaringType = "Il2CppScheduleOne.Messaging.MSGConversation",
+                OldName = ".ctor",
+                ParameterCount = 2,
+                ParameterTypes = new[] { "Il2CppScheduleOne.NPCs.NPC", "System.String" },
+                AllowOverload = true,
+                Because = "a conversation used to belong to an NPC and register under it "
+                        + "(MSGConversation.cs:111-119, MessagingManager.cs:78-88 on 0.4.6f13); 0.4.7 builds it "
+                        + "from the NPC's contact info and registers it under an id, and names that id after "
+                        + "the NPC's network object (MSGConversation.cs:113-120, MessagingManager.cs:67-78, "
+                        + "NPC.cs:618 on 0.4.7f6)",
+                Emit = EmitConversationForNpc,
+            },
+
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
                 DeclaringType = "Il2CppScheduleOne.NPCs.NPCManager",
                 OldName = "get_NPCContainer",
                 ParameterCount = 0,
@@ -257,6 +273,82 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             }
             if (arity == 0) property.GetMethod = method;
             else property.SetMethod = method;
+            return method;
+        }
+
+        /// <summary>
+        /// <c>new MSGConversation(npc, contactName)</c>, built the way 0.4.7 builds an NPC's conversation.
+        /// </summary>
+        /// <remarks>
+        /// The contact is the NPC's own (name, id, mugshot, the two messaging flags), with the name the old
+        /// constructor was given, which is what the list and the notifications showed in 0.4.6. The id is
+        /// the one the game gives its own NPC conversations, <c>"messageconversation_" + ObjectId</c>, and
+        /// that is deliberate: messages travel between peers by this id, and the object id is the part every
+        /// peer agrees on. It also keeps 0.4.6's rule of one conversation per NPC - a second one for the
+        /// same NPC is refused by the registry with an error, exactly as the NPC-keyed map refused it.
+        /// </remarks>
+        private static MethodDefinition EmitConversationForNpc(ModuleDefinition module, TypeDefinition conversation)
+        {
+            var npc = module.GetType("Il2CppScheduleOne.NPCs.NPC");
+            var contact = module.GetType("Il2CppScheduleOne.Messaging.MessageContactInfo");
+            var getData = Getter(npc, "NPCData");
+            MethodDefinition fromData = null, target = null;
+            foreach (var candidate in contact?.Methods ?? new Mono.Collections.Generic.Collection<MethodDefinition>())
+                if (candidate.IsConstructor && candidate.Parameters.Count == 1
+                    && candidate.Parameters[0].ParameterType.FullName == getData?.ReturnType.FullName)
+                    fromData = candidate;
+            foreach (var candidate in conversation.Methods)
+                if (candidate.IsConstructor && candidate.Parameters.Count == 2
+                    && candidate.Parameters[0].ParameterType.FullName == contact?.FullName)
+                    target = candidate;
+            var setName = Method(contact, "set__name", 1);
+            if (npc == null || getData == null || fromData == null || target == null || setName == null) return null;
+
+            // NPC.NetworkObject.ObjectId, named against the FishNet references this module already carries.
+            TypeReference behaviour = null, networkObject = null;
+            foreach (var reference in module.GetTypeReferences())
+            {
+                if (reference.FullName == "Il2CppFishNet.Object.NetworkBehaviour") behaviour = reference;
+                if (reference.FullName == "Il2CppFishNet.Object.NetworkObject") networkObject = reference;
+            }
+            if (behaviour == null || networkObject == null) return null;
+            var getNetworkObject = new MethodReference("get_NetworkObject", networkObject, behaviour) { HasThis = true };
+            var getObjectId = new MethodReference("get_ObjectId", module.TypeSystem.Int32, networkObject) { HasThis = true };
+            var toText = new MethodReference("ToString", module.TypeSystem.String, module.TypeSystem.Int32) { HasThis = true };
+            var concat = new MethodReference("Concat", module.TypeSystem.String, module.TypeSystem.String);
+            concat.Parameters.Add(new ParameterDefinition(module.TypeSystem.String));
+            concat.Parameters.Add(new ParameterDefinition(module.TypeSystem.String));
+
+            var method = new MethodDefinition(".ctor",
+                MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName
+                | MethodAttributes.RTSpecialName, module.TypeSystem.Void);
+            method.Parameters.Add(new ParameterDefinition("_npc", ParameterAttributes.None, module.ImportReference(npc)));
+            method.Parameters.Add(new ParameterDefinition("_contactName", ParameterAttributes.None, module.TypeSystem.String));
+            var id = new VariableDefinition(module.TypeSystem.Int32);
+            method.Body.Variables.Add(id);
+            method.Body.InitLocals = true;
+
+            var il = method.Body.GetILProcessor();
+            il.Emit(OpCodes.Ldarg_0);
+            // var info = new MessageContactInfo(npc.NPCData); info._name = contactName;
+            il.Emit(OpCodes.Ldarg_1);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(getData));
+            il.Emit(OpCodes.Newobj, module.ImportReference(fromData));
+            il.Emit(OpCodes.Dup);
+            il.Emit(OpCodes.Ldarg_2);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(setName));
+            // "messageconversation_" + npc.NetworkObject.ObjectId
+            il.Emit(OpCodes.Ldstr, "messageconversation_");
+            il.Emit(OpCodes.Ldarg_1);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(getNetworkObject));
+            il.Emit(OpCodes.Callvirt, module.ImportReference(getObjectId));
+            il.Emit(OpCodes.Stloc, id);
+            il.Emit(OpCodes.Ldloca_S, id);
+            il.Emit(OpCodes.Call, module.ImportReference(toText));
+            il.Emit(OpCodes.Call, module.ImportReference(concat));
+            // : this(info, id)
+            il.Emit(OpCodes.Call, module.ImportReference(target));
+            il.Emit(OpCodes.Ret);
             return method;
         }
 
