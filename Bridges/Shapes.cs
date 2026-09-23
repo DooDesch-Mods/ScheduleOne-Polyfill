@@ -136,6 +136,36 @@ namespace Polyfill.Bridges
             return null;
         }
 
+        /// <summary>
+        /// The same method, named against a generic instantiation instead of the open type.
+        /// </summary>
+        /// <remarks>
+        /// THE SIGNATURE KEEPS T AND THE DECLARING TYPE CARRIES THE ARGUMENT. That is the metadata rule for
+        /// a member reference on a generic instance, and getting it backwards fails twice over. Substituting
+        /// by hand into the signature produced
+        /// <c>MissingMethodException: 'System.String List`1.get_Item(Int32)'</c> - the runtime looks for a
+        /// method whose signature says <c>!0</c> and finds none saying <c>System.String</c>. Importing the
+        /// bare parameter instead throws inside Cecil's own importer, which has no context to resolve it
+        /// against. So neither is touched: the types are taken from the definition exactly as written, and
+        /// only the owner is the instantiation.
+        /// </remarks>
+        internal static MethodReference Against(ModuleDefinition module, MethodDefinition method,
+                                               TypeReference owner)
+        {
+            var reference = new MethodReference(method.Name, method.ReturnType, owner)
+            {
+                HasThis = method.HasThis,
+                ExplicitThis = method.ExplicitThis,
+                CallingConvention = method.CallingConvention,
+            };
+
+            foreach (var parameter in method.Parameters)
+                reference.Parameters.Add(new ParameterDefinition(parameter.ParameterType));
+            foreach (var parameter in method.GenericParameters)
+                reference.GenericParameters.Add(new GenericParameter(parameter.Name, reference));
+            return reference;
+        }
+
         internal static TypeDefinition Nested(TypeDefinition type, string name)
         {
             if (type == null) return null;
