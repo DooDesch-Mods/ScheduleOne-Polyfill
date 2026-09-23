@@ -481,13 +481,31 @@ namespace Polyfill.ModFixes
         /// </remarks>
         private static bool Baked(NPC npc)
         {
+            if (CurrentSettings == null) return false;
             try
             {
-                var settings = npc.Avatar?.CurrentSettings;
+                var avatar = npc.Avatar;
+                if (avatar == null) return false;
+                var settings = CurrentSettings.GetValue(avatar) as Il2CppScheduleOne.AvatarFramework.AvatarSettings;
                 return settings != null && settings.UseCombinedLayer && settings.CombinedLayer != null;
             }
             catch { return false; }
         }
+
+        /// <summary>
+        /// <c>Avatar.CurrentSettings</c>, looked up rather than named, or null on a build without it.
+        /// </summary>
+        /// <remarks>
+        /// 0.4.7 rebuilt the avatar's appearance around <c>AvatarAppearance</c> (a naked appearance plus an
+        /// outfit), and the avatar no longer holds an <c>AvatarSettings</c> at all - the type survives only
+        /// to read old saves (<c>BasicAvatarSettings.GetAvatarSettings</c>). With it went the single baked
+        /// body layer this guards against, so "not baked" is the true answer there, not a fallback.
+        ///
+        /// Named in code, the property made every build of Polyfill carry a reference 0.4.7 cannot resolve,
+        /// and the load check reported Polyfill itself as blocked on it.
+        /// </remarks>
+        private static readonly PropertyInfo CurrentSettings =
+            AccessTools.Property(typeof(Il2CppScheduleOne.AvatarFramework.Avatar), "CurrentSettings");
 
         private static string Names()
         {
