@@ -1,0 +1,1081 @@
+# polyfill-versiondb 1
+# from=0.4.6f13
+# to=0.4.7f5
+# counts=R:45 -:781 ?:250
+# op|kind|type|from|to|arity|origin|rule|confidence|note
+R|F|ScheduleOne.AvatarFramework.AvatarEffects|currentEmission|_currentEmission|0|derived|name-underscore|high|
+R|F|ScheduleOne.AvatarFramework.AvatarEffects|isCulled|_isCulled|0|derived|name-underscore|high|
+R|F|ScheduleOne.AvatarFramework.AvatarEffects|laxativeEnabled|_laxativeEnabled|0|derived|name-underscore|high|
+R|F|ScheduleOne.AvatarFramework.AvatarEffects|targetEmission|_targetEmission|0|derived|name-underscore|high|
+R|F|ScheduleOne.AvatarFramework.AvatarLODBoundsUpdater|hipOffsetOnLastRefresh|_hipOffsetOnLastRefresh|0|derived|name-underscore|high|
+R|F|ScheduleOne.AvatarFramework.Eye|blinkRoutine|_blinkRoutine|0|derived|name-underscore|high|
+R|F|ScheduleOne.AvatarFramework.Eye|maxRotation|MaxRotation|0|derived|name-case|high|
+R|F|ScheduleOne.AvatarFramework.Eye|minRotation|MinRotation|0|derived|name-case|high|
+R|F|ScheduleOne.AvatarFramework.EyeController|blinkRoutine|_blinkRoutine|0|derived|name-underscore|high|
+R|F|ScheduleOne.AvatarFramework.EyeController|leftEye|LeftEye|0|derived|name-case|high|
+R|F|ScheduleOne.AvatarFramework.EyeController|rightEye|RightEye|0|derived|name-case|high|
+R|F|ScheduleOne.AvatarFramework.EyeController|timeUntilNextBlink|_timeUntilNextBlink|0|derived|name-underscore|high|
+R|M|ScheduleOne.Cartel.CartelDealer|RpcReader___Observers_ConfigureGoonSettings_3427656873|RpcReader___Observers_ConfigureGoonSettings_451009018|2|derived|rpc-hash|high|
+R|M|ScheduleOne.Cartel.CartelDealer|RpcReader___Target_ConfigureGoonSettings_3427656873|RpcReader___Target_ConfigureGoonSettings_451009018|2|derived|rpc-hash|high|
+R|F|ScheduleOne.Cartel.CartelDealer|appearance|_appearance|0|derived|name-underscore|high|
+R|M|ScheduleOne.Cartel.CartelGoon|RpcReader___Observers_ConfigureGoonSettings_3427656873|RpcReader___Observers_ConfigureGoonSettings_451009018|2|derived|rpc-hash|high|
+R|M|ScheduleOne.Cartel.CartelGoon|RpcReader___Target_ConfigureGoonSettings_3427656873|RpcReader___Target_ConfigureGoonSettings_451009018|2|derived|rpc-hash|high|
+R|F|ScheduleOne.Cartel.CartelGoon|appearance|_appearance|0|derived|name-underscore|high|
+R|F|ScheduleOne.Combat.PhysicsDamageable|impactHistory|_impactHistory|0|derived|name-underscore|high|
+R|F|ScheduleOne.Dialogue.DialogueController|cachedGreeting|_cachedGreeting|0|derived|name-underscore|high|
+R|F|ScheduleOne.Dialogue.DialogueController|lastGreetingTime|_lastGreetingTime|0|derived|name-underscore|high|
+R|F|ScheduleOne.Dialogue.DialogueController|shownChoices|_shownChoices|0|derived|name-underscore|high|
+R|F|ScheduleOne.Dragging.Draggable|Rigidbody|_rigidbody|0|derived|name-underscore|high|
+R|F|ScheduleOne.Dragging.Draggable|currentDragger|_currentDragger|0|derived|name-underscore|high|
+R|P|ScheduleOne.Dragging.Draggable|initialPosition|InitialPosition|0|derived|name-case|high|
+R|M|ScheduleOne.Economy.Customer|RpcReader___Observers_ProcessHandoverClient_2441224929|RpcReader___Observers_ProcessHandoverClient_537707335|2|derived|rpc-hash|high|
+R|M|ScheduleOne.Economy.Customer|RpcReader___Server_ProcessHandoverServerSide_3760244802|RpcReader___Server_ProcessHandoverServerSide_3315874220|3|derived|rpc-hash|high|
+R|F|ScheduleOne.Messaging.MSGConversation|contactName|ContactName|0|derived|name-case|high|
+R|P|ScheduleOne.Messaging.MSGConversation|index|Index|0|derived|name-case|high|
+R|P|ScheduleOne.Messaging.MSGConversation|isOpen|IsOpen|0|derived|name-case|high|
+R|M|ScheduleOne.NPCs.NPC|RpcReader___Observers_PlayVO_Client_1710085680|RpcReader___Observers_PlayVO_Client_3979304059|2|derived|rpc-hash|high|
+R|M|ScheduleOne.NPCs.NPC|RpcReader___Server_PlayVO_Server_1710085680|RpcReader___Server_PlayVO_Server_3979304059|3|derived|rpc-hash|high|
+R|F|ScheduleOne.NPCs.NPCHealth|AfflictedWithLethalEffect|_afflictedWithLethalEffect|0|derived|name-underscore|high|
+R|F|ScheduleOne.NPCs.NPCHealth|npc|_npc|0|derived|name-underscore|high|
+R|F|ScheduleOne.NPCs.NPCMovement|cacheNextPath|_cacheNextPath|0|derived|name-underscore|high|
+R|F|ScheduleOne.NPCs.NPCMovement|faceDirectionRoutine|_faceDirectionRoutine|0|derived|name-underscore|high|
+R|F|ScheduleOne.NPCs.NPCMovement|ladderClimbRoutine|_ladderClimbRoutine|0|derived|name-underscore|high|
+R|F|ScheduleOne.NPCs.NPCSpeedController|_SpeedMultiplier|_speedMultiplier|0|derived|name-case|high|
+R|M|ScheduleOne.PlayerScripts.Player|RpcReader___Observers_SetAppearance_2139595489|RpcReader___Observers_SetAppearance_595254339|2|derived|rpc-hash|high|
+R|M|ScheduleOne.PlayerScripts.Player|RpcReader___Server_SetAppearance_Server_3281254764|RpcReader___Server_SetAppearance_Server_595254339|3|derived|rpc-hash|high|
+R|P|ScheduleOne.PlayerScripts.PlayerManager|PlayerList|_playerList|0|derived|name-underscore|high|
+R|M|ScheduleOne.Trash.TrashManager|RpcReader___Observers_CreateTrashBag_680856992|RpcReader___Observers_CreateTrashBag_632312601|2|derived|rpc-hash|high|
+R|M|ScheduleOne.Trash.TrashManager|RpcReader___Server_SendTrashBag_3965031115|RpcReader___Server_SendTrashBag_3197724538|3|derived|rpc-hash|high|
+R|M|ScheduleOne.Trash.TrashManager|RpcReader___Target_CreateTrashBag_680856992|RpcReader___Target_CreateTrashBag_632312601|2|derived|rpc-hash|high|
+R|F|ScheduleOne.Trash.TrashManager|trashItems|_trashItems|0|derived|name-underscore|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AAId|DIRECTION||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AAId|FLINCH_BACKWARD||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AAId|FLINCH_FORWARD||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AAId|FLINCH_HEAVY_BACKWARD||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AAId|FLINCH_HEAVY_FORWARD||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AAId|FLINCH_HEAVY_LEFT||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AAId|FLINCH_HEAVY_RIGHT||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AAId|FLINCH_LEFT||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AAId|FLINCH_RIGHT||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Animation.AAId|Get||1|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AAId|IS_CROUCHED||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AAId|IS_GROUNDED||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Animation.AAId|Init||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AAId|JUMP||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AAId|SITTING||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AAId|STANDUP_BACK||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AAId|STANDUP_FRONT||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AAId|STRAFE||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AAId|TIME_AIRBORNE||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AAId|s_CustomHashes||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|AllowCulling||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|Bones||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|DEBUG_MODE||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|FootstepDetector||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|GroundingMask||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|HipBone||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|IKController||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|ImpostorsEnabled||0|derived|removed|high|
+-|P|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|IsAvatarCulled||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|LeftHandAlignmentPoint||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|LeftHandContainer||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|RagdollChange||3|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|RecalculateVisibilityRangeSqr||2|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|RightHandAlignmentPoint||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|RightHandContainer||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|SITTING_OFFSET||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|SetSeat||1|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|animator||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|onHeavyFlinch||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|onStandupDone||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|onStandupStart||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|visibilityRangeSqr||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AvatarLookController|AutoLookAtPlayer||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AvatarLookController|CullRange||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Animation.AvatarLookController|RagdollChange||3|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AvatarLookController|TempContainer||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Animation.AvatarLookController|lookAtTarget||0|derived|removed|high|
+-|P|ScheduleOne.AvatarFramework.Animation.BoneTransform|Position||0|derived|removed|high|
+-|P|ScheduleOne.AvatarFramework.Animation.BoneTransform|Rotation||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Avatar|ApplyAccessorySettings||1|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Avatar|ApplyBodyLayerSettings||2|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Avatar|ApplyBodySettings||1|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Avatar|ApplyEyeBallSettings||1|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Avatar|ApplyEyeLidColorSettings||1|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Avatar|ApplyEyeLidSettings||1|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Avatar|ApplyEyebrowSettings||1|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Avatar|ApplyFaceLayerSettings||1|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Avatar|ApplyHairColorSettings||1|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Avatar|ApplyHairSettings||1|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Avatar|ApplyShapeKeys||2|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Avatar|Armature||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Avatar|BodyMeshes||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Avatar|CombinedLayersEnabled||0|derived|removed|high|
+-|P|ScheduleOne.AvatarFramework.Avatar|CurrentSettings||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Avatar|DEFAULT_SMOOTHNESS||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Avatar|DefaultAvatarMaterial||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Avatar|FaceMesh||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Avatar|GetFormalAddress||1|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Avatar|GetMugshot||1|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Avatar|GetThirdPersonAddress||1|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Avatar|GetThirdPersonPronoun||1|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Avatar|HeadBone||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Avatar|ImpactForceRBs||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Avatar|Impostor||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Avatar|IsMale||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Avatar|IsWhite||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Avatar|LeftFootBone||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Avatar|LoadAvatarSettings||1|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Avatar|LoadNakedSettings||3|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Avatar|LowerSpine||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Avatar|MAX_ACCESSORIES||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Avatar|MiddleSpineRB||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Avatar|RagdollColliders||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Avatar|RagdollRBs||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Avatar|RightFootBone||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Avatar|SetBodyLayer||3|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Avatar|SetFaceLayer||3|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Avatar|SetFaceTexture||2|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Avatar|SetFeetShrunk||2|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Avatar|SetRagdollPhysicsEnabled||5|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Avatar|SetWearingHairBlockingAccessory||1|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Avatar|ShapeKeyMeshes||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Avatar|_appliedEmissionColor||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Avatar|_appliedSkinColor||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Avatar|appliedAccessories||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Avatar|appliedGender||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Avatar|appliedHair||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Avatar|appliedHairColor||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Avatar|appliedWeight||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Avatar|blockEyeFaceLayers||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Avatar|femaleShoulderScale||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Avatar|maleShoulderScale||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Avatar|onRagdollChange||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Avatar|onSettingsLoaded||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Avatar|usingCombinedLayer||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.AvatarEffects|SetDefaultSkinColor||1|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.AvatarLODBoundsUpdater|Avatar||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.AvatarLODBoundsUpdater|CHECK_RATE_SECONDS||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.AvatarLODBoundsUpdater|GetLODGroups||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.AvatarLODBoundsUpdater|HIP_OFFSET_THRESHOLD||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.AvatarLODBoundsUpdater|lodGroups||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.ACAccessorySelection|CallValueChange||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.ACAccessorySelection|GetAssetPathIndex||1|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.ACAccessorySelection|GetOptionLabel||1|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.ACAssetPathReplicator`1|AvatarSettingsChanged||1|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.ACAssetPathReplicator`1|selection||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.ACAvatarLayerSelection|CallValueChange||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.ACAvatarLayerSelection|GetAssetPathIndex||1|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.ACAvatarLayerSelection|GetOptionLabel||1|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.ACColorPickerReplicator|AvatarSettingsChanged||1|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.ACColorPickerReplicator|picker||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.ACEntry|DevOnly||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.ACFaceLayerSelection|CallValueChange||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.ACFaceLayerSelection|GetAssetPathIndex||1|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.ACFaceLayerSelection|GetOptionLabel||1|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.ACReplicator|AvatarSettingsChanged||1|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.ACReplicator|propertyName||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.ACSelection`1|ButtonPrefab||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.ACSelection`1|CallValueChange||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.ACSelection`1|DefaultOptionIndex||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.ACSelection`1|GetAssetPathIndex||1|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.ACSelection`1|GetOptionLabel||1|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.ACSelection`1|Nullable||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.ACSelection`1|Options||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.ACSelection`1|PropertyIndex||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.ACSelection`1|SelectOption||2|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.ACSelection`1|SelectedOptionIndex||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.ACSelection`1|SetButtonHighlighted||2|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.ACSelection`1|buttons||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.ACSelection`1|onValueChange||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.ACSelection`1|onValueChangeWithIndex||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.ACSliderReplicator|AvatarSettingsChanged||1|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.ACSliderReplicator|slider||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.ACWindow|BackButton||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.ACWindow|Close||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.ACWindow|Open||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.ACWindow|Predecessor||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.ACWindow|TitleText||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.ACWindow|WindowTitle||0|derived|removed|high|
+-|P|ScheduleOne.AvatarFramework.Customization.CharacterCreator|ActiveSettings||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.CharacterCreator|CameraPosition||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.CharacterCreator|Canvas||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.CharacterCreator|CanvasAnimation||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.CharacterCreator|Close||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.CharacterCreator|Container||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.CharacterCreator|CreatorMenu||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.CharacterCreator|DefaultSettings||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.CharacterCreator|DisableStuff||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.CharacterCreator|Done||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.CharacterCreator|Fields||0|derived|removed|high|
+-|P|ScheduleOne.AvatarFramework.Customization.CharacterCreator|IsOpen||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.CharacterCreator|Open||1|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.CharacterCreator|Presets||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.CharacterCreator|RefreshCategory||1|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.CharacterCreator|Rig||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.CharacterCreator|RigContainer||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.CharacterCreator|SelectPreset||1|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.CharacterCreator|SetValue||3|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.CharacterCreator|SliderChanged||1|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.CharacterCreator|State||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.CharacterCreator|lastSelectedClothingDefinitions||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.CharacterCreator|onComplete||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.CharacterCreator|onCompleteWithClothing||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.CharacterCreator|rigTargetY||0|derived|removed|high|
+-|V|ScheduleOne.AvatarFramework.Customization.CharacterCreator.ECategory|Accessories||0|derived|removed|high|
+-|V|ScheduleOne.AvatarFramework.Customization.CharacterCreator.ECategory|Body||0|derived|removed|high|
+-|V|ScheduleOne.AvatarFramework.Customization.CharacterCreator.ECategory|Clothing||0|derived|removed|high|
+-|V|ScheduleOne.AvatarFramework.Customization.CharacterCreator.ECategory|Eyebrows||0|derived|removed|high|
+-|V|ScheduleOne.AvatarFramework.Customization.CharacterCreator.ECategory|Eyes||0|derived|removed|high|
+-|V|ScheduleOne.AvatarFramework.Customization.CharacterCreator.ECategory|Face||0|derived|removed|high|
+-|V|ScheduleOne.AvatarFramework.Customization.CharacterCreator.ECategory|Hair||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.CustomizationManager|AccessoryChanged||2|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.CustomizationManager|AccessoryColorChanged||2|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.CustomizationManager|ActiveSettings||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.CustomizationManager|AppearancesFolderPath||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.CustomizationManager|ApplyDefaultSettings||1|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.CustomizationManager|BodyLayerChanged||2|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.CustomizationManager|BodyLayerColorChanged||2|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.CustomizationManager|CreateSettings||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.CustomizationManager|CreateSettings||2|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.CustomizationManager|DefaultSettings||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.CustomizationManager|EyeBallTintChanged||1|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.CustomizationManager|EyebrowRestingAngleChanged||1|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.CustomizationManager|EyebrowRestingHeightChanged||1|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.CustomizationManager|EyebrowScaleChanged||1|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.CustomizationManager|EyebrowThicknessChanged||1|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.CustomizationManager|FaceLayerChanged||2|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.CustomizationManager|FaceLayerColorChanged||2|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.CustomizationManager|GenderChanged||1|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.CustomizationManager|GenerateCombinedLayerToggle||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.CustomizationManager|HairChanged||1|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.CustomizationManager|HairColorChanged||1|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.CustomizationManager|HeightChanged||1|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.CustomizationManager|LoadInputField||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.CustomizationManager|LoadSettings||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.CustomizationManager|LoadSettings||1|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.CustomizationManager|LoadSettings||2|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.CustomizationManager|LowerEyeLidRestingPositionChanged||1|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.CustomizationManager|OnAvatarSettingsChanged||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.CustomizationManager|PupilDilationChanged||1|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.CustomizationManager|SaveInputField||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.CustomizationManager|SkinColorChanged||1|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.CustomizationManager|TemplateAvatar||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.CustomizationManager|UpperEyeLidRestingPositionChanged||1|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Customization.CustomizationManager|WeightChanged||1|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.CustomizationManager|isEditingOriginal||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Customization.CustomizationManager|loadedSettingsAssetPath||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Emotions.AvatarEmotionManager|tempIndex||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Emotions.AvatarEmotionPreset|FaceTexture||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Emotions.AvatarEmotionPreset|LeftEyeRestingState||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Emotions.AvatarEmotionPreset|RightEyeRestingState||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Eye|AngleOffset||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Eye|Blink||3|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Eye|BottomLidContainer||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Eye|BottomLidRend||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Eye|Container||0|derived|removed|high|
+-|P|ScheduleOne.AvatarFramework.Eye|CurrentConfiguration||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Eye|EyeBallRend||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Eye|EyeLight||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Eye|EyeLookOrigin||0|derived|removed|high|
+-|P|ScheduleOne.AvatarFramework.Eye|IsBlinking||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Eye|LookAt||2|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Eye|PupilContainer||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Eye|PupilRend||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Eye|SetEyeLidState||2|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Eye|SetEyeLidState||2|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Eye|TopLidContainer||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Eye|TopLidRend||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Eye|avatar||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.EyeController|ApplyDilation||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.EyeController|ApplyRestingEyeLidState||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.EyeController|BlinkingEnabled||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.EyeController|DEBUG||0|derived|removed|high|
+-|P|ScheduleOne.AvatarFramework.EyeController|EyesOpen||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.EyeController|LeftRestingEyeState||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.EyeController|LookAt||2|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.EyeController|OverrideEyeLids||1|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.EyeController|PupilDilation||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.EyeController|RagdollChange||3|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.EyeController|RightRestingEyeState||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.EyeController|SetEyeballTint||2|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.EyeController|SetEyesOpen||1|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.EyeController|SetLeftEyeRestingLidState||1|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.EyeController|SetRightEyeRestingLidState||1|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.EyeController|avatar||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.EyeController|currentEyeballColor||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.EyeController|defaultEyeballColor||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.EyeController|defaultLeftEyeRestingState||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.EyeController|defaultRightEyeRestingState||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.EyeController|eyeBallMaterial||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.EyeController|eyeHeight||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.EyeController|eyeHeightMultiplier||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.EyeController|eyeSize||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.EyeController|eyeSpacing||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Impostors.AvatarImpostor|DisableImpostor||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Impostors.AvatarImpostor|EnableImpostor||0|derived|removed|high|
+-|P|ScheduleOne.AvatarFramework.Impostors.AvatarImpostor|HasTexture||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Impostors.AvatarImpostor|SetAvatarSettings||1|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.Impostors.AvatarImpostor|SetRotation||1|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.Impostors.AvatarImpostor|meshRenderer||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.MugshotGenerator|DefaultSettings||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.MugshotGenerator|FinalizeMugshot||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.MugshotGenerator|GenerateMugshot||0|derived|removed|high|
+-|M|ScheduleOne.AvatarFramework.MugshotGenerator|GenerateMugshot||3|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.MugshotGenerator|Generator||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.MugshotGenerator|LookAtPosition||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.MugshotGenerator|MugshotRig||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.MugshotGenerator|OutputPath||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.MugshotGenerator|Settings||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.MugshotGenerator|finalTexture||0|derived|removed|high|
+-|F|ScheduleOne.AvatarFramework.MugshotGenerator|generate||0|derived|removed|high|
+-|M|ScheduleOne.Cartel.CartelDealer|ConfigureGoonSettings||3|derived|removed|high|
+-|M|ScheduleOne.Cartel.CartelDealer|RpcLogic___ConfigureGoonSettings_3427656873||3|derived|removed|high|
+-|M|ScheduleOne.Cartel.CartelDealer|RpcWriter___Observers_ConfigureGoonSettings_3427656873||3|derived|removed|high|
+-|M|ScheduleOne.Cartel.CartelDealer|RpcWriter___Target_ConfigureGoonSettings_3427656873||3|derived|removed|high|
+-|M|ScheduleOne.Cartel.CartelGoon|ConfigureGoonSettings||3|derived|removed|high|
+-|M|ScheduleOne.Cartel.CartelGoon|RpcLogic___ConfigureGoonSettings_3427656873||3|derived|removed|high|
+-|M|ScheduleOne.Cartel.CartelGoon|RpcWriter___Observers_ConfigureGoonSettings_3427656873||3|derived|removed|high|
+-|M|ScheduleOne.Cartel.CartelGoon|RpcWriter___Target_ConfigureGoonSettings_3427656873||3|derived|removed|high|
+-|F|ScheduleOne.Cartel.GoonPool|FemaleBaseAppearances||0|derived|removed|high|
+-|F|ScheduleOne.Cartel.GoonPool|FemaleClothing||0|derived|removed|high|
+-|F|ScheduleOne.Cartel.GoonPool|FemaleVoices||0|derived|removed|high|
+-|F|ScheduleOne.Cartel.GoonPool|HairColors||0|derived|removed|high|
+-|F|ScheduleOne.Cartel.GoonPool|MaleBaseAppearances||0|derived|removed|high|
+-|F|ScheduleOne.Cartel.GoonPool|MaleClothing||0|derived|removed|high|
+-|F|ScheduleOne.Cartel.GoonPool|MaleVoices||0|derived|removed|high|
+-|F|ScheduleOne.Cartel.GoonPool|SkinTones||0|derived|removed|high|
+-|F|ScheduleOne.Clothing.ClothingDefinition|ApplicationType||0|derived|removed|high|
+-|F|ScheduleOne.Clothing.ClothingDefinition|ClothingAssetPath||0|derived|removed|high|
+-|F|ScheduleOne.Clothing.ClothingUtility|ClothingSlotDataList||0|derived|removed|high|
+-|F|ScheduleOne.Clothing.ClothingUtility|ColorDataList||0|derived|removed|high|
+-|M|ScheduleOne.Clothing.ClothingUtility|GetColorData||1|derived|removed|high|
+-|M|ScheduleOne.Clothing.ClothingUtility|GetSlotData||1|derived|removed|high|
+-|F|ScheduleOne.Clothing.ClothingUtility.ClothingSlotData|Icon||0|derived|removed|high|
+-|F|ScheduleOne.Clothing.ClothingUtility.ClothingSlotData|Name||0|derived|removed|high|
+-|F|ScheduleOne.Clothing.ClothingUtility.ClothingSlotData|Slot||0|derived|removed|high|
+-|F|ScheduleOne.Clothing.ClothingUtility.ColorData|ActualColor||0|derived|removed|high|
+-|F|ScheduleOne.Clothing.ClothingUtility.ColorData|ColorType||0|derived|removed|high|
+-|F|ScheduleOne.Clothing.ClothingUtility.ColorData|LabelColor||0|derived|removed|high|
+-|V|ScheduleOne.Clothing.EClothingApplicationType|Accessory||0|derived|removed|high|
+-|V|ScheduleOne.Clothing.EClothingApplicationType|BodyLayer||0|derived|removed|high|
+-|V|ScheduleOne.Clothing.EClothingApplicationType|FaceLayer||0|derived|removed|high|
+-|M|ScheduleOne.Combat.CombatBehaviour|SetMovementSpeed||3|derived|removed|high|
+-|F|ScheduleOne.Combat.PhysicsDamageable|VELOCITY_HISTORY_LENGTH||0|derived|removed|high|
+-|P|ScheduleOne.Combat.PhysicsDamageable|averageVelocity||0|derived|removed|high|
+-|F|ScheduleOne.Combat.PhysicsDamageable|onImpacted||0|derived|removed|high|
+-|F|ScheduleOne.Combat.PhysicsDamageable|velocityHistory||0|derived|removed|high|
+-|F|ScheduleOne.Cutscenes.Cutscene|CameraControl||0|derived|removed|high|
+-|F|ScheduleOne.Cutscenes.Cutscene|CameraFOV||0|derived|removed|high|
+-|F|ScheduleOne.Cutscenes.CutsceneManager|Cutscenes||0|derived|removed|high|
+-|F|ScheduleOne.Cutscenes.CutsceneManager|cutsceneName||0|derived|removed|high|
+-|M|ScheduleOne.Cutscenes.EndCutscene|Play||0|derived|removed|high|
+-|M|ScheduleOne.Cutscenes.IntroManager|CharacterCreationDone||2|derived|removed|high|
+-|M|ScheduleOne.DevUtilities.CameraOrbit|ClampAngle||3|derived|removed|high|
+-|F|ScheduleOne.DevUtilities.CameraOrbit|LookAt||0|derived|removed|high|
+-|F|ScheduleOne.DevUtilities.CameraOrbit|ScrollSensativity||0|derived|removed|high|
+-|F|ScheduleOne.DevUtilities.CameraOrbit|cam||0|derived|removed|high|
+-|F|ScheduleOne.DevUtilities.CameraOrbit|distance||0|derived|removed|high|
+-|F|ScheduleOne.DevUtilities.CameraOrbit|distanceMax||0|derived|removed|high|
+-|F|ScheduleOne.DevUtilities.CameraOrbit|distanceMin||0|derived|removed|high|
+-|F|ScheduleOne.DevUtilities.CameraOrbit|hoveringUI||0|derived|removed|high|
+-|F|ScheduleOne.DevUtilities.CameraOrbit|raycaster||0|derived|removed|high|
+-|F|ScheduleOne.DevUtilities.CameraOrbit|rb||0|derived|removed|high|
+-|F|ScheduleOne.DevUtilities.CameraOrbit|sideOffset||0|derived|removed|high|
+-|F|ScheduleOne.DevUtilities.CameraOrbit|target||0|derived|removed|high|
+-|F|ScheduleOne.DevUtilities.CameraOrbit|targetdistance||0|derived|removed|high|
+-|F|ScheduleOne.DevUtilities.CameraOrbit|targetx||0|derived|removed|high|
+-|F|ScheduleOne.DevUtilities.CameraOrbit|targety||0|derived|removed|high|
+-|F|ScheduleOne.DevUtilities.CameraOrbit|x||0|derived|removed|high|
+-|F|ScheduleOne.DevUtilities.CameraOrbit|xSpeed||0|derived|removed|high|
+-|F|ScheduleOne.DevUtilities.CameraOrbit|y||0|derived|removed|high|
+-|F|ScheduleOne.DevUtilities.CameraOrbit|yMaxLimit||0|derived|removed|high|
+-|F|ScheduleOne.DevUtilities.CameraOrbit|yMinLimit||0|derived|removed|high|
+-|F|ScheduleOne.DevUtilities.CameraOrbit|ySpeed||0|derived|removed|high|
+-|M|ScheduleOne.DevUtilities.IconGenerator|GeneratePackagingIcon||2|derived|removed|high|
+-|M|ScheduleOne.DevUtilities.IconGenerator|GetTexture||1|derived|removed|high|
+-|M|ScheduleOne.Development.DevTesting|GetRequiredSize||0|derived|removed|high|
+-|F|ScheduleOne.Development.DevTesting|_temp||0|derived|removed|high|
+-|P|ScheduleOne.Dialogue.DialogueContainer|AllowExit||0|derived|removed|high|
+-|F|ScheduleOne.Dialogue.DialogueContainer|BranchNodeData||0|derived|removed|high|
+-|F|ScheduleOne.Dialogue.DialogueContainer|DialogueNodeData||0|derived|removed|high|
+-|M|ScheduleOne.Dialogue.DialogueContainer|GetBranchNodeByGUID||1|derived|removed|high|
+-|M|ScheduleOne.Dialogue.DialogueContainer|GetBranchNodeByLabel||1|derived|removed|high|
+-|M|ScheduleOne.Dialogue.DialogueContainer|GetDialogueNodeByGUID||1|derived|removed|high|
+-|M|ScheduleOne.Dialogue.DialogueContainer|GetDialogueNodeByLabel||1|derived|removed|high|
+-|M|ScheduleOne.Dialogue.DialogueContainer|GetLink||1|derived|removed|high|
+-|F|ScheduleOne.Dialogue.DialogueContainer|NodeLinks||0|derived|removed|high|
+-|M|ScheduleOne.Dialogue.DialogueContainer|SetAllowExit||1|derived|removed|high|
+-|P|ScheduleOne.Dialogue.DialogueContainer|allowExit||0|derived|removed|high|
+-|F|ScheduleOne.Dialogue.DialogueController|GenericDialogue||0|derived|removed|high|
+-|F|ScheduleOne.Dialogue.DialogueController|IntObj||0|derived|removed|high|
+-|M|ScheduleOne.Dialogue.DialogueController|SetOverrideContainer||1|derived|removed|high|
+-|M|ScheduleOne.Dialogue.DialogueHandler|StartDialogue||1|derived|removed|high|
+-|M|ScheduleOne.Dialogue.DialogueHandler|StartDialogue||3|derived|removed|high|
+-|M|ScheduleOne.Dialogue.DialogueHandler_Police|Hovered||0|derived|removed|high|
+-|F|ScheduleOne.Dialogue.DialogueManager|DefaultModules||0|derived|removed|high|
+-|M|ScheduleOne.Dragging.DragManager|SyncDraggable||1|derived|removed|high|
+-|M|ScheduleOne.Dragging.Draggable|CanInteract||0|derived|removed|high|
+-|F|ScheduleOne.Dragging.Draggable|CreateCoM||0|derived|removed|high|
+-|F|ScheduleOne.Dragging.Draggable|InitialReplicationMode||0|derived|removed|high|
+-|M|ScheduleOne.Dragging.Draggable|Sync||0|derived|removed|high|
+-|F|ScheduleOne.Dragging.Draggable|isBeingDragged||0|derived|removed|high|
+-|F|ScheduleOne.Dragging.Draggable|onDragEnd||0|derived|removed|high|
+-|F|ScheduleOne.Dragging.Draggable|onDragStart||0|derived|removed|high|
+-|F|ScheduleOne.Dragging.Draggable|onHovered||0|derived|removed|high|
+-|F|ScheduleOne.Dragging.Draggable|onInteracted||0|derived|removed|high|
+-|V|ScheduleOne.Dragging.Draggable.EInitialReplicationMode|Full||0|derived|removed|high|
+-|V|ScheduleOne.Dragging.Draggable.EInitialReplicationMode|Off||0|derived|removed|high|
+-|V|ScheduleOne.Dragging.Draggable.EInitialReplicationMode|OnlyIfMoved||0|derived|removed|high|
+-|F|ScheduleOne.Dragging.WorldDraggable|BakedGUID||0|derived|removed|high|
+-|M|ScheduleOne.Dragging.WorldDraggable|RegenerateGUID||0|derived|removed|high|
+-|M|ScheduleOne.Economy.Customer|GetSampleSuccess||2|derived|removed|high|
+-|M|ScheduleOne.Economy.Customer|HandoverChosen||0|derived|removed|high|
+-|M|ScheduleOne.Economy.Customer|ProcessHandover||5|derived|removed|high|
+-|M|ScheduleOne.Economy.Customer|ProcessHandoverClient||4|derived|removed|high|
+-|M|ScheduleOne.Economy.Customer|ProcessHandoverServerSide||7|derived|removed|high|
+-|M|ScheduleOne.Economy.Customer|ProcessSample||3|derived|removed|high|
+-|M|ScheduleOne.Economy.Customer|RpcLogic___ProcessHandoverClient_2441224929||4|derived|removed|high|
+-|M|ScheduleOne.Economy.Customer|RpcLogic___ProcessHandoverServerSide_3760244802||7|derived|removed|high|
+-|M|ScheduleOne.Economy.Customer|RpcWriter___Observers_ProcessHandoverClient_2441224929||4|derived|removed|high|
+-|M|ScheduleOne.Economy.Customer|RpcWriter___Server_ProcessHandoverServerSide_3760244802||7|derived|removed|high|
+-|M|ScheduleOne.Effects.Electrifying|ApplyToAvatar||1|derived|removed|high|
+-|M|ScheduleOne.Effects.Electrifying|ClearFromAvatar||1|derived|removed|high|
+-|M|ScheduleOne.Employees.Employee|GetWorkIssue||1|derived|removed|high|
+-|M|ScheduleOne.Employees.EmployeeManager|GetRandomAppearance||3|derived|removed|high|
+-|P|ScheduleOne.Equipping.Equippable_TrashGrabber|Instance||0|derived|removed|high|
+-|P|ScheduleOne.Equipping.Equippable_TrashGrabber|IsEquipped||0|derived|removed|high|
+-|M|ScheduleOne.GameTime.TimeManager|CheckSleepStart||0|derived|removed|high|
+-|P|ScheduleOne.GameTime.TimeManager|HostSleepDone||0|derived|removed|high|
+-|P|ScheduleOne.GameTime.TimeManager|IsSleepInProgress||0|derived|removed|high|
+-|M|ScheduleOne.GameTime.TimeManager|RpcLogic___SetHostSleepDone_1140765316||1|derived|removed|high|
+-|M|ScheduleOne.GameTime.TimeManager|RpcLogic___StartSleep_2166136261||0|derived|removed|high|
+-|M|ScheduleOne.GameTime.TimeManager|RpcReader___Observers_SetHostSleepDone_1140765316||2|derived|removed|high|
+-|M|ScheduleOne.GameTime.TimeManager|RpcReader___Observers_StartSleep_2166136261||2|derived|removed|high|
+-|M|ScheduleOne.GameTime.TimeManager|RpcWriter___Observers_SetHostSleepDone_1140765316||1|derived|removed|high|
+-|M|ScheduleOne.GameTime.TimeManager|RpcWriter___Observers_StartSleep_2166136261||0|derived|removed|high|
+-|M|ScheduleOne.GameTime.TimeManager|SetHostSleepDone||1|derived|removed|high|
+-|M|ScheduleOne.GameTime.TimeManager|SkipForwardToTime||1|derived|removed|high|
+-|M|ScheduleOne.GameTime.TimeManager|StartSleep||0|derived|removed|high|
+-|F|ScheduleOne.GameTime.TimeManager|WakeTime||0|derived|removed|high|
+-|F|ScheduleOne.GameTime.TimeManager|onSleepEnd||0|derived|removed|high|
+-|F|ScheduleOne.GameTime.TimeManager|onSleepStart||0|derived|removed|high|
+-|M|ScheduleOne.Input.MouseController|FreeMouse||1|derived|removed|high|
+-|P|ScheduleOne.Input.MouseController|IsMouseVisible||0|derived|removed|high|
+-|M|ScheduleOne.Input.MouseController|LockMouse||1|derived|removed|high|
+-|F|ScheduleOne.Instancing.InstancingBaker|_objects||0|derived|removed|high|
+-|F|ScheduleOne.Map.ParkingSpot|OccupantVehicle_Readonly||0|derived|removed|high|
+-|P|ScheduleOne.Messaging.IMessageEntity|MsgConversation||0|derived|removed|high|
+-|E|ScheduleOne.Messaging.IMessageEntity|onResponseChosen||0|derived|removed|high|
+-|M|ScheduleOne.Messaging.MSGConversation|.ctor||2|derived|removed|high|
+-|M|ScheduleOne.Messaging.MSGConversation|GetSaveString||0|derived|removed|high|
+-|M|ScheduleOne.Messaging.MSGConversation|InitializeSaveable||0|derived|removed|high|
+-|F|ScheduleOne.Messaging.MSGConversation|MAX_MESSAGE_HISTORY||0|derived|removed|high|
+-|F|ScheduleOne.Messaging.MSGConversation|Sendables||0|derived|removed|high|
+-|F|ScheduleOne.Messaging.MSGConversation|bubbles||0|derived|removed|high|
+-|F|ScheduleOne.Messaging.MSGConversation|messageChainHistory||0|derived|removed|high|
+-|F|ScheduleOne.Messaging.MSGConversation|messageHistory||0|derived|removed|high|
+-|F|ScheduleOne.Messaging.MSGConversation|sender||0|derived|removed|high|
+-|F|ScheduleOne.Messaging.MessagingManager|ConversationMap||0|derived|removed|high|
+-|M|ScheduleOne.Messaging.MessagingManager|GetConversation||1|derived|removed|high|
+-|M|ScheduleOne.Messaging.MessagingManager|Register||2|derived|removed|high|
+-|M|ScheduleOne.NPCs.Behaviour.GenericDialogueBehaviour|Deactivate||0|derived|removed|high|
+-|F|ScheduleOne.NPCs.Behaviour.HeavyFlinchBehaviour|FLINCH_DURATION||0|derived|removed|high|
+-|M|ScheduleOne.NPCs.Behaviour.RequestProductBehaviour|HandoverClosed||3|derived|removed|high|
+-|M|ScheduleOne.NPCs.Billy|GetSucccessChance||2|derived|removed|high|
+-|M|ScheduleOne.NPCs.Billy|HandoverOutcome||3|derived|removed|high|
+-|M|ScheduleOne.NPCs.CharacterClasses.Thomas|GetMessagingIcon||0|derived|removed|high|
+-|F|ScheduleOne.NPCs.Framework.Appearance|AvatarSettings||0|derived|removed|high|
+-|F|ScheduleOne.NPCs.Framework.Appearance|ChristmasAppearance||0|derived|removed|high|
+-|M|ScheduleOne.NPCs.NPC|AimedAtByPlayer||1|derived|removed|high|
+-|M|ScheduleOne.NPCs.NPC|GetMessagingIcon||0|derived|removed|high|
+-|M|ScheduleOne.NPCs.NPC|GetMessagingName||0|derived|removed|high|
+-|M|ScheduleOne.NPCs.NPC|PlayVO_Client||1|derived|removed|high|
+-|M|ScheduleOne.NPCs.NPC|PlayVO_Server||1|derived|removed|high|
+-|M|ScheduleOne.NPCs.NPC|RpcLogic___AimedAtByPlayer_3323014238||1|derived|removed|high|
+-|M|ScheduleOne.NPCs.NPC|RpcLogic___PlayVO_Client_1710085680||1|derived|removed|high|
+-|M|ScheduleOne.NPCs.NPC|RpcLogic___PlayVO_Server_1710085680||1|derived|removed|high|
+-|M|ScheduleOne.NPCs.NPC|RpcWriter___Observers_PlayVO_Client_1710085680||1|derived|removed|high|
+-|M|ScheduleOne.NPCs.NPC|RpcWriter___Server_AimedAtByPlayer_3323014238||1|derived|removed|high|
+-|M|ScheduleOne.NPCs.NPC|RpcWriter___Server_PlayVO_Server_1710085680||1|derived|removed|high|
+-|M|ScheduleOne.NPCs.NPC|SendTextMessage||1|derived|removed|high|
+-|F|ScheduleOne.NPCs.NPC|_outlineEffect||0|derived|removed|high|
+-|F|ScheduleOne.NPCs.NPC|_outlineRenderers||0|derived|removed|high|
+-|M|ScheduleOne.NPCs.NPCAnimation|Awake_UserLogic_ScheduleOne_002ENPCs_002ENPCAnimation_Assembly_002DCSharp_002Edll||0|derived|removed|high|
+-|M|ScheduleOne.NPCs.NPCAnimation|NetworkInitializeIfDisabled||0|derived|removed|high|
+-|M|ScheduleOne.NPCs.NPCAnimation|NetworkInitialize__Late||0|derived|removed|high|
+-|F|ScheduleOne.NPCs.NPCAnimation|NetworkInitialize__LateScheduleOne_002ENPCs_002ENPCAnimationAssembly_002DCSharp_002Edll_Excuted||0|derived|removed|high|
+-|M|ScheduleOne.NPCs.NPCAnimation|NetworkInitialize___Early||0|derived|removed|high|
+-|F|ScheduleOne.NPCs.NPCAnimation|NetworkInitialize___EarlyScheduleOne_002ENPCs_002ENPCAnimationAssembly_002DCSharp_002Edll_Excuted||0|derived|removed|high|
+-|F|ScheduleOne.NPCs.NPCHealth|REVIVE_DAYS||0|derived|removed|high|
+-|F|ScheduleOne.NPCs.NPCHealth|onTakeDamage||0|derived|removed|high|
+-|F|ScheduleOne.NPCs.NPCManager|NPCContainer||0|derived|removed|high|
+-|F|ScheduleOne.NPCs.NPCManager|NPCWarpPoints||0|derived|removed|high|
+-|F|ScheduleOne.NPCs.NPCMovement|Agent||0|derived|removed|high|
+-|F|ScheduleOne.NPCs.NPCMovement|Animation||0|derived|removed|high|
+-|M|ScheduleOne.NPCs.NPCMovement|CanMove||0|derived|removed|high|
+-|F|ScheduleOne.NPCs.NPCMovement|CapsuleCollider||0|derived|removed|high|
+-|P|ScheduleOne.NPCs.NPCMovement|CurrentLadder||0|derived|removed|high|
+-|F|ScheduleOne.NPCs.NPCMovement|DefaultObstacleAvoidanceType||0|derived|removed|high|
+-|P|ScheduleOne.NPCs.NPCMovement|PathCache||0|derived|removed|high|
+-|F|ScheduleOne.NPCs.NPCMovement|RagdollDraggable||0|derived|removed|high|
+-|F|ScheduleOne.NPCs.NPCMovement|RagdollDraggableCollider||0|derived|removed|high|
+-|M|ScheduleOne.NPCs.NPCMovement|ReceiveWarp||1|derived|removed|high|
+-|M|ScheduleOne.NPCs.NPCMovement|RpcLogic___ReceiveWarp_4276783012||1|derived|removed|high|
+-|M|ScheduleOne.NPCs.NPCMovement|RpcWriter___Observers_ReceiveWarp_4276783012||1|derived|removed|high|
+-|M|ScheduleOne.NPCs.NPCMovement|SetSeat||1|derived|removed|high|
+-|F|ScheduleOne.NPCs.NPCMovement|VelocityCalculator||0|derived|removed|high|
+-|M|ScheduleOne.NPCs.NPCMovement|Warp||1|derived|removed|high|
+-|F|ScheduleOne.NPCs.NPCMovement|npc||0|derived|removed|high|
+-|F|ScheduleOne.NPCs.NPCMovement|onHitByCar||0|derived|removed|high|
+-|F|ScheduleOne.NPCs.NPCMovement|onRagdollEnd||0|derived|removed|high|
+-|F|ScheduleOne.NPCs.NPCMovement|onRagdollStart||0|derived|removed|high|
+-|F|ScheduleOne.NPCs.NPCMovement|ragdollForceComponents||0|derived|removed|high|
+-|P|ScheduleOne.NPCs.NPCSpeedController|ActiveSpeedControl||0|derived|removed|high|
+-|F|ScheduleOne.NPCs.NPCSpeedController|DefaultNormalizedSpeed||0|derived|removed|high|
+-|F|ScheduleOne.NPCs.NPCSpeedController|speedControlStack||0|derived|removed|high|
+-|M|ScheduleOne.NPCs.NPCSpeedController.SpeedControl|.ctor||3|derived|removed|high|
+-|F|ScheduleOne.NPCs.NPCSpeedController.SpeedControl|id||0|derived|removed|high|
+-|F|ScheduleOne.NPCs.NPCSpeedController.SpeedControl|priority||0|derived|removed|high|
+-|F|ScheduleOne.NPCs.NPCSpeedController.SpeedControl|speed||0|derived|removed|high|
+-|F|ScheduleOne.NPCs.Responses.NPCResponses|AIMED_AT_RELATIONSHIPCHANGE||0|derived|removed|high|
+-|F|ScheduleOne.NPCs.Responses.NPCResponses|ASSAULT_RELATIONSHIPCHANGE||0|derived|removed|high|
+-|F|ScheduleOne.NPCs.Responses.NPCResponses|DEADLYASSAULT_RELATIONSHIPCHANGE||0|derived|removed|high|
+-|F|ScheduleOne.NPCs.Responses.NPCResponses|PICKPOCKET_RELATIONSHIPCHANGE||0|derived|removed|high|
+-|M|ScheduleOne.Persistence.Datas.AvatarAppearanceData|.ctor||1|derived|removed|high|
+-|F|ScheduleOne.Persistence.Datas.AvatarAppearanceData|AvatarSettings||0|derived|removed|high|
+-|M|ScheduleOne.Persistence.LoadManager|OnApplicationQuit||0|derived|removed|high|
+-|P|ScheduleOne.PlayerScripts.Player|CurrentBasicAppearance||0|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.Player|Load||1|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.Player|Load||2|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.Player|LoadAppearance||1|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.Player|MarkIntroCompleted||1|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.Player|ReceivePlayerData||6|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.Player|RequestPlayerData||1|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.Player|RpcLogic___MarkIntroCompleted_3281254764||1|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.Player|RpcLogic___ReceivePlayerData_3244732873||6|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.Player|RpcLogic___RequestPlayerData_3615296227||1|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.Player|RpcLogic___SendAvatarSettings_4281687581||1|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.Player|RpcLogic___SetAppearance_2139595489||2|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.Player|RpcLogic___SetAppearance_Server_3281254764||1|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.Player|RpcLogic___SetAvatarSettings_4281687581||1|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.Player|RpcWriter___Observers_ReceivePlayerData_3244732873||6|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.Player|RpcWriter___Observers_SetAppearance_2139595489||2|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.Player|RpcWriter___Observers_SetAvatarSettings_4281687581||1|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.Player|RpcWriter___Server_MarkIntroCompleted_3281254764||1|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.Player|RpcWriter___Server_RequestPlayerData_3615296227||1|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.Player|RpcWriter___Server_SendAvatarSettings_4281687581||1|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.Player|RpcWriter___Server_SetAppearance_Server_3281254764||1|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.Player|RpcWriter___Target_ReceivePlayerData_3244732873||6|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.Player|SendAvatarSettings||1|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.Player|SetAppearance||2|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.Player|SetAppearance_Server||1|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.Player|SetAvatarSettings||1|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.Player|SetVisibleToLocalPlayer||1|derived|removed|high|
+-|F|ScheduleOne.PlayerScripts.Player|_defaultAppearance||0|derived|removed|high|
+-|F|ScheduleOne.PlayerScripts.Player|_defaultBasicAppearance||0|derived|removed|high|
+-|F|ScheduleOne.PlayerScripts.Player|ragdollForceComponents||0|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.PlayerClothing|ApplyClothing||2|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.PlayerClothing|ClothingChanged||0|derived|removed|high|
+-|F|ScheduleOne.PlayerScripts.PlayerClothing|ClothingSlots||0|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.PlayerClothing|IsClothingApplied||2|derived|removed|high|
+-|F|ScheduleOne.PlayerScripts.PlayerClothing|Player||0|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.PlayerClothing|TryGetInventoryClothing||3|derived|removed|high|
+-|P|ScheduleOne.PlayerScripts.PlayerClothing|appearanceSettings||0|derived|removed|high|
+-|F|ScheduleOne.PlayerScripts.PlayerClothing|appliedClothing||0|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.PlayerManager|TryGetPlayerData||6|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.ViewmodelAvatar|SetAppearance||1|derived|removed|high|
+-|F|ScheduleOne.PlayerScripts.ViewmodelAvatar|_leftShoulderDefaultLocalPos||0|derived|removed|high|
+-|F|ScheduleOne.PlayerScripts.ViewmodelAvatar|_rightShoulderDefaultLocalPos||0|derived|removed|high|
+-|F|ScheduleOne.PlayerTasks.Tasks.PourWaterTask|NORMALIZED_FILL_PER_TARGET||0|derived|removed|high|
+-|F|ScheduleOne.PlayerTasks.Tasks.PourWaterTask|hintShown||0|derived|removed|high|
+-|M|ScheduleOne.Police.PoliceOfficer|SetAvoidancePriority||1|derived|removed|high|
+-|M|ScheduleOne.Product.ShroomInstance|ApplyEffectsToAvatar||1|derived|removed|high|
+-|M|ScheduleOne.Product.ShroomInstance|ClearEffectsFromAvatar||1|derived|removed|high|
+-|F|ScheduleOne.Property.Property|EmployeeContainer||0|derived|removed|high|
+-|M|ScheduleOne.Property.Property|SetBoundsVisible||1|derived|removed|high|
+-|M|ScheduleOne.Property.SewerOffice|Awake_UserLogic_ScheduleOne_002EProperty_002ESewerOffice_Assembly_002DCSharp_002Edll||0|derived|removed|high|
+-|P|ScheduleOne.Property.SewerOffice|DefaultSaveFilePath||0|derived|removed|high|
+-|M|ScheduleOne.Property.SewerOffice|GetDefaultSaveFileFullPath||0|derived|removed|high|
+-|M|ScheduleOne.Property.SewerOffice|ShouldSave||0|derived|removed|high|
+-|M|ScheduleOne.Quests.Quest_TheDeepEnd|BeforeSleep||0|derived|removed|high|
+-|M|ScheduleOne.Quests.Quest_TheDeepEnd|Begin||1|derived|removed|high|
+-|F|ScheduleOne.Quests.Quest_TheDeepEnd|Gate||0|derived|removed|high|
+-|M|ScheduleOne.Quests.Quest_TheDeepEnd|HourPass||0|derived|removed|high|
+-|F|ScheduleOne.Quests.Quest_TheDeepEnd|KIDNAP_TIME||0|derived|removed|high|
+-|F|ScheduleOne.Quests.Quest_TheDeepEnd|MEETING_REMINDER_TIME||0|derived|removed|high|
+-|F|ScheduleOne.Quests.Quest_TheDeepEnd|MeetingTeleportPoint||0|derived|removed|high|
+-|F|ScheduleOne.Quests.Quest_TheDeepEnd|PostMeetingCall||0|derived|removed|high|
+-|F|ScheduleOne.Quests.Quest_TheDeepEnd|PostMeetingTrigger||0|derived|removed|high|
+-|M|ScheduleOne.Quests.Quest_TheDeepEnd|SetQuestEntryState||3|derived|removed|high|
+-|M|ScheduleOne.Quests.Quest_TheDeepEnd|SetupFirstMeeting||0|derived|removed|high|
+-|M|ScheduleOne.Quests.Quest_TheDeepEnd|SleepFadeOut||0|derived|removed|high|
+-|F|ScheduleOne.Quests.Quest_TheDeepEnd|Switch||0|derived|removed|high|
+-|F|ScheduleOne.Quests.Quest_TheDeepEnd|Thomas||0|derived|removed|high|
+-|M|ScheduleOne.Quests.Quest_TheDeepEnd|ThomasDialogueNodeDisplayed||1|derived|removed|high|
+-|F|ScheduleOne.Quests.Quest_TheDeepEnd|kidnapQueued||0|derived|removed|high|
+-|F|ScheduleOne.Quests.Quest_TheDeepEnd|meetingSetup||0|derived|removed|high|
+-|M|ScheduleOne.Tools.ColorSmoother|Initialize||0|derived|removed|high|
+-|M|ScheduleOne.Tools.FloatSmoother|Initialize||0|derived|removed|high|
+-|F|ScheduleOne.Trash.TrashItem|ANGULAR_DRAG||0|derived|removed|high|
+-|F|ScheduleOne.Trash.TrashItem|CanGoInContainer||0|derived|removed|high|
+-|P|ScheduleOne.Trash.TrashItem|CurrentProperty||0|derived|removed|high|
+-|F|ScheduleOne.Trash.TrashItem|Draggable||0|derived|removed|high|
+-|M|ScheduleOne.Trash.TrashItem|GetSaveString||0|derived|removed|high|
+-|P|ScheduleOne.Trash.TrashItem|HasChanged||0|derived|removed|high|
+-|F|ScheduleOne.Trash.TrashItem|INTERACTION_PRIORITY||0|derived|removed|high|
+-|F|ScheduleOne.Trash.TrashItem|LINEAR_DRAG||0|derived|removed|high|
+-|P|ScheduleOne.Trash.TrashItem|Loader||0|derived|removed|high|
+-|P|ScheduleOne.Trash.TrashItem|LocalExtraFiles||0|derived|removed|high|
+-|P|ScheduleOne.Trash.TrashItem|LocalExtraFolders||0|derived|removed|high|
+-|F|ScheduleOne.Trash.TrashItem|MIN_Y||0|derived|removed|high|
+-|F|ScheduleOne.Trash.TrashItem|POSITION_CHANGE_THRESHOLD||0|derived|removed|high|
+-|M|ScheduleOne.Trash.TrashItem|RecheckPosition||0|derived|removed|high|
+-|M|ScheduleOne.Trash.TrashItem|RecheckProperty||0|derived|removed|high|
+-|F|ScheduleOne.Trash.TrashItem|Rigidbody||0|derived|removed|high|
+-|P|ScheduleOne.Trash.TrashItem|SaveFileName||0|derived|removed|high|
+-|P|ScheduleOne.Trash.TrashItem|SaveFolderName||0|derived|removed|high|
+-|M|ScheduleOne.Trash.TrashItem|SetCollidersEnabled||1|derived|removed|high|
+-|M|ScheduleOne.Trash.TrashItem|SetPhysicsActive||1|derived|removed|high|
+-|M|ScheduleOne.Trash.TrashItem|SetVelocity||1|derived|removed|high|
+-|P|ScheduleOne.Trash.TrashItem|ShouldSaveUnderFolder||0|derived|removed|high|
+-|F|ScheduleOne.Trash.TrashItem|colliders||0|derived|removed|high|
+-|F|ScheduleOne.Trash.TrashItem|lastPosition||0|derived|removed|high|
+-|F|ScheduleOne.Trash.TrashItem|onDestroyed||0|derived|removed|high|
+-|F|ScheduleOne.Trash.TrashItem|timeOnPhysicsEnabled||0|derived|removed|high|
+-|M|ScheduleOne.Trash.TrashManager|CreateAndReturnTrashBag||7|derived|removed|high|
+-|M|ScheduleOne.Trash.TrashManager|CreateAndReturnTrashItem||6|derived|removed|high|
+-|M|ScheduleOne.Trash.TrashManager|CreateTrashBag||9|derived|removed|high|
+-|M|ScheduleOne.Trash.TrashManager|CreateTrashBag||7|derived|removed|high|
+-|M|ScheduleOne.Trash.TrashManager|CreateTrashItem||8|derived|removed|high|
+-|M|ScheduleOne.Trash.TrashManager|CreateTrashItem||6|derived|removed|high|
+-|M|ScheduleOne.Trash.TrashManager|ReceiveTransformData||5|derived|removed|high|
+-|M|ScheduleOne.Trash.TrashManager|ReplicateTransformData||1|derived|removed|high|
+-|M|ScheduleOne.Trash.TrashManager|RpcLogic___CreateTrashBag_680856992||9|derived|removed|high|
+-|M|ScheduleOne.Trash.TrashManager|RpcLogic___CreateTrashItem_2385526393||8|derived|removed|high|
+-|M|ScheduleOne.Trash.TrashManager|RpcLogic___ReceiveTransformData_2990100769||5|derived|removed|high|
+-|M|ScheduleOne.Trash.TrashManager|RpcLogic___SendTransformData_2990100769||5|derived|removed|high|
+-|M|ScheduleOne.Trash.TrashManager|RpcLogic___SendTrashBag_3965031115||8|derived|removed|high|
+-|M|ScheduleOne.Trash.TrashManager|RpcLogic___SendTrashItem_478112418||7|derived|removed|high|
+-|M|ScheduleOne.Trash.TrashManager|RpcWriter___Observers_CreateTrashBag_680856992||9|derived|removed|high|
+-|M|ScheduleOne.Trash.TrashManager|RpcWriter___Observers_CreateTrashItem_2385526393||8|derived|removed|high|
+-|M|ScheduleOne.Trash.TrashManager|RpcWriter___Observers_ReceiveTransformData_2990100769||5|derived|removed|high|
+-|M|ScheduleOne.Trash.TrashManager|RpcWriter___Server_SendTransformData_2990100769||5|derived|removed|high|
+-|M|ScheduleOne.Trash.TrashManager|RpcWriter___Server_SendTrashBag_3965031115||8|derived|removed|high|
+-|M|ScheduleOne.Trash.TrashManager|RpcWriter___Server_SendTrashItem_478112418||7|derived|removed|high|
+-|M|ScheduleOne.Trash.TrashManager|RpcWriter___Target_CreateTrashBag_680856992||9|derived|removed|high|
+-|M|ScheduleOne.Trash.TrashManager|RpcWriter___Target_CreateTrashItem_2385526393||8|derived|removed|high|
+-|M|ScheduleOne.Trash.TrashManager|SendTransformData||5|derived|removed|high|
+-|M|ScheduleOne.Trash.TrashManager|SendTrashBag||8|derived|removed|high|
+-|M|ScheduleOne.Trash.TrashManager|SendTrashItem||7|derived|removed|high|
+-|F|ScheduleOne.Trash.TrashManager|TRASH_ITEM_LIMIT||0|derived|removed|high|
+-|F|ScheduleOne.Trash.TrashManager|TRASH_REPLICATIONS_PER_SECOND||0|derived|removed|high|
+-|F|ScheduleOne.Trash.TrashManager|TrashForceMultiplier||0|derived|removed|high|
+-|F|ScheduleOne.Trash.TrashManager|writtenItemFiles||0|derived|removed|high|
+-|M|ScheduleOne.UI.BlackOverlay|Close||1|derived|removed|high|
+-|M|ScheduleOne.UI.BlackOverlay|Fade||2|derived|removed|high|
+-|M|ScheduleOne.UI.BlackOverlay|Open||1|derived|removed|high|
+-|M|ScheduleOne.UI.CharacterCreator.BaseCharacterCreatorField|ApplyValue||0|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCreator.BaseCharacterCreatorField|Category||0|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCreator.BaseCharacterCreatorField|Creator||0|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCreator.BaseCharacterCreatorField|PropertyName||0|derived|removed|high|
+-|M|ScheduleOne.UI.CharacterCreator.BaseCharacterCreatorField|WriteValue||1|derived|removed|high|
+-|M|ScheduleOne.UI.CharacterCreator.CharacterCreatorColor|ApplyValue||0|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCreator.CharacterCreatorColor|ClothingColorsToUse||0|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCreator.CharacterCreatorColor|Colors||0|derived|removed|high|
+-|M|ScheduleOne.UI.CharacterCreator.CharacterCreatorColor|OptionClicked||1|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCreator.CharacterCreatorColor|OptionContainer||0|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCreator.CharacterCreatorColor|OptionPrefab||0|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCreator.CharacterCreatorColor|UseClothingColors||0|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCreator.CharacterCreatorColor|optionButtons||0|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCreator.CharacterCreatorColor|selectedButton||0|derived|removed|high|
+-|M|ScheduleOne.UI.CharacterCreator.CharacterCreatorField`1|ApplyValue||0|derived|removed|high|
+-|M|ScheduleOne.UI.CharacterCreator.CharacterCreatorField`1|ReadValue||0|derived|removed|high|
+-|M|ScheduleOne.UI.CharacterCreator.CharacterCreatorField`1|WriteValue||1|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCreator.CharacterCreatorField`1|selectedClothingDefinition||0|derived|removed|high|
+-|P|ScheduleOne.UI.CharacterCreator.CharacterCreatorField`1|value||0|derived|removed|high|
+-|M|ScheduleOne.UI.CharacterCreator.CharacterCreatorMenu|Back||0|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCreator.CharacterCreatorMenu|BackButton||0|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCreator.CharacterCreatorMenu|CategoryLabel||0|derived|removed|high|
+-|M|ScheduleOne.UI.CharacterCreator.CharacterCreatorMenu|HandleCycleEvent||1|derived|removed|high|
+-|M|ScheduleOne.UI.CharacterCreator.CharacterCreatorMenu|Next||0|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCreator.CharacterCreatorMenu|NextButton||0|derived|removed|high|
+-|M|ScheduleOne.UI.CharacterCreator.CharacterCreatorMenu|OpenWindow||1|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCreator.CharacterCreatorMenu|Windows||0|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCreator.CharacterCreatorMenu|_cyclerController||0|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCreator.CharacterCreatorMenu|_screen||0|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCreator.CharacterCreatorMenu|openWindow||0|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCreator.CharacterCreatorMenu|openWindowIndex||0|derived|removed|high|
+-|M|ScheduleOne.UI.CharacterCreator.CharacterCreatorMenu.Window|Close||0|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCreator.CharacterCreatorMenu.Window|Container||0|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCreator.CharacterCreatorMenu.Window|Name||0|derived|removed|high|
+-|M|ScheduleOne.UI.CharacterCreator.CharacterCreatorMenu.Window|Open||0|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCreator.CharacterCreatorMenu.Window|Panel||0|derived|removed|high|
+-|M|ScheduleOne.UI.CharacterCreator.CharacterCreatorOptionList|ApplyValue||0|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCreator.CharacterCreatorOptionList|CanSelectNone||0|derived|removed|high|
+-|M|ScheduleOne.UI.CharacterCreator.CharacterCreatorOptionList|OptionClicked||1|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCreator.CharacterCreatorOptionList|OptionContainer||0|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCreator.CharacterCreatorOptionList|OptionPrefab||0|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCreator.CharacterCreatorOptionList|Options||0|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCreator.CharacterCreatorOptionList|optionButtons||0|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCreator.CharacterCreatorOptionList|selectedButton||0|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCreator.CharacterCreatorOptionList.Option|AssetPath||0|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCreator.CharacterCreatorOptionList.Option|ClothingItemEquivalent||0|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCreator.CharacterCreatorOptionList.Option|Label||0|derived|removed|high|
+-|M|ScheduleOne.UI.CharacterCreator.CharacterCreatorSlider|ApplyValue||0|derived|removed|high|
+-|M|ScheduleOne.UI.CharacterCreator.CharacterCreatorSlider|OnSliderChanged||1|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCreator.CharacterCreatorSlider|Slider||0|derived|removed|high|
+-|M|ScheduleOne.UI.CharacterCreator.CharacterCreatorToggle|ApplyValue||0|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCreator.CharacterCreatorToggle|Button1||0|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCreator.CharacterCreatorToggle|Button2||0|derived|removed|high|
+-|M|ScheduleOne.UI.CharacterCreator.CharacterCreatorToggle|OnButton1||0|derived|removed|high|
+-|M|ScheduleOne.UI.CharacterCreator.CharacterCreatorToggle|OnButton2||0|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCustomization.CharacterCustomizationOption|Label||0|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCustomization.CharacterCustomizationUI|LoadAvatarSettingsNaked||0|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterCustomization.CharacterCustomizationUI|currentSettings||0|derived|removed|high|
+-|F|ScheduleOne.UI.CharacterDisplay|ParentAvatar||0|derived|removed|high|
+-|M|ScheduleOne.UI.CharacterDisplay|SetAppearance||1|derived|removed|high|
+-|F|ScheduleOne.UI.DealCompletionPopup|Canvas||0|derived|removed|high|
+-|F|ScheduleOne.UI.DealCompletionPopup|Container||0|derived|removed|high|
+-|F|ScheduleOne.UI.DealCompletionPopup|Group||0|derived|removed|high|
+-|M|ScheduleOne.UI.DealCompletionPopup|PlayPopupRoutine||5|derived|removed|high|
+-|F|ScheduleOne.UI.DealCompletionPopup|_animationState||0|derived|removed|high|
+-|F|ScheduleOne.UI.Handover.HandoverScreen|Canvas||0|derived|removed|high|
+-|F|ScheduleOne.UI.Handover.HandoverScreen|CanvasGroup||0|derived|removed|high|
+-|M|ScheduleOne.UI.Handover.HandoverScreen|Close||1|derived|removed|high|
+-|F|ScheduleOne.UI.Handover.HandoverScreen|Container||0|derived|removed|high|
+-|F|ScheduleOne.UI.Handover.HandoverScreen|ContractDescriptionLabel||0|derived|removed|high|
+-|P|ScheduleOne.UI.Handover.HandoverScreen|CurrentContract||0|derived|removed|high|
+-|P|ScheduleOne.UI.Handover.HandoverScreen|CurrentCustomer||0|derived|removed|high|
+-|F|ScheduleOne.UI.Handover.HandoverScreen|CustomerSlotContainer||0|derived|removed|high|
+-|F|ScheduleOne.UI.Handover.HandoverScreen|DetailPanel||0|derived|removed|high|
+-|F|ScheduleOne.UI.Handover.HandoverScreen|DoneButton||0|derived|removed|high|
+-|F|ScheduleOne.UI.Handover.HandoverScreen|ErrorLabel||0|derived|removed|high|
+-|F|ScheduleOne.UI.Handover.HandoverScreen|ExpectationEntries||0|derived|removed|high|
+-|F|ScheduleOne.UI.Handover.HandoverScreen|FairPriceLabel||0|derived|removed|high|
+-|M|ScheduleOne.UI.Handover.HandoverScreen|GetCustomerItems||1|derived|removed|high|
+-|M|ScheduleOne.UI.Handover.HandoverScreen|GetCustomerItemsCount||1|derived|removed|high|
+-|M|ScheduleOne.UI.Handover.HandoverScreen|GetCustomerItemsValue||0|derived|removed|high|
+-|M|ScheduleOne.UI.Handover.HandoverScreen|GetError||1|derived|removed|high|
+-|M|ScheduleOne.UI.Handover.HandoverScreen|GetWarning||1|derived|removed|high|
+-|F|ScheduleOne.UI.Handover.HandoverScreen|InstructionLabel||0|derived|removed|high|
+-|M|ScheduleOne.UI.Handover.HandoverScreen|Open||6|derived|removed|high|
+-|M|ScheduleOne.UI.Handover.HandoverScreen|PriceChanged||1|derived|removed|high|
+-|F|ScheduleOne.UI.Handover.HandoverScreen|PriceSelector||0|derived|removed|high|
+-|F|ScheduleOne.UI.Handover.HandoverScreen|State||0|derived|removed|high|
+-|F|ScheduleOne.UI.Handover.HandoverScreen|SuccessColorMap||0|derived|removed|high|
+-|F|ScheduleOne.UI.Handover.HandoverScreen|SuccessLabel||0|derived|removed|high|
+-|F|ScheduleOne.UI.Handover.HandoverScreen|TitleLabel||0|derived|removed|high|
+-|F|ScheduleOne.UI.Handover.HandoverScreen|VehicleContainer||0|derived|removed|high|
+-|F|ScheduleOne.UI.Handover.HandoverScreen|VehicleSlotContainer||0|derived|removed|high|
+-|F|ScheduleOne.UI.Handover.HandoverScreen|VehicleSubtitle||0|derived|removed|high|
+-|F|ScheduleOne.UI.Handover.HandoverScreen|WarningLabel||0|derived|removed|high|
+-|F|ScheduleOne.UI.Handover.HandoverScreen|_ignoreCustomerChangedEvents||0|derived|removed|high|
+-|F|ScheduleOne.UI.Handover.HandoverScreen|_mode||0|derived|removed|high|
+-|E|ScheduleOne.UI.Handover.HandoverScreen|_onHandoverCompleteCallback||0|derived|removed|high|
+-|F|ScheduleOne.UI.Handover.HandoverScreen|_outcome||0|derived|removed|high|
+-|F|ScheduleOne.UI.Handover.HandoverScreen|_requireFullChanceOfSuccess||0|derived|removed|high|
+-|E|ScheduleOne.UI.Handover.HandoverScreen|_successChanceMethod||0|derived|removed|high|
+-|V|ScheduleOne.UI.Handover.HandoverScreen.EHandoverOutcome|Cancelled||0|derived|removed|high|
+-|V|ScheduleOne.UI.Handover.HandoverScreen.EHandoverOutcome|Finalize||0|derived|removed|high|
+-|F|ScheduleOne.UI.Handover.HandoverScreenDetailPanel|AddictionContainer||0|derived|removed|high|
+-|F|ScheduleOne.UI.Handover.HandoverScreenDetailPanel|AdditionScrollbar||0|derived|removed|high|
+-|M|ScheduleOne.UI.Handover.HandoverScreenDetailPanel|Close||0|derived|removed|high|
+-|F|ScheduleOne.UI.Handover.HandoverScreenDetailPanel|Container||0|derived|removed|high|
+-|F|ScheduleOne.UI.Handover.HandoverScreenDetailPanel|EffectsLabel||0|derived|removed|high|
+-|F|ScheduleOne.UI.Handover.HandoverScreenDetailPanel|FavouriteDrugLabel||0|derived|removed|high|
+-|F|ScheduleOne.UI.Handover.HandoverScreenDetailPanel|NameLabel||0|derived|removed|high|
+-|M|ScheduleOne.UI.Handover.HandoverScreenDetailPanel|Open||1|derived|removed|high|
+-|F|ScheduleOne.UI.Handover.HandoverScreenDetailPanel|RelationshipContainer||0|derived|removed|high|
+-|F|ScheduleOne.UI.Handover.HandoverScreenDetailPanel|RelationshipScrollbar||0|derived|removed|high|
+-|F|ScheduleOne.UI.Handover.HandoverScreenDetailPanel|StandardsLabel||0|derived|removed|high|
+-|F|ScheduleOne.UI.Handover.HandoverScreenDetailPanel|StandardsStar||0|derived|removed|high|
+-|P|ScheduleOne.UI.IPostSleepEvent|IsRunning||0|derived|removed|high|
+-|P|ScheduleOne.UI.IPostSleepEvent|Order||0|derived|removed|high|
+-|M|ScheduleOne.UI.IPostSleepEvent|StartEvent||0|derived|removed|high|
+-|F|ScheduleOne.UI.Phone.Delivery.DeliveryApp|started||0|derived|removed|high|
+-|M|ScheduleOne.UI.RankUpCanvas|QueuePostSleepEvent||0|derived|removed|high|
+-|M|ScheduleOne.UI.SleepCanvas|AddPostSleepEvent||1|derived|removed|high|
+-|F|ScheduleOne.UI.SleepCanvas|BlackOverlay||0|derived|removed|high|
+-|F|ScheduleOne.UI.SleepCanvas|Canvas||0|derived|removed|high|
+-|F|ScheduleOne.UI.SleepCanvas|Container||0|derived|removed|high|
+-|F|ScheduleOne.UI.SleepCanvas|CurrentTimeLabel||0|derived|removed|high|
+-|F|ScheduleOne.UI.SleepCanvas|EndTimeLabel||0|derived|removed|high|
+-|M|ScheduleOne.UI.SleepCanvas|Exit||1|derived|removed|high|
+-|P|ScheduleOne.UI.SleepCanvas|IsMenuOpen||0|derived|removed|high|
+-|M|ScheduleOne.UI.SleepCanvas|LerpBlackOverlay||2|derived|removed|high|
+-|F|ScheduleOne.UI.SleepCanvas|MaxSleepTime||0|derived|removed|high|
+-|F|ScheduleOne.UI.SleepCanvas|MenuContainer||0|derived|removed|high|
+-|F|ScheduleOne.UI.SleepCanvas|MenuState||0|derived|removed|high|
+-|F|ScheduleOne.UI.SleepCanvas|MinSleepTime||0|derived|removed|high|
+-|M|ScheduleOne.UI.SleepCanvas|OnMenuClosed||0|derived|removed|high|
+-|M|ScheduleOne.UI.SleepCanvas|OpenMenu||0|derived|removed|high|
+-|M|ScheduleOne.UI.SleepCanvas|QueueSleepMessage||2|derived|removed|high|
+-|F|ScheduleOne.UI.SleepCanvas|QueuedMessageDisplayTime||0|derived|removed|high|
+-|P|ScheduleOne.UI.SleepCanvas|QueuedSleepMessage||0|derived|removed|high|
+-|F|ScheduleOne.UI.SleepCanvas|SleepButton||0|derived|removed|high|
+-|F|ScheduleOne.UI.SleepCanvas|SleepButtonLabel||0|derived|removed|high|
+-|M|ScheduleOne.UI.SleepCanvas|SleepButtonPressed||0|derived|removed|high|
+-|F|ScheduleOne.UI.SleepCanvas|SleepMessageGroup||0|derived|removed|high|
+-|F|ScheduleOne.UI.SleepCanvas|SleepMessageLabel||0|derived|removed|high|
+-|M|ScheduleOne.UI.SleepCanvas|SleepStart||0|derived|removed|high|
+-|F|ScheduleOne.UI.SleepCanvas|SleepingState||0|derived|removed|high|
+-|F|ScheduleOne.UI.SleepCanvas|TimeLabel||0|derived|removed|high|
+-|F|ScheduleOne.UI.SleepCanvas|UIScreen||0|derived|removed|high|
+-|M|ScheduleOne.UI.SleepCanvas|UpdateSleepButton||0|derived|removed|high|
+-|M|ScheduleOne.UI.SleepCanvas|UpdateUI||0|derived|removed|high|
+-|F|ScheduleOne.UI.SleepCanvas|WaitingForHostLabel||0|derived|removed|high|
+-|F|ScheduleOne.UI.SleepCanvas|WakeLabel||0|derived|removed|high|
+-|F|ScheduleOne.UI.SleepCanvas|onSleepEndFade||0|derived|removed|high|
+-|F|ScheduleOne.UI.SleepCanvas|onSleepFullyFaded||0|derived|removed|high|
+-|F|ScheduleOne.UI.SleepCanvas|queuedPostSleepEvents||0|derived|removed|high|
+?|M|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|AlignPositionToHips||0|derived|ambiguous|high|2->1 of that shape moved at once
+?|F|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|FrustrumCullMinDist||0|derived|ambiguous|high|5->1 of that shape moved at once
+?|F|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|MaxBoneOffset||0|derived|ambiguous|high|5->1 of that shape moved at once
+?|F|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|MaxBoneOffsetSqr||0|derived|ambiguous|high|5->1 of that shape moved at once
+?|F|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|RunningAnimationSpeed||0|derived|ambiguous|high|5->1 of that shape moved at once
+?|F|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|SEAT_TIME||0|derived|ambiguous|high|5->1 of that shape moved at once
+?|M|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|ShouldGetUpFromBack||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.AvatarFramework.Animation.AvatarAnimation|UpdateAnimationActive||0|derived|ambiguous|high|2->1 of that shape moved at once
+?|M|ScheduleOne.AvatarFramework.Avatar|ApplyCurrentShapeKeys||0|derived|ambiguous|high|2->1 of that shape moved at once
+?|M|ScheduleOne.AvatarFramework.Avatar|ApplyRagdollForce||0|derived|ambiguous|high|2->1 of that shape moved at once
+?|M|ScheduleOne.AvatarFramework.Avatar|DestroyAccessories||0|derived|ambiguous|high|2->1 of that shape moved at once
+?|M|ScheduleOne.AvatarFramework.Avatar|DisableRagdoll||0|derived|ambiguous|high|3->1 of that shape moved at once
+?|M|ScheduleOne.AvatarFramework.Avatar|EnableRagdoll||0|derived|ambiguous|high|2->1 of that shape moved at once
+?|M|ScheduleOne.AvatarFramework.Avatar|OverrideHairColor||0|derived|ambiguous|high|3->1 of that shape moved at once
+?|M|ScheduleOne.AvatarFramework.Avatar|ResetHairColor||0|derived|ambiguous|high|1->3 of that shape moved at once
+?|M|ScheduleOne.AvatarFramework.Avatar|SetAdditionalGender||0|derived|ambiguous|high|2->1 of that shape moved at once
+?|M|ScheduleOne.AvatarFramework.Avatar|SetAdditionalWeight||0|derived|ambiguous|high|2->1 of that shape moved at once
+?|M|ScheduleOne.AvatarFramework.Avatar|SetBlockEyeFaceLayers||0|derived|ambiguous|high|3->1 of that shape moved at once
+?|M|ScheduleOne.AvatarFramework.Avatar|SetEmission||0|derived|ambiguous|high|3->1 of that shape moved at once
+?|M|ScheduleOne.AvatarFramework.Avatar|SetHairVisible||0|derived|ambiguous|high|3->1 of that shape moved at once
+?|M|ScheduleOne.AvatarFramework.Avatar|SetSkinColor||0|derived|ambiguous|high|3->1 of that shape moved at once
+?|F|ScheduleOne.AvatarFramework.Avatar|UseCombinedLayer||0|derived|ambiguous|high|2->1 of that shape moved at once
+?|F|ScheduleOne.AvatarFramework.Avatar|additionalGender||0|derived|ambiguous|high|2->3 of that shape moved at once
+?|F|ScheduleOne.AvatarFramework.Avatar|additionalWeight||0|derived|ambiguous|high|2->3 of that shape moved at once
+?|F|ScheduleOne.AvatarFramework.Avatar|originalHipPos||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|F|ScheduleOne.AvatarFramework.Avatar|wearingHairBlockingAccessory||0|derived|ambiguous|high|2->1 of that shape moved at once
+?|M|ScheduleOne.AvatarFramework.Eye|ConfigureEyeLight||0|derived|ambiguous|high|1->2 of that shape moved at once
+?|M|ScheduleOne.AvatarFramework.Eye|SetDilation||0|derived|ambiguous|high|2->1 of that shape moved at once
+?|M|ScheduleOne.AvatarFramework.Eye|SetLidColor||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.AvatarFramework.Eye|SetSize||0|derived|ambiguous|high|2->1 of that shape moved at once
+?|M|ScheduleOne.AvatarFramework.Eye|StopExistingRoutines||0|derived|ambiguous|high|1->3 of that shape moved at once
+?|F|ScheduleOne.AvatarFramework.Eye|defaultEyeColor||0|derived|ambiguous|high|1->4 of that shape moved at once
+?|F|ScheduleOne.AvatarFramework.Eye|defaultScale||0|derived|ambiguous|high|3->2 of that shape moved at once
+?|F|ScheduleOne.AvatarFramework.Eye|stateRoutine||0|derived|ambiguous|high|2->2 of that shape moved at once
+?|M|ScheduleOne.AvatarFramework.EyeController|BlinkRoutine||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.AvatarFramework.EyeController|ForceBlink||0|derived|ambiguous|high|3->4 of that shape moved at once
+?|M|ScheduleOne.AvatarFramework.EyeController|ResetEyeLids||0|derived|ambiguous|high|3->4 of that shape moved at once
+?|M|ScheduleOne.AvatarFramework.EyeController|ResetEyeballTint||0|derived|ambiguous|high|3->4 of that shape moved at once
+?|F|ScheduleOne.AvatarFramework.EyeController|defaultDilation||0|derived|ambiguous|high|2->1 of that shape moved at once
+?|F|ScheduleOne.AvatarFramework.EyeController|eyeBallTintOverridden||0|derived|ambiguous|high|2->1 of that shape moved at once
+?|F|ScheduleOne.AvatarFramework.EyeController|eyeLidOverridden||0|derived|ambiguous|high|2->1 of that shape moved at once
+?|F|ScheduleOne.Cartel.CartelGoonAppearance|BaseAppearanceIndex||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|F|ScheduleOne.Cutscenes.Cutscene|OverrideFOV||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.Cutscenes.CutsceneManager|Ended||0|derived|ambiguous|high|2->1 of that shape moved at once
+?|M|ScheduleOne.Cutscenes.CutsceneManager|RunCutscene||0|derived|ambiguous|high|2->1 of that shape moved at once
+?|F|ScheduleOne.Cutscenes.CutsceneManager|playingCutscene||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|F|ScheduleOne.Development.DevTesting|_example||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|F|ScheduleOne.Dialogue.DialogueManager|DefaultDatabase||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|F|ScheduleOne.Dragging.DragManager|DRAGGABLE_OFFSET||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.Dragging.DragManager|RpcLogic___SendDraggableTransformData_4062762274||0|derived|ambiguous|high|3->3 of that shape moved at once
+?|M|ScheduleOne.Dragging.DragManager|RpcLogic___SendDragger_807933219||0|derived|ambiguous|high|6->6 of that shape moved at once
+?|M|ScheduleOne.Dragging.DragManager|RpcLogic___SetDraggableTransformData_3831223955||0|derived|ambiguous|high|4->4 of that shape moved at once
+?|M|ScheduleOne.Dragging.DragManager|RpcLogic___SetDragger_807933219||0|derived|ambiguous|high|6->6 of that shape moved at once
+?|M|ScheduleOne.Dragging.DragManager|RpcReader___Observers_SetDraggableTransformData_3831223955||0|derived|ambiguous|high|3->3 of that shape moved at once
+?|M|ScheduleOne.Dragging.DragManager|RpcReader___Observers_SetDragger_807933219||0|derived|ambiguous|high|3->3 of that shape moved at once
+?|M|ScheduleOne.Dragging.DragManager|RpcReader___Server_SendDraggableTransformData_4062762274||0|derived|ambiguous|high|2->2 of that shape moved at once
+?|M|ScheduleOne.Dragging.DragManager|RpcReader___Server_SendDragger_807933219||0|derived|ambiguous|high|2->2 of that shape moved at once
+?|M|ScheduleOne.Dragging.DragManager|RpcReader___Target_SetDraggableTransformData_3831223955||0|derived|ambiguous|high|3->3 of that shape moved at once
+?|M|ScheduleOne.Dragging.DragManager|RpcWriter___Observers_SetDraggableTransformData_3831223955||0|derived|ambiguous|high|4->4 of that shape moved at once
+?|M|ScheduleOne.Dragging.DragManager|RpcWriter___Observers_SetDragger_807933219||0|derived|ambiguous|high|6->6 of that shape moved at once
+?|M|ScheduleOne.Dragging.DragManager|RpcWriter___Server_SendDraggableTransformData_4062762274||0|derived|ambiguous|high|3->3 of that shape moved at once
+?|M|ScheduleOne.Dragging.DragManager|RpcWriter___Server_SendDragger_807933219||0|derived|ambiguous|high|6->6 of that shape moved at once
+?|M|ScheduleOne.Dragging.DragManager|RpcWriter___Target_SetDraggableTransformData_3831223955||0|derived|ambiguous|high|4->4 of that shape moved at once
+?|M|ScheduleOne.Dragging.DragManager|SendDraggableTransformData||0|derived|ambiguous|high|3->3 of that shape moved at once
+?|M|ScheduleOne.Dragging.DragManager|SendDragger||0|derived|ambiguous|high|6->6 of that shape moved at once
+?|M|ScheduleOne.Dragging.DragManager|SetDraggableTransformData||0|derived|ambiguous|high|4->4 of that shape moved at once
+?|M|ScheduleOne.Dragging.DragManager|SetDragger||0|derived|ambiguous|high|6->6 of that shape moved at once
+?|F|ScheduleOne.Dragging.Draggable|INITIAL_REPLICATION_DISTANCE||0|derived|ambiguous|high|3->2 of that shape moved at once
+?|F|ScheduleOne.Dragging.Draggable|IntObj||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|F|ScheduleOne.Dragging.Draggable|MAX_DRAG_START_RANGE||0|derived|ambiguous|high|3->2 of that shape moved at once
+?|F|ScheduleOne.Dragging.Draggable|MAX_TARGET_OFFSET||0|derived|ambiguous|high|3->2 of that shape moved at once
+?|F|ScheduleOne.Dragging.Draggable|timeSinceLastDrag||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.Economy.Supplier|CreateMessageConversation||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.Equipping.Framework.INetworkedEquippableUser|EquipLocal||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.Equipping.Framework.INetworkedEquippableUser|EquipLocal||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.GameTime.TimeManager|SetTimeAndSync||0|derived|ambiguous|high|1->2 of that shape moved at once
+?|F|ScheduleOne.Instancing.InstancingBaker|SAVE_PATH||0|derived|ambiguous|high|1->2 of that shape moved at once
+?|F|ScheduleOne.Map.ParkingSpot|ParentLot||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|P|ScheduleOne.Messaging.MSGConversation|rollingOut||0|derived|ambiguous|high|2->1 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|ClearResponses||0|derived|ambiguous|high|2->2 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|ReceiveClearResponses||0|derived|ambiguous|high|4->4 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|ReceiveMessage||0|derived|ambiguous|high|4->4 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|ReceiveMessageChain||0|derived|ambiguous|high|4->4 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|ReceivePlayerMessage||0|derived|ambiguous|high|4->4 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|ReceiveResponse||0|derived|ambiguous|high|4->4 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|ReceiveShowResponses||0|derived|ambiguous|high|4->4 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|RpcLogic___ClearResponses_3615296227||0|derived|ambiguous|high|2->2 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|RpcLogic___ReceiveClearResponses_3615296227||0|derived|ambiguous|high|4->4 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|RpcLogic___ReceiveMessageChain_3949292778||0|derived|ambiguous|high|4->4 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|RpcLogic___ReceiveMessage_2134336246||0|derived|ambiguous|high|4->4 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|RpcLogic___ReceivePlayerMessage_1952281135||0|derived|ambiguous|high|4->4 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|RpcLogic___ReceiveResponse_2801973956||0|derived|ambiguous|high|4->4 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|RpcLogic___ReceiveShowResponses_995803534||0|derived|ambiguous|high|4->4 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|RpcLogic___SendMessageChain_3949292778||0|derived|ambiguous|high|2->2 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|RpcLogic___SendMessage_2134336246||0|derived|ambiguous|high|2->2 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|RpcLogic___SendPlayerMessage_1952281135||0|derived|ambiguous|high|2->2 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|RpcLogic___SendResponse_2801973956||0|derived|ambiguous|high|2->2 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|RpcLogic___ShowResponses_995803534||0|derived|ambiguous|high|2->2 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|RpcReader___Observers_ReceiveClearResponses_3615296227||0|derived|ambiguous|high|6->6 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|RpcReader___Observers_ReceiveMessageChain_3949292778||0|derived|ambiguous|high|6->6 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|RpcReader___Observers_ReceiveMessage_2134336246||0|derived|ambiguous|high|6->6 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|RpcReader___Observers_ReceivePlayerMessage_1952281135||0|derived|ambiguous|high|6->6 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|RpcReader___Observers_ReceiveResponse_2801973956||0|derived|ambiguous|high|6->6 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|RpcReader___Observers_ReceiveShowResponses_995803534||0|derived|ambiguous|high|6->6 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|RpcReader___Server_ClearResponses_3615296227||0|derived|ambiguous|high|6->6 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|RpcReader___Server_SendMessageChain_3949292778||0|derived|ambiguous|high|6->6 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|RpcReader___Server_SendMessage_2134336246||0|derived|ambiguous|high|6->6 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|RpcReader___Server_SendPlayerMessage_1952281135||0|derived|ambiguous|high|6->6 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|RpcReader___Server_SendResponse_2801973956||0|derived|ambiguous|high|6->6 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|RpcReader___Server_ShowResponses_995803534||0|derived|ambiguous|high|6->6 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|RpcWriter___Observers_ReceiveClearResponses_3615296227||0|derived|ambiguous|high|4->4 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|RpcWriter___Observers_ReceiveMessageChain_3949292778||0|derived|ambiguous|high|4->4 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|RpcWriter___Observers_ReceiveMessage_2134336246||0|derived|ambiguous|high|4->4 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|RpcWriter___Observers_ReceivePlayerMessage_1952281135||0|derived|ambiguous|high|4->4 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|RpcWriter___Observers_ReceiveResponse_2801973956||0|derived|ambiguous|high|4->4 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|RpcWriter___Observers_ReceiveShowResponses_995803534||0|derived|ambiguous|high|4->4 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|RpcWriter___Server_ClearResponses_3615296227||0|derived|ambiguous|high|4->4 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|RpcWriter___Server_SendMessageChain_3949292778||0|derived|ambiguous|high|4->4 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|RpcWriter___Server_SendMessage_2134336246||0|derived|ambiguous|high|4->4 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|RpcWriter___Server_SendPlayerMessage_1952281135||0|derived|ambiguous|high|4->4 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|RpcWriter___Server_SendResponse_2801973956||0|derived|ambiguous|high|4->4 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|RpcWriter___Server_ShowResponses_995803534||0|derived|ambiguous|high|4->4 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|SendMessage||0|derived|ambiguous|high|2->2 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|SendMessageChain||0|derived|ambiguous|high|2->2 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|SendPlayerMessage||0|derived|ambiguous|high|2->2 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|SendResponse||0|derived|ambiguous|high|2->2 of that shape moved at once
+?|M|ScheduleOne.Messaging.MessagingManager|ShowResponses||0|derived|ambiguous|high|2->2 of that shape moved at once
+?|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|RpcLogic___SendProduct_3964170259||0|derived|ambiguous|high|2->2 of that shape moved at once
+?|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|RpcLogic___SetProduct_3964170259||0|derived|ambiguous|high|4->4 of that shape moved at once
+?|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|RpcReader___Observers_SetProduct_3964170259||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|RpcReader___Server_SendProduct_3964170259||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|RpcWriter___Observers_SetProduct_3964170259||0|derived|ambiguous|high|4->4 of that shape moved at once
+?|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|RpcWriter___Server_SendProduct_3964170259||0|derived|ambiguous|high|4->4 of that shape moved at once
+?|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|SendProduct||0|derived|ambiguous|high|2->2 of that shape moved at once
+?|M|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|SetProduct||0|derived|ambiguous|high|4->4 of that shape moved at once
+?|F|ScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour|product||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.NPCs.Behaviour.NPCBehaviour|ConsumeProduct||0|derived|ambiguous|high|2->2 of that shape moved at once
+?|M|ScheduleOne.NPCs.Behaviour.NPCBehaviour|RpcLogic___ConsumeProduct_3964170259||0|derived|ambiguous|high|2->2 of that shape moved at once
+?|M|ScheduleOne.NPCs.Behaviour.NPCBehaviour|RpcReader___Server_ConsumeProduct_3964170259||0|derived|ambiguous|high|1->2 of that shape moved at once
+?|M|ScheduleOne.NPCs.Behaviour.NPCBehaviour|RpcWriter___Server_ConsumeProduct_3964170259||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.NPCs.Behaviour.RequestProductBehaviour|SetUpDialogue||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.NPCs.CharacterClasses.Phil|CreateMessageConversation||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.NPCs.CharacterClasses.Thomas|CreateMessageConversation||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|F|ScheduleOne.NPCs.Framework.Movement|SprintSpeed||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.NPCs.NPC|CreateMessageConversation||0|derived|ambiguous|high|1->7 of that shape moved at once
+?|M|ScheduleOne.NPCs.NPC|EquipLocal||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.NPCs.NPC|EquipLocal||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|F|ScheduleOne.NPCs.NPC|NPC_DRY_RATE||0|derived|ambiguous|high|2->3 of that shape moved at once
+?|F|ScheduleOne.NPCs.NPC|NPC_WET_RATE||0|derived|ambiguous|high|2->3 of that shape moved at once
+?|E|ScheduleOne.NPCs.NPC|OnConversationCreated||0|derived|ambiguous|high|1->2 of that shape moved at once
+?|E|ScheduleOne.NPCs.NPC|OnNPCDataReady||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.NPCs.NPC|PlayerSpawned||0|derived|ambiguous|high|1->3 of that shape moved at once
+?|M|ScheduleOne.NPCs.NPC|RpcReader___Server_AimedAtByPlayer_3323014238||0|derived|ambiguous|high|2->1 of that shape moved at once
+?|F|ScheduleOne.NPCs.NPC|_npcData||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|P|ScheduleOne.NPCs.NPCMovement|GravityMultiplier||0|derived|ambiguous|high|4->1 of that shape moved at once
+?|P|ScheduleOne.NPCs.NPCMovement|HasDestination||0|derived|ambiguous|high|4->1 of that shape moved at once
+?|P|ScheduleOne.NPCs.NPCMovement|IsClimbingUpwards||0|derived|ambiguous|high|4->1 of that shape moved at once
+?|P|ScheduleOne.NPCs.NPCMovement|IsPaused||0|derived|ambiguous|high|4->1 of that shape moved at once
+?|P|ScheduleOne.NPCs.NPCMovement|MoveSpeedMultiplier||0|derived|ambiguous|high|4->1 of that shape moved at once
+?|F|ScheduleOne.NPCs.NPCMovement|ObstacleAvoidanceEnabled||0|derived|ambiguous|high|4->1 of that shape moved at once
+?|M|ScheduleOne.NPCs.NPCMovement|PauseMovement||0|derived|ambiguous|high|3->1 of that shape moved at once
+?|M|ScheduleOne.NPCs.NPCMovement|ResumeMovement||0|derived|ambiguous|high|3->1 of that shape moved at once
+?|M|ScheduleOne.NPCs.NPCMovement|RpcReader___Observers_ReceiveWarp_4276783012||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|P|ScheduleOne.NPCs.NPCMovement|RunSpeed||0|derived|ambiguous|high|4->1 of that shape moved at once
+?|M|ScheduleOne.NPCs.NPCMovement|SetRagdollDraggable||0|derived|ambiguous|high|2->1 of that shape moved at once
+?|P|ScheduleOne.NPCs.NPCMovement|Stance||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.NPCs.NPCMovement|UpdateAvoidance||0|derived|ambiguous|high|2->2 of that shape moved at once
+?|M|ScheduleOne.NPCs.NPCMovement|UpdateSpeed||0|derived|ambiguous|high|2->2 of that shape moved at once
+?|M|ScheduleOne.NPCs.NPCMovement|VisibilityChange||0|derived|ambiguous|high|2->1 of that shape moved at once
+?|P|ScheduleOne.NPCs.NPCMovement|WalkSpeed||0|derived|ambiguous|high|4->1 of that shape moved at once
+?|M|ScheduleOne.NPCs.NPCMovement|WarpToNavMesh||0|derived|ambiguous|high|3->1 of that shape moved at once
+?|F|ScheduleOne.NPCs.NPCMovement|agentCurrentPath||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|F|ScheduleOne.NPCs.NPCMovement|agentCurrentPathCorners||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|F|ScheduleOne.NPCs.NPCMovement|agentCurrentSpeed||0|derived|ambiguous|high|2->3 of that shape moved at once
+?|F|ScheduleOne.NPCs.NPCMovement|currentMaxDistanceForSuccess||0|derived|ambiguous|high|2->3 of that shape moved at once
+?|F|ScheduleOne.NPCs.NPCMovement|forceIsMoving||0|derived|ambiguous|high|2->4 of that shape moved at once
+?|F|ScheduleOne.NPCs.NPCMovement|walkResultCallback||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|P|ScheduleOne.NPCs.NPCSpeedController|SpeedMultiplier||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.NPCs.NPCSpeedController|UpdateActiveSpeedControl||0|derived|ambiguous|high|1->2 of that shape moved at once
+?|F|ScheduleOne.NPCs.Responses.NPCResponses|INITIALIZED_TIME_OFFSET||0|derived|ambiguous|high|2->6 of that shape moved at once
+?|F|ScheduleOne.NPCs.Responses.NPCResponses|TIME_THRESHOLD||0|derived|ambiguous|high|2->6 of that shape moved at once
+?|F|ScheduleOne.NPCs.Responses.NPCResponses|timeSinceAimedAt||0|derived|ambiguous|high|2->2 of that shape moved at once
+?|F|ScheduleOne.NPCs.Responses.NPCResponses|timeSinceLastImpact||0|derived|ambiguous|high|2->2 of that shape moved at once
+?|M|ScheduleOne.PlayerScripts.Player|EquipLocal||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.PlayerScripts.Player|EquipLocal||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.PlayerScripts.Player|PlayerLoaded||0|derived|ambiguous|high|1->6 of that shape moved at once
+?|M|ScheduleOne.PlayerScripts.Player|ReceivePlayerNameData||0|derived|ambiguous|high|4->4 of that shape moved at once
+?|M|ScheduleOne.PlayerScripts.Player|RpcLogic___ReceivePlayerNameData_3895153758||0|derived|ambiguous|high|4->4 of that shape moved at once
+?|M|ScheduleOne.PlayerScripts.Player|RpcLogic___SendPlayerNameData_1988918489||0|derived|ambiguous|high|2->2 of that shape moved at once
+?|M|ScheduleOne.PlayerScripts.Player|RpcReader___Observers_ReceivePlayerData_3244732873||0|derived|ambiguous|high|6->5 of that shape moved at once
+?|M|ScheduleOne.PlayerScripts.Player|RpcReader___Observers_ReceivePlayerNameData_3895153758||0|derived|ambiguous|high|6->5 of that shape moved at once
+?|M|ScheduleOne.PlayerScripts.Player|RpcReader___Observers_SetAvatarSettings_4281687581||0|derived|ambiguous|high|6->5 of that shape moved at once
+?|M|ScheduleOne.PlayerScripts.Player|RpcReader___Server_MarkIntroCompleted_3281254764||0|derived|ambiguous|high|5->5 of that shape moved at once
+?|M|ScheduleOne.PlayerScripts.Player|RpcReader___Server_RequestPlayerData_3615296227||0|derived|ambiguous|high|5->5 of that shape moved at once
+?|M|ScheduleOne.PlayerScripts.Player|RpcReader___Server_SendAvatarSettings_4281687581||0|derived|ambiguous|high|5->5 of that shape moved at once
+?|M|ScheduleOne.PlayerScripts.Player|RpcReader___Server_SendPlayerNameData_1988918489||0|derived|ambiguous|high|5->5 of that shape moved at once
+?|M|ScheduleOne.PlayerScripts.Player|RpcReader___Target_ReceivePlayerData_3244732873||0|derived|ambiguous|high|6->5 of that shape moved at once
+?|M|ScheduleOne.PlayerScripts.Player|RpcReader___Target_ReceivePlayerNameData_3895153758||0|derived|ambiguous|high|6->5 of that shape moved at once
+?|M|ScheduleOne.PlayerScripts.Player|RpcWriter___Observers_ReceivePlayerNameData_3895153758||0|derived|ambiguous|high|4->4 of that shape moved at once
+?|M|ScheduleOne.PlayerScripts.Player|RpcWriter___Server_SendPlayerNameData_1988918489||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.PlayerScripts.Player|RpcWriter___Target_ReceivePlayerNameData_3895153758||0|derived|ambiguous|high|4->4 of that shape moved at once
+?|M|ScheduleOne.PlayerScripts.Player|SendPlayerNameData||0|derived|ambiguous|high|2->2 of that shape moved at once
+?|P|ScheduleOne.PlayerScripts.Player|playerDataRetrieveReturned||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.PlayerScripts.PlayerClothing|InsertClothing||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.PlayerScripts.PlayerManager|AllPlayerFilesLoaded||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.PlayerScripts.PlayerManager|LoadPlayer||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.Police.NPCResponses_CartelGoon|HitByCar||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.Police.NPCResponses_Police|HitByCar||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|F|ScheduleOne.Police.PoliceOfficer|belt||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|F|ScheduleOne.Trash.TrashItem|ColliderRange||0|derived|ambiguous|high|2->3 of that shape moved at once
+?|F|ScheduleOne.Trash.TrashItem|ColliderRangeSqr||0|derived|ambiguous|high|2->3 of that shape moved at once
+?|M|ScheduleOne.Trash.TrashItem|Deinitialize||0|derived|ambiguous|high|7->1 of that shape moved at once
+?|M|ScheduleOne.Trash.TrashItem|Hovered||0|derived|ambiguous|high|7->1 of that shape moved at once
+?|M|ScheduleOne.Trash.TrashItem|InitializeSaveable||0|derived|ambiguous|high|7->1 of that shape moved at once
+?|M|ScheduleOne.Trash.TrashItem|Interacted||0|derived|ambiguous|high|7->1 of that shape moved at once
+?|M|ScheduleOne.Trash.TrashItem|OnTick||0|derived|ambiguous|high|7->1 of that shape moved at once
+?|M|ScheduleOne.Trash.TrashItem|SetContinuousCollisionDetection||0|derived|ambiguous|high|7->1 of that shape moved at once
+?|M|ScheduleOne.Trash.TrashItem|SetDiscreteCollisionDetection||0|derived|ambiguous|high|7->1 of that shape moved at once
+?|M|ScheduleOne.Trash.TrashItem|ShouldSave||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|F|ScheduleOne.Trash.TrashItem|collidersEnabled||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.Trash.TrashManager|DestroyTrash||0|derived|ambiguous|high|6->6 of that shape moved at once
+?|M|ScheduleOne.Trash.TrashManager|RpcLogic___DestroyTrash_3615296227||0|derived|ambiguous|high|6->6 of that shape moved at once
+?|M|ScheduleOne.Trash.TrashManager|RpcLogic___SendDestroyTrash_3615296227||0|derived|ambiguous|high|6->6 of that shape moved at once
+?|M|ScheduleOne.Trash.TrashManager|RpcReader___Observers_CreateTrashItem_2385526393||0|derived|ambiguous|high|6->5 of that shape moved at once
+?|M|ScheduleOne.Trash.TrashManager|RpcReader___Observers_DestroyTrash_3615296227||0|derived|ambiguous|high|6->5 of that shape moved at once
+?|M|ScheduleOne.Trash.TrashManager|RpcReader___Observers_ReceiveTransformData_2990100769||0|derived|ambiguous|high|6->5 of that shape moved at once
+?|M|ScheduleOne.Trash.TrashManager|RpcReader___Server_SendDestroyTrash_3615296227||0|derived|ambiguous|high|4->3 of that shape moved at once
+?|M|ScheduleOne.Trash.TrashManager|RpcReader___Server_SendTransformData_2990100769||0|derived|ambiguous|high|4->3 of that shape moved at once
+?|M|ScheduleOne.Trash.TrashManager|RpcReader___Server_SendTrashItem_478112418||0|derived|ambiguous|high|4->3 of that shape moved at once
+?|M|ScheduleOne.Trash.TrashManager|RpcReader___Target_CreateTrashItem_2385526393||0|derived|ambiguous|high|6->5 of that shape moved at once
+?|M|ScheduleOne.Trash.TrashManager|RpcWriter___Observers_DestroyTrash_3615296227||0|derived|ambiguous|high|6->6 of that shape moved at once
+?|M|ScheduleOne.Trash.TrashManager|RpcWriter___Server_SendDestroyTrash_3615296227||0|derived|ambiguous|high|6->6 of that shape moved at once
+?|M|ScheduleOne.Trash.TrashManager|SendDestroyTrash||0|derived|ambiguous|high|6->6 of that shape moved at once
+?|P|ScheduleOne.UI.DailySummary|IsOpen||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|F|ScheduleOne.UI.DealCompletionPopup|Anim||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|F|ScheduleOne.UI.DealCompletionPopup|_animation||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|F|ScheduleOne.UI.DealCompletionPopup|routine||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.UI.Handover.HandoverScreen|ClearCustomerSlots||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.UI.Handover.HandoverScreen|CustomerItemsChanged||0|derived|ambiguous|high|3->3 of that shape moved at once
+?|M|ScheduleOne.UI.Handover.HandoverScreen|DonePressed||0|derived|ambiguous|high|2->7 of that shape moved at once
+?|M|ScheduleOne.UI.Handover.HandoverScreen|TestOpen||0|derived|ambiguous|high|2->7 of that shape moved at once
+?|M|ScheduleOne.UI.Handover.HandoverScreen|UpdateDoneButton||0|derived|ambiguous|high|3->3 of that shape moved at once
+?|M|ScheduleOne.UI.Handover.HandoverScreen|UpdateSuccessChance||0|derived|ambiguous|high|3->3 of that shape moved at once
+?|P|ScheduleOne.UI.RankUpCanvas|IsRunning||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|P|ScheduleOne.UI.RankUpCanvas|Order||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|P|ScheduleOne.UI.RegionUnlockedCanvas|IsRunning||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|P|ScheduleOne.UI.RegionUnlockedCanvas|Order||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|F|ScheduleOne.UI.Shop.ShopInterfaceDetailPanel|listing||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|F|ScheduleOne.Vehicles.AI.VehicleAgent|RoadGraphName||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|P|ScheduleOne.Weather.DayNightController|EnableDebugTimeControl||0|derived|ambiguous|high|1->1 of that shape moved at once
