@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented here.
 
+## [0.12.7] - 2026-09-23
+
+### Added
+- Ready for the Schedule I 0.4.7 beta: Polyfill knows what that update renamed, so more of your old
+  mods load there.
+- On the 0.4.7 beta, mods that change how fast NPCs walk work again.
+- On the 0.4.7 beta, mods that move an NPC to a spot work again, and the NPC keeps facing the way it faced.
+
+### Fixed
+- Polyfill no longer lists itself as broken on the 0.4.7 beta.
+
 ## [0.12.6] - 2026-09-12
 
 ### For mod authors
