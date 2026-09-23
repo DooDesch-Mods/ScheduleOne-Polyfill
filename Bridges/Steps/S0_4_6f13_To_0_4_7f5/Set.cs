@@ -77,7 +77,55 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                         + "popup unconditionally (Customer.cs:1420-1424 on 0.4.7f6)",
                 Emit = EmitProcessHandover,
             },
+
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = HandoverScreen,
+                OldName = "ClearCustomerSlots",
+                ParameterCount = 1,
+                Because = "the flag became the choice of method: 0.4.6 ClearCustomerSlots(true) put each item "
+                        + "back into the inventory and cleared the slot, (false) only cleared it "
+                        + "(HandoverScreen.cs:349-366 on 0.4.6f13); 0.4.7 has ReturnCustomerItems and "
+                        + "DestroyCustomerItems for the two (HandoverScreen.cs:273-312 on 0.4.7f6)",
+                Emit = EmitClearCustomerSlots,
+            },
         };
+
+        /// <summary>
+        /// <c>HandoverScreen.ClearCustomerSlots(returnToOriginals)</c>: return or destroy, by the flag.
+        /// </summary>
+        /// <remarks>
+        /// The old method also refreshed the screen once at the end, with the per-slot events held off while
+        /// it cleared. 0.4.7 has no batch refresh to call: every customer slot reports its own change
+        /// (HandoverScreen.cs:124-126), so the screen hears about each item as it goes, and ends in the
+        /// same state.
+        /// </remarks>
+        private static MethodDefinition EmitClearCustomerSlots(ModuleDefinition module, TypeDefinition screen)
+        {
+            var giveBack = Method(screen, "ReturnCustomerItems", 0);
+            var destroy = Method(screen, "DestroyCustomerItems", 0);
+            if (giveBack == null || destroy == null) return null;
+
+            var method = new MethodDefinition("ClearCustomerSlots",
+                MethodAttributes.Public | MethodAttributes.HideBySig, module.TypeSystem.Void);
+            method.Parameters.Add(new ParameterDefinition("returnToOriginals", ParameterAttributes.None,
+                                                          module.TypeSystem.Boolean));
+
+            // if (returnToOriginals) ReturnCustomerItems(); else DestroyCustomerItems();
+            var il = method.Body.GetILProcessor();
+            var otherwise = il.Create(OpCodes.Ldarg_0);
+            var done = il.Create(OpCodes.Ret);
+            il.Emit(OpCodes.Ldarg_1);
+            il.Emit(OpCodes.Brfalse_S, otherwise);
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, module.ImportReference(giveBack));
+            il.Emit(OpCodes.Br_S, done);
+            il.Append(otherwise);
+            il.Emit(OpCodes.Call, module.ImportReference(destroy));
+            il.Append(done);
+            return method;
+        }
 
         /// <summary>
         /// Types 0.4.7 renamed outright, which no name match can follow.

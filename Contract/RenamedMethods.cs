@@ -51,6 +51,20 @@ namespace Polyfill.Contract
                 Because = "the price control became the game's general amount box in 0.4.6, and SetPrice"
                         + "(float) became SetAmount(float) on it (AmountSelector.cs:61)",
             },
+
+            // 0.4.7 split HandoverScreen.Open(contract, customer, mode, ...) into one public Open_* per
+            // mode, and every one of them ends in the same private OnOpen(mode) - the camera, the slots,
+            // the state push, IsOpen and OnHandoverScreenOpened all live there. A patch on Open is a patch
+            // on "the screen opened", and OnOpen is where that happens, with the mode under the same name.
+            new Entry
+            {
+                Type = "Il2CppScheduleOne.UI.Handover.HandoverScreen",
+                OldName = "Open",
+                NewName = "OnOpen",
+                Because = "0.4.7 split Open into Open_Contract, Open_Sample, Open_Offer and "
+                        + "Open_SpecialCustomer, and each ends in OnOpen(EMode mode), which does what the end "
+                        + "of Open did (HandoverScreen.cs:148-174, OnOpen at :181 on 0.4.7f6)",
+            },
         };
 
         /// <summary>What this name became on the type, or null when nothing is on record.</summary>
