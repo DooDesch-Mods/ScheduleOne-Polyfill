@@ -54,7 +54,7 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
         /// </summary>
         /// <remarks>
         /// One on an NPC with no controller, which is what the old property started at and what the
-        /// controller starts at too (<c>_speedMultiplier = 1f</c>). A getter that throws on a half-built NPC
+        /// controller starts at too (<c>_speedMultiplier = 1f</c>, NPCSpeedController.cs:9). A getter that throws on a half-built NPC
         /// would break the mod on the one frame where the old code simply read a default.
         /// </remarks>
         private static MethodDefinition EmitMoveSpeedMultiplierGetter(ModuleDefinition module, TypeDefinition movement)
@@ -89,9 +89,11 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
         /// </summary>
         /// <remarks>
         /// Not a stack entry, unlike the 0.4.6 speed bridges. The old property was one plain value that the
-        /// last writer owned, and the game's own writers moved to exactly this call - Athletic, Calming,
-        /// Energizing and Sedating set it on start and back to 1 on end. A mod writing it now shares that one
-        /// value with the game the same way it did before.
+        /// last writer owned, and the game's own writers moved to exactly this call, setting it on start and
+        /// back to 1 on end: Athletic.cs:29 and :51, Calming.cs:14 and :28, Energizing.cs:22 and :42,
+        /// Sedating.cs:21 and :40. The method is a plain store plus a recalculation
+        /// (NPCSpeedController.cs:37-41). A mod writing it now shares that one value with the game the same
+        /// way it did before.
         /// </remarks>
         private static MethodDefinition EmitMoveSpeedMultiplierSetter(ModuleDefinition module, TypeDefinition movement)
         {
