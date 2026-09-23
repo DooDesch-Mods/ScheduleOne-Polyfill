@@ -118,30 +118,34 @@ namespace Polyfill.Contract
                 OldParameters = new[] { "System.Single", "System.Single" },
                 Because = "GetOrderDays stopped returning the list and started filling one it is handed",
             },
+        };
 
-            // NOT A PREFIX, and listed anyway for the other half of what this list does. 0.4.7 dropped the
-            // LEADING outcome argument, so no patch can be moved - the mover looks for a longer method that
-            // starts with these parameters, finds none, and leaves it. What the entry still does is keep
-            // [HarmonyPatch(typeof(Customer), "ProcessHandover")] unambiguous once the bridge has put a
-            // second ProcessHandover beside the game's: a lookup that names no parameters gets the game's.
-            new Entry
-            {
-                Type = "Il2CppScheduleOne.Economy.Customer",
-                Name = "ProcessHandover",
-                OldParameters = new[]
-                {
-                    "Il2CppScheduleOne.UI.Handover.HandoverScreen/EHandoverOutcome", "Il2CppScheduleOne.Quests.Contract",
-                    "Il2CppSystem.Collections.Generic.List`1<Il2CppScheduleOne.ItemFramework.ItemInstance>",
-                    "System.Boolean", "System.Boolean",
-                },
-                Because = "0.4.7 dropped the leading outcome argument along with the enum",
-            },
+        /// <summary>
+        /// Names Polyfill doubled where the old parameters are NOT a prefix of the new ones.
+        /// </summary>
+        /// <remarks>
+        /// Kept apart from <see cref="All"/> because only half of what that list is for applies. No patch
+        /// can be moved: the game's method lost a LEADING argument, so a prefix written for the old form
+        /// would bind a parameter the real one does not have. What still applies is the lookup - once the
+        /// bridge has put a second method under the name, <c>[HarmonyPatch(typeof(T), "Name")]</c> with no
+        /// parameter list is ambiguous, and it has to get the game's own.
+        ///
+        /// So these name only an arity. The mover never reads them, and nothing here has to spell a
+        /// parameter type the plugin must not name.
+        /// </remarks>
+        internal static readonly (string Type, string Name, int StandInArity, string Because)[] Dropped =
+        {
+            ("Il2CppScheduleOne.Economy.Customer", "ProcessHandover", 5,
+             "0.4.7 dropped the leading outcome argument along with the enum"),
         };
 
         /// <summary>Has Polyfill put a second signature under this name?</summary>
         internal static bool Doubled(string type, string name)
         {
             foreach (var entry in All)
+                if (entry.Name == name && string.Equals(entry.Type, type, StringComparison.Ordinal))
+                    return true;
+            foreach (var entry in Dropped)
                 if (entry.Name == name && string.Equals(entry.Type, type, StringComparison.Ordinal))
                     return true;
             return false;
@@ -152,6 +156,10 @@ namespace Polyfill.Contract
         {
             foreach (var entry in All)
                 if (entry.Name == name && entry.OldParameters.Length == parameterCount
+                    && string.Equals(entry.Type, type, StringComparison.Ordinal))
+                    return true;
+            foreach (var entry in Dropped)
+                if (entry.Name == name && entry.StandInArity == parameterCount
                     && string.Equals(entry.Type, type, StringComparison.Ordinal))
                     return true;
             return false;
