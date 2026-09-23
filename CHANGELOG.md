@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.12.9] - 2026-09-23
+
+### Fixed
+- On the 0.4.7 beta, OG Backpack keeps what you put in it: the backpack saves again and is back after loading.
+- On the 0.4.7 beta, mods that add to the deal screen show up there again, like Over The Counter's fill button.
+
 ## [0.12.8] - 2026-09-23
 
 ### Added
