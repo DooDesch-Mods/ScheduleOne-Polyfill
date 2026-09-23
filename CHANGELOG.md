@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.12.8] - 2026-09-23
+
+### Added
+- On the 0.4.7 beta, mods that finish a deal for you (drones, auto-delivery) can complete it again.
+- On the 0.4.7 beta, mods that add their own dialogue load again.
+
 ## [0.12.7] - 2026-09-23
 
 ### Added
