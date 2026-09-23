@@ -1,5 +1,6 @@
 using Mono.Cecil;
 using Mono.Cecil.Cil;
+using static Polyfill.Bridges.Shapes;
 
 namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
 {
@@ -47,7 +48,66 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                 Because = SpeedMultiplier,
                 Emit = EmitMoveSpeedMultiplierSetter,
             },
+
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = Movement,
+                OldName = "Warp",
+                ParameterCount = 1,
+                ParameterTypes = new[] { "UnityEngine.Vector3" },
+                AllowOverload = true,
+                Because = "the rotation became a second parameter; passing the NPC's own rotation is the "
+                        + "one-argument Warp, which never turned it (NPCMovement.cs:615-645 on 0.4.6f13, "
+                        + "NPCMovement.cs:423-457 on 0.4.7f6)",
+                Emit = EmitWarpKeepingRotation,
+            },
         };
+
+        /// <summary>
+        /// <c>Warp(Vector3)</c>: <c>Warp(position, transform.rotation)</c>.
+        /// </summary>
+        /// <remarks>
+        /// NOT THE DEFAULT, although the default is what the signature offers and what the game's own
+        /// one-argument callers get. 0.4.7 guards the turn with <c>if (rotation != default(Quaternion))</c>
+        /// (NPCMovement.cs:453), and Unity compares quaternions by their dot product being close to 1. The
+        /// dot product of the zero quaternion with anything is 0, so the guard is never false: every call
+        /// with the default writes a zero quaternion into the rotation, which Unity turns into identity.
+        ///
+        /// Measured with a probe on 0.4.7f6: an NPC facing 3.61 degrees faced 0 after a warp that passed the
+        /// default. The 0.4.6 method never touched the rotation at all, so the faithful forward passes the
+        /// rotation the NPC already has - the guard then writes back what was there.
+        /// </remarks>
+        private static MethodDefinition EmitWarpKeepingRotation(ModuleDefinition module, TypeDefinition movement)
+        {
+            MethodDefinition target = null;
+            foreach (var candidate in movement.Methods)
+            {
+                if (candidate.Name != "Warp" || candidate.Parameters.Count != 2) continue;
+                if (candidate.Parameters[0].ParameterType.FullName != "UnityEngine.Vector3") continue;
+                if (candidate.Parameters[1].ParameterType.FullName != "UnityEngine.Quaternion") continue;
+                target = candidate;
+            }
+            var getTransform = MethodUp(movement, "get_transform", 0);
+            var getRotation = Getter(getTransform?.ReturnType?.Resolve(), "rotation");
+            if (target == null || getTransform == null || getRotation == null) return null;
+
+            var method = new MethodDefinition("Warp",
+                MethodAttributes.Public | MethodAttributes.HideBySig, module.TypeSystem.Void);
+            method.Parameters.Add(new ParameterDefinition("position", ParameterAttributes.None,
+                                                          module.ImportReference(target.Parameters[0].ParameterType)));
+
+            // this.Warp(position, this.transform.rotation);
+            var il = method.Body.GetILProcessor();
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Ldarg_1);
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, module.ImportReference(getTransform));
+            il.Emit(OpCodes.Callvirt, module.ImportReference(getRotation));
+            il.Emit(OpCodes.Call, module.ImportReference(target));
+            il.Emit(OpCodes.Ret);
+            return method;
+        }
 
         /// <summary>
         /// <c>NPCMovement.MoveSpeedMultiplier</c>, read: the controller's own multiplier.
@@ -122,17 +182,6 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             il.Emit(OpCodes.Callvirt, set);
             il.Append(done);
             return method;
-        }
-
-        private static MethodDefinition Getter(TypeDefinition type, string member)
-            => Method(type, "get_" + member, 0);
-
-        private static MethodDefinition Method(TypeDefinition type, string name, int parameters)
-        {
-            if (type == null) return null;
-            foreach (var method in type.Methods)
-                if (method.Name == name && method.Parameters.Count == parameters) return method;
-            return null;
         }
     }
 }

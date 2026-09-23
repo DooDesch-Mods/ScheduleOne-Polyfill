@@ -1,6 +1,7 @@
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Polyfill.Core;
+using static Polyfill.Bridges.Shapes;
 
 namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
 {
@@ -1705,22 +1706,6 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                 Emit = (module, type) => EmitInterposed(module, type, name, oldTypes, at, value),
             };
 
-        private static Bridge Defaulted(string declaringType, string name, string[] leading,
-                                      object[] defaults, string because)
-            => new()
-            {
-                Assembly = "Assembly-CSharp",
-                DeclaringType = declaringType,
-                OldName = name,
-                ParameterCount = leading.Length,
-                // The old parameter types ARE the caller's signature, so they double as the tie-break
-                // between two overloads of the same arity.
-                ParameterTypes = leading,
-                AllowOverload = true,
-                Because = because,
-                Emit = (module, type) => EmitWithDefaults(module, type, name, leading, defaults),
-            };
-
         /// <summary>
         /// <c>Player.Activate()</c> and <c>Player.Deactivate(bool)</c>, rebuilt line for line.
         /// </summary>
@@ -2458,49 +2443,6 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             return method;
         }
 
-        /// <summary>The short form of an overload, calling the long one with the values it used to imply.</summary>
-        private static MethodDefinition EmitWithDefaults(ModuleDefinition module, TypeDefinition type,
-                                                         string name, string[] leading, object[] defaults)
-        {
-            int parameterCount = leading.Length;
-            MethodDefinition target = null;
-            foreach (var candidate in type.Methods)
-            {
-                if (candidate.Name != name || candidate.Parameters.Count != parameterCount + defaults.Length)
-                    continue;
-                bool matches = true;
-                for (int i = 0; i < parameterCount; i++)
-                    if (candidate.Parameters[i].ParameterType.FullName != leading[i]) { matches = false; break; }
-                if (!matches) continue;
-                if (target != null) return null;              // more than one; choosing would be a guess
-                target = candidate;
-            }
-            if (target == null || target.HasGenericParameters) return null;
-
-            var method = new MethodDefinition(name,
-                MethodAttributes.Public | MethodAttributes.HideBySig
-                    | (target.IsStatic ? MethodAttributes.Static : 0),
-                module.ImportReference(target.ReturnType));
-
-            for (int i = 0; i < parameterCount; i++)
-                method.Parameters.Add(new ParameterDefinition(target.Parameters[i].Name, ParameterAttributes.None,
-                                          module.ImportReference(target.Parameters[i].ParameterType)));
-
-            var il = method.Body.GetILProcessor();
-            if (!target.IsStatic) il.Emit(OpCodes.Ldarg_0);
-            foreach (var parameter in method.Parameters) il.Emit(OpCodes.Ldarg, parameter);
-
-            for (int i = 0; i < defaults.Length; i++)
-            {
-                var expected = target.Parameters[parameterCount + i].ParameterType;
-                if (!PushConstant(il, defaults[i], expected)) return null;
-            }
-
-            il.Emit(OpCodes.Call, module.ImportReference(target));
-            il.Emit(OpCodes.Ret);
-            return method;
-        }
-
         /// <summary>
         /// Rebuilds the old call as the new one with a constant slotted in at <paramref name="at"/>.
         /// </summary>
@@ -2561,25 +2503,6 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             il.Emit(OpCodes.Call, module.ImportReference(target));
             il.Emit(OpCodes.Ret);
             return method;
-        }
-
-        /// <summary>Puts a literal on the stack, and refuses anything whose type it cannot match exactly.</summary>
-        private static bool PushConstant(ILProcessor il, object value, TypeReference expected)
-        {
-            if (value == null && !expected.IsValueType) { il.Emit(OpCodes.Ldnull); return true; }
-            switch (value)
-            {
-                case bool flag when expected.MetadataType == MetadataType.Boolean:
-                    il.Emit(flag ? OpCodes.Ldc_I4_1 : OpCodes.Ldc_I4_0); return true;
-                case int number when expected.MetadataType == MetadataType.Int32:
-                    il.Emit(OpCodes.Ldc_I4, number); return true;
-                case float number when expected.MetadataType == MetadataType.Single:
-                    il.Emit(OpCodes.Ldc_R4, number); return true;
-                case string text when expected.MetadataType == MetadataType.String:
-                    il.Emit(OpCodes.Ldstr, text); return true;
-                default:
-                    return false;
-            }
         }
 
         /// <summary>
@@ -3725,53 +3648,6 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                 if (next == current) return null;
                 current = next;
             }
-            return null;
-        }
-
-        /// <summary>Pushes the zero value of <paramref name="type"/>, whatever kind of type it is.</summary>
-        private static void EmitDefault(MethodDefinition method, ILProcessor il, TypeReference type)
-        {
-            if (!type.IsValueType) { il.Emit(OpCodes.Ldnull); return; }
-
-            var slot = new VariableDefinition(type);
-            method.Body.Variables.Add(slot);
-            il.Emit(OpCodes.Ldloca_S, slot);
-            il.Emit(OpCodes.Initobj, type);
-            il.Emit(OpCodes.Ldloc_S, slot);
-        }
-
-        private static MethodDefinition Getter(TypeDefinition type, string member)
-            => Method(type, "get_" + member, 0);
-
-        /// <summary>A method on this type or anything it derives from.</summary>
-        private static MethodDefinition MethodUp(TypeDefinition type, string name, int parameters)
-        {
-            for (var current = type; current != null; )
-            {
-                var found = Method(current, name, parameters);
-                if (found != null) return found;
-
-                TypeDefinition next = null;
-                try { next = current.BaseType?.Resolve(); } catch { }
-                if (next == current) return null;
-                current = next;
-            }
-            return null;
-        }
-
-        private static MethodDefinition Method(TypeDefinition type, string name, int parameters)
-        {
-            if (type == null) return null;
-            foreach (var method in type.Methods)
-                if (method.Name == name && method.Parameters.Count == parameters) return method;
-            return null;
-        }
-
-        private static TypeDefinition Nested(TypeDefinition type, string name)
-        {
-            if (type == null) return null;
-            foreach (var nested in type.NestedTypes)
-                if (nested.Name == name) return nested;
             return null;
         }
     }
