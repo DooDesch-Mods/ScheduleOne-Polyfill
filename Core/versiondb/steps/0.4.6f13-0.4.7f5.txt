@@ -1,7 +1,7 @@
 # polyfill-versiondb 1
 # from=0.4.6f13
 # to=0.4.7f5
-# counts=R:45 -:781 ?:250
+# counts=R:47 -:781 ?:248
 # op|kind|type|from|to|arity|origin|rule|confidence|note
 R|F|ScheduleOne.AvatarFramework.AvatarEffects|currentEmission|_currentEmission|0|derived|name-underscore|high|
 R|F|ScheduleOne.AvatarFramework.AvatarEffects|isCulled|_isCulled|0|derived|name-underscore|high|
@@ -33,8 +33,10 @@ R|M|ScheduleOne.Economy.Customer|RpcReader___Server_ProcessHandoverServerSide_37
 R|F|ScheduleOne.Messaging.MSGConversation|contactName|ContactName|0|derived|name-case|high|
 R|P|ScheduleOne.Messaging.MSGConversation|index|Index|0|derived|name-case|high|
 R|P|ScheduleOne.Messaging.MSGConversation|isOpen|IsOpen|0|derived|name-case|high|
+R|F|ScheduleOne.NPCs.Framework.Movement|SprintSpeed|MaxSpeed|0|derived|formerly-serialized-as|high|
 R|M|ScheduleOne.NPCs.NPC|RpcReader___Observers_PlayVO_Client_1710085680|RpcReader___Observers_PlayVO_Client_3979304059|2|derived|rpc-hash|high|
 R|M|ScheduleOne.NPCs.NPC|RpcReader___Server_PlayVO_Server_1710085680|RpcReader___Server_PlayVO_Server_3979304059|3|derived|rpc-hash|high|
+R|F|ScheduleOne.NPCs.NPC|_npcData|_defaultNPCData|0|derived|formerly-serialized-as|high|
 R|F|ScheduleOne.NPCs.NPCHealth|AfflictedWithLethalEffect|_afflictedWithLethalEffect|0|derived|name-underscore|high|
 R|F|ScheduleOne.NPCs.NPCHealth|npc|_npc|0|derived|name-underscore|high|
 R|F|ScheduleOne.NPCs.NPCMovement|cacheNextPath|_cacheNextPath|0|derived|name-underscore|high|
@@ -972,7 +974,6 @@ R|F|ScheduleOne.Trash.TrashManager|trashItems|_trashItems|0|derived|name-undersc
 ?|M|ScheduleOne.NPCs.Behaviour.RequestProductBehaviour|SetUpDialogue||0|derived|ambiguous|high|1->1 of that shape moved at once
 ?|M|ScheduleOne.NPCs.CharacterClasses.Phil|CreateMessageConversation||0|derived|ambiguous|high|1->1 of that shape moved at once
 ?|M|ScheduleOne.NPCs.CharacterClasses.Thomas|CreateMessageConversation||0|derived|ambiguous|high|1->1 of that shape moved at once
-?|F|ScheduleOne.NPCs.Framework.Movement|SprintSpeed||0|derived|ambiguous|high|1->1 of that shape moved at once
 ?|M|ScheduleOne.NPCs.NPC|CreateMessageConversation||0|derived|ambiguous|high|1->7 of that shape moved at once
 ?|M|ScheduleOne.NPCs.NPC|EquipLocal||0|derived|ambiguous|high|1->1 of that shape moved at once
 ?|M|ScheduleOne.NPCs.NPC|EquipLocal||0|derived|ambiguous|high|1->1 of that shape moved at once
@@ -982,7 +983,6 @@ R|F|ScheduleOne.Trash.TrashManager|trashItems|_trashItems|0|derived|name-undersc
 ?|E|ScheduleOne.NPCs.NPC|OnNPCDataReady||0|derived|ambiguous|high|1->1 of that shape moved at once
 ?|M|ScheduleOne.NPCs.NPC|PlayerSpawned||0|derived|ambiguous|high|1->3 of that shape moved at once
 ?|M|ScheduleOne.NPCs.NPC|RpcReader___Server_AimedAtByPlayer_3323014238||0|derived|ambiguous|high|2->1 of that shape moved at once
-?|F|ScheduleOne.NPCs.NPC|_npcData||0|derived|ambiguous|high|1->1 of that shape moved at once
 ?|P|ScheduleOne.NPCs.NPCMovement|GravityMultiplier||0|derived|ambiguous|high|4->1 of that shape moved at once
 ?|P|ScheduleOne.NPCs.NPCMovement|HasDestination||0|derived|ambiguous|high|4->1 of that shape moved at once
 ?|P|ScheduleOne.NPCs.NPCMovement|IsClimbingUpwards||0|derived|ambiguous|high|4->1 of that shape moved at once
