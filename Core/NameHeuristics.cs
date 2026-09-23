@@ -188,7 +188,7 @@ namespace Polyfill.Core
         }
 
         /// <summary>Structural type equality, with generic parameters matched by position.</summary>
-        private static bool SameType(TypeReference a, TypeReference b)
+        internal static bool SameType(TypeReference a, TypeReference b)
         {
             if (ReferenceEquals(a, b)) return true;
             if (a == null || b == null) return false;

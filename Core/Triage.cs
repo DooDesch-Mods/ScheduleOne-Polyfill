@@ -619,7 +619,47 @@ namespace Polyfill.Core
             {
                 if (method.Name != wanted.Name) continue;
                 nameExists = true;
-                if (!NameHeuristics.SameParameters(wanted, method)) continue;
+                if (!NameHeuristics.SameParameters(wanted, method))
+                {
+                    // THE SAME MISMATCH ON THE WAY IN. A parameter whose type the game renamed, and Polyfill
+                    // put back, makes the call name a signature that is not here while the method is: 0.4.7's
+                    // DialogueChoice.set_Conversation takes Conversation, a 0.4.6 mod passes DialogueContainer.
+                    // The forward below is the one the return-type case asks for, declared to take the
+                    // stand-in, which derives from what the method takes - so handing it on is inheritance.
+                    // A person's rule for this member comes first, as it does everywhere else: App`1.Exit
+                    // takes a renamed ExitAction too, and its hand-written bridge was read out of both
+                    // builds. Falling through reaches it below.
+                    if (TakesAStandIn(wanted, method, repaired)
+                        && Bridges.Registry.Find(scope, declaring.FullName, wanted.Name,
+                                                 wanted.Parameters?.Count ?? 0, ParameterTypes(wanted)) == null)
+                    {
+                        string key = kindPrefix.Length == 0
+                            ? Collect(new InteropAugmentor.MemberForward
+                            {
+                                InAssembly = scope,
+                                DeclaringType = declaring.FullName,
+                                OldName = wanted.Name,
+                                NewName = method.Name,
+                                ParameterCount = wanted.Parameters?.Count ?? 0,
+                                ParameterTypes = ParameterTypes(wanted),
+                                SameNameNewSignature = true,
+                                Rule = "parameter type",
+                            })
+                            : null;
+
+                        report.Findings.Add(new Finding
+                        {
+                            Kind = kindPrefix + "member", Scope = scope,
+                            Symbol = declaring.FullName + "::" + wanted.Name + Signature(wanted),
+                            Reason = "the method is here and takes a type under the name it moved to, so a "
+                                   + "call naming the old one does not resolve",
+                            Hint = key == null ? "" : "the same method, declared to take the name the mod knows",
+                            RepairKey = key,
+                        });
+                        return;
+                    }
+                    continue;
+                }
 
                 // A CALLER MATCHES ON THE RETURN TYPE TOO, and the same-name-same-parameters test does not.
                 // ProductManagerApp still has FavouritesContainer, and it hands back the ProductTypeContainer
@@ -646,7 +686,7 @@ namespace Polyfill.Core
                             NewName = method.Name,
                             ParameterCount = wanted.Parameters?.Count ?? 0,
                             ParameterTypes = ParameterTypes(wanted),
-                            SameNameNewReturn = true,
+                            SameNameNewSignature = true,
                             Rule = "return type",
                         })
                         : null;
@@ -972,6 +1012,40 @@ namespace Polyfill.Core
             if (fromIndex != null) return fromIndex;
 
             try { return reference.Resolve(); } catch { return null; }
+        }
+
+        /// <summary>
+        /// Does the call differ from this method only where it names a type Polyfill put back?
+        /// </summary>
+        /// <remarks>
+        /// Every other parameter has to be the same type, the return has to match too (or be a stand-in
+        /// itself), and at least one parameter has to be a stand-in whose target is exactly what the method
+        /// takes. Anything looser would build a forward between two methods that merely share a name.
+        /// </remarks>
+        private static bool TakesAStandIn(MethodReference wanted, MethodDefinition have,
+                                          Dictionary<string, TypeDefinition> repaired)
+        {
+            int count = wanted.Parameters?.Count ?? 0;
+            if (count != (have.Parameters?.Count ?? 0)) return false;
+            if (wanted.GenericParameters.Count != have.GenericParameters.Count) return false;
+
+            bool standIn = false;
+            for (int i = 0; i < count; i++)
+            {
+                var asked = wanted.Parameters[i].ParameterType;
+                var takes = have.Parameters[i].ParameterType;
+                if (NameHeuristics.SameType(asked, takes)) continue;
+                if (asked?.FullName != null && repaired.TryGetValue(asked.FullName, out var became)
+                    && became != null && string.Equals(became.FullName, takes?.FullName, StringComparison.Ordinal))
+                { standIn = true; continue; }
+                return false;
+            }
+            if (!standIn) return false;
+
+            string returns = wanted.ReturnType?.FullName;
+            if (string.Equals(returns, have.ReturnType?.FullName, StringComparison.Ordinal)) return true;
+            return returns != null && repaired.TryGetValue(returns, out var returned) && returned != null
+                && string.Equals(returned.FullName, have.ReturnType?.FullName, StringComparison.Ordinal);
         }
 
         /// <summary>The parameter types of a call, by full name, in order.</summary>

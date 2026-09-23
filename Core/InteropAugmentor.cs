@@ -83,14 +83,17 @@ namespace Polyfill.Core
             internal string[] ParameterTypes;
 
             /// <summary>
-            /// The name is already here and only what it hands back is wrong.
+            /// The name is already here and only a renamed type in its signature is wrong.
             /// </summary>
             /// <remarks>
             /// Every other forward puts a name back that is gone, so finding the name already taken means
-            /// the repair was a mistake. This one is the exception: the game kept the name and changed the
-            /// return type under it, and the CLR matches a call on the whole signature, so a second method
-            /// of the same name is exactly what makes the old call resolve. C# cannot declare that pair;
-            /// IL can, and a caller naming either one finds it.
+            /// the repair was a mistake. This one is the exception: the game kept the name and a type it
+            /// hands back or takes was renamed under it, and the CLR matches a call on the whole signature,
+            /// so a second method of the same name is exactly what makes the old call resolve. C# cannot
+            /// declare that pair when only the return differs; IL can, and a caller naming either one finds
+            /// it. A parameter is the same case on the way in - 0.4.7 renamed DialogueContainer to
+            /// Conversation, and <c>DialogueChoice.set_Conversation(DialogueContainer)</c> is a call that
+            /// resolves to nothing while <c>set_Conversation(Conversation)</c> is right there.
             ///
             /// The cost is named rather than hidden: reflection BY NAME ALONE on that type
             /// (<c>GetMethod("get_X")</c>, and AccessTools with no parameter list) becomes ambiguous and
@@ -98,7 +101,7 @@ namespace Polyfill.Core
             /// whose call does not resolve today, so the choice is an ambiguous lookup against a method
             /// that is already broken.
             /// </remarks>
-            internal bool SameNameNewReturn;
+            internal bool SameNameNewSignature;
 
             /// <summary>
             /// Identity of the repair. The parameter count is part of it, and that is a fix rather than a
@@ -504,7 +507,7 @@ namespace Polyfill.Core
                                     member.OldName, member.ParameterCount, member.ParameterTypes)
                 : null;
 
-            if (rule == null ? !member.SameNameNewReturn : !rule.AllowOverload)
+            if (rule == null ? !member.SameNameNewSignature : !rule.AllowOverload)
                 foreach (var existing in type.Methods)
                     if (existing.Name == member.OldName)
                     { Refuse(result, member, label, "the name is already taken here"); return false; }
@@ -575,15 +578,6 @@ namespace Polyfill.Core
             var shadow = ShadowTypes.Shadowing(module, target.ReturnType);
             var returns = shadow ?? target.ReturnType;
 
-            // A recast with nothing to recast to would be a second method identical to the first, and two
-            // of those are worse than the mismatch: a call can no longer be resolved to either.
-            if (member.SameNameNewReturn && shadow == null)
-            {
-                Refuse(result, member, label, "nothing stands in for what it hands back, so putting the "
-                                            + "name back a second time would only duplicate it");
-                return false;
-            }
-
             if (ShadowTypes.BuriesAShadow(target.ReturnType))
             { Refuse(result, member, label, "it hands back a renamed type wrapped in a list or an array, "
                                           + "which cannot stand in for the old one"); return false; }
@@ -597,6 +591,7 @@ namespace Polyfill.Core
             // to work. A caller holding the old name passes it, so it asks for Method(OldName); a forward
             // declared with the target's parameter type is Method(NewName), and the loader finds neither for
             // the other. Handing the shadow straight on to the target is then plain inheritance.
+            bool shadowedParameter = false;
             foreach (var parameter in target.Parameters)
             {
                 if (ShadowTypes.BuriesAShadow(parameter.ParameterType))
@@ -618,9 +613,20 @@ namespace Polyfill.Core
                          + "cannot be passed by reference under both names");
                     return false;
                 }
+                if (asShadow != null) shadowedParameter = true;
                 forward.Parameters.Add(new ParameterDefinition(parameter.Name, parameter.Attributes,
                                                                (TypeReference)asShadow
                                                                    ?? parameter.ParameterType));
+            }
+
+            // A second method under the same name that differs in nothing would be identical to the first,
+            // and two of those are worse than the mismatch: a call can no longer be resolved to either. It
+            // has to carry a stand-in somewhere - in what it hands back, or in what it takes.
+            if (member.SameNameNewSignature && shadow == null && !shadowedParameter)
+            {
+                Refuse(result, member, label, "nothing stands in for any type in its signature, so putting "
+                                            + "the name back a second time would only duplicate it");
+                return false;
             }
 
             var il = forward.Body.GetILProcessor();
