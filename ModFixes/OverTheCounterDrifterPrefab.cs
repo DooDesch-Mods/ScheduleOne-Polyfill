@@ -503,9 +503,15 @@ namespace Polyfill.ModFixes
         ///
         /// Named in code, the property made every build of Polyfill carry a reference 0.4.7 cannot resolve,
         /// and the load check reported Polyfill itself as blocked on it.
+        ///
+        /// On 0.4.7 the property can be there again as Polyfill's own stand-in (AvatarSettingsBridge), which
+        /// describes the body it sees rather than a baked layer, so the avatar having an Appearance is what
+        /// says "not baked" here.
         /// </remarks>
         private static readonly PropertyInfo CurrentSettings =
-            AccessTools.Property(typeof(Il2CppScheduleOne.AvatarFramework.Avatar), "CurrentSettings");
+            AccessTools.Property(typeof(Il2CppScheduleOne.AvatarFramework.Avatar), "Appearance") != null
+                ? null
+                : AccessTools.Property(typeof(Il2CppScheduleOne.AvatarFramework.Avatar), "CurrentSettings");
 
         private static string Names()
         {
