@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here.
 
+## [0.12.10] - 2026-09-23
+
+### Fixed
+- On the 0.4.7 beta, mods that give characters their own look (custom NPCs, look editors) can dress them again.
+- On the 0.4.7 beta, mods built on S1API that read the clock or react to sleeping work again.
+- Over The Counter no longer fills the log with an error every frame on the 0.4.7 beta.
+
 ## [0.12.9] - 2026-09-23
 
 ### Fixed
