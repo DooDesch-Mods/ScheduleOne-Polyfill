@@ -146,7 +146,7 @@ namespace Polyfill.Bridges
         ///
         /// The cost is real and is the reason this is not the default: a member nobody asked for makes
         /// reflection BY NAME ALONE on that type ambiguous, which is the hazard already written down for
-        /// SameNameNewReturn (InteropAugmentor.cs:88-101). It is safe HERE because the name being put
+        /// SameNameNewSignature (InteropAugmentor.cs:88-104). It is safe HERE because the name being put
         /// back is one the build does not have at all - there is nothing for it to be ambiguous with.
         /// A rule that would double an existing name must never set this.
         /// </remarks>

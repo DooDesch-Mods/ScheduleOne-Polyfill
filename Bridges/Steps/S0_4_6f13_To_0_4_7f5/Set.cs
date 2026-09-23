@@ -79,6 +79,28 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             },
         };
 
+        /// <summary>
+        /// Types 0.4.7 renamed outright, which no name match can follow.
+        /// </summary>
+        /// <remarks>
+        /// <c>DialogueContainer</c> is the dialogue graph asset: a ScriptableObject holding the node, branch
+        /// and link lists and the lookups over them. 0.4.7 calls it <c>Conversation</c>, in the same
+        /// namespace, with the same three lists, the same allowExit pair and the same six methods in the
+        /// same order (DialogueContainer.cs:9-60 on 0.4.6f13, Conversation.cs:9-60 on 0.4.7f6). The game's own
+        /// log line still calls it by the old name (DialogueHandler.cs:181).
+        /// </remarks>
+        internal override IEnumerable<TypeRename> DeclareRenames() => new[]
+        {
+            new TypeRename
+            {
+                Assembly = "Assembly-CSharp",
+                OldFullName = "Il2CppScheduleOne.Dialogue.DialogueContainer",
+                NewFullName = "Il2CppScheduleOne.Dialogue.Conversation",
+                Because = "the dialogue graph asset was renamed in place: 0.4.6f13 DialogueContainer and 0.4.7f6 "
+                        + "Conversation are the same ScriptableObject with the same members in the same order",
+            },
+        };
+
         private const string Customer = "Il2CppScheduleOne.Economy.Customer";
         private const string HandoverScreen = "Il2CppScheduleOne.UI.Handover.HandoverScreen";
         private const string HandoverOutcome = HandoverScreen + "/EHandoverOutcome";
