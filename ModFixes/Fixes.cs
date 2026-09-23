@@ -81,6 +81,7 @@ namespace Polyfill.ModFixes
             new PatchesOnResultTurnedArgument(),
             new SplitScreenPatches(),
             new PatchesOnReplacedMethods(),
+            new PlayerLoadRelay(),
         };
 
         private static MelonPreferences_Entry<string> _disabled;

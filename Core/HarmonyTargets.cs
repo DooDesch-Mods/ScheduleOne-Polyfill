@@ -289,6 +289,44 @@ namespace Polyfill.Core
 
             if (exact != null) found = exact;
 
+            // A NAME THE GAME KEPT AND REBUILT UNDER. Two methods of it, a patch that names neither, and a
+            // patch written for a third form the game no longer has: that third form is what a stand-in
+            // puts back, and the lookup is pointed at it (DeclaredMethodFallback). Reported as ambiguous,
+            // the stand-in was never asked for, the lookup had nothing to point at, and OG Backpack's
+            // TryGetPlayerData postfix was thrown out with its class on 0.4.7.
+            if (matches > 1 && argumentCount < 0)
+            {
+                string scopeName = declaring.Module?.Assembly?.Name?.Name ?? "";
+                string ownerName = under ?? declaring.FullName;
+                int standIn = ReshapedMethods.StandIn(ownerName, name);
+                var reshaped = standIn >= 0 ? Bridges.Registry.FindByName(scopeName, ownerName, name, standIn) : null;
+                if (reshaped != null)
+                {
+                    string key = Triage.Request(new InteropAugmentor.MemberForward
+                    {
+                        InAssembly = reshaped.Assembly,
+                        DeclaringType = reshaped.DeclaringType,
+                        OldName = reshaped.OldName,
+                        NewName = null,
+                        ParameterCount = reshaped.ParameterCount,
+                        ParameterTypes = reshaped.ParameterTypes,
+                        Rule = "curated",
+                    });
+
+                    report.Findings.Add(new Finding
+                    {
+                        Kind = "harmony-target",
+                        Scope = scopeName,
+                        Symbol = ownerName + "::" + name,
+                        Reason = "the patched method was rebuilt under the same name",
+                        Hint = "hand-written rule: " + reshaped.Because,
+                        RepairKey = key,
+                        Site = site,
+                    });
+                    return;
+                }
+            }
+
             if (matches > 1 && argumentCount < 0)
             {
                 report.Findings.Add(new Finding
