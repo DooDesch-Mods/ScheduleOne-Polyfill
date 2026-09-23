@@ -62,7 +62,96 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                         + "NPCMovement.cs:423-457 on 0.4.7f6)",
                 Emit = EmitWarpKeepingRotation,
             },
+
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = Customer,
+                OldName = "ProcessHandover",
+                ParameterCount = 5,
+                AllowOverload = true,
+                Creates = HandoverOutcome,
+                Because = "the outcome argument went with the enum: 0.4.6 read it only to show the deal "
+                        + "popup on Finalize (Customer.cs:1424 on 0.4.6f13), every caller passed Finalize "
+                        + "(Customer.cs:1347, :1767, RequestProductBehaviour.cs:365), and 0.4.7 shows the "
+                        + "popup unconditionally (Customer.cs:1420-1424 on 0.4.7f6)",
+                Emit = EmitProcessHandover,
+            },
         };
+
+        private const string Customer = "Il2CppScheduleOne.Economy.Customer";
+        private const string HandoverScreen = "Il2CppScheduleOne.UI.Handover.HandoverScreen";
+        private const string HandoverOutcome = HandoverScreen + "/EHandoverOutcome";
+
+        /// <summary>
+        /// <c>Customer.ProcessHandover(outcome, contract, items, handoverByPlayer, giveBonuses)</c>, with the
+        /// outcome dropped.
+        /// </summary>
+        /// <remarks>
+        /// 0.4.7 took the result enum off the handover screen, because the screen now has one callback for
+        /// submitting and another for cancelling. A cancelled handover never reached ProcessHandover even in
+        /// 0.4.6 - the game only ever passed Finalize - so the four-argument method is the old one with
+        /// Finalize. What a mod could have passed differently is Cancelled, and all that changed in 0.4.6
+        /// was the deal popup; that one difference is not reproduced.
+        ///
+        /// The enum is put back beside it, with the values it had (Cancelled 0, Finalize 1), so the
+        /// argument can be named at all. A mod holding it in a patch signature or a local needs the type
+        /// to load before any of its methods compile.
+        /// </remarks>
+        private static MethodDefinition EmitProcessHandover(ModuleDefinition module, TypeDefinition customer)
+        {
+            var screen = module.GetType(HandoverScreen);
+            if (screen == null) return null;
+
+            MethodDefinition target = null;
+            foreach (var candidate in customer.Methods)
+            {
+                if (candidate.Name != "ProcessHandover" || candidate.Parameters.Count != 4) continue;
+                if (target != null) return null;
+                target = candidate;
+            }
+            if (target == null) return null;
+
+            var outcome = OutcomeEnum(module, screen);
+
+            var method = new MethodDefinition("ProcessHandover",
+                MethodAttributes.Public | MethodAttributes.HideBySig, module.TypeSystem.Void);
+            method.Parameters.Add(new ParameterDefinition("outcome", ParameterAttributes.None, outcome));
+            foreach (var parameter in target.Parameters)
+                method.Parameters.Add(new ParameterDefinition(parameter.Name, ParameterAttributes.None,
+                                                              module.ImportReference(parameter.ParameterType)));
+
+            // this.ProcessHandover(contract, items, handoverByPlayer, giveBonuses);
+            var il = method.Body.GetILProcessor();
+            il.Emit(OpCodes.Ldarg_0);
+            for (int i = 2; i <= 5; i++) il.Emit(OpCodes.Ldarg, method.Parameters[i - 1]);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(target));
+            il.Emit(OpCodes.Ret);
+            return method;
+        }
+
+        /// <summary><c>HandoverScreen.EHandoverOutcome</c>, as 0.4.6 had it, made once per module.</summary>
+        private static TypeDefinition OutcomeEnum(ModuleDefinition module, TypeDefinition screen)
+        {
+            foreach (var nested in screen.NestedTypes)
+                if (nested.Name == "EHandoverOutcome") return nested;
+
+            var outcome = new TypeDefinition("", "EHandoverOutcome",
+                TypeAttributes.NestedPublic | TypeAttributes.Sealed,
+                new TypeReference("System", "Enum", module, module.TypeSystem.CoreLibrary));
+            outcome.Fields.Add(new FieldDefinition("value__",
+                FieldAttributes.Public | FieldAttributes.SpecialName | FieldAttributes.RTSpecialName,
+                module.TypeSystem.Int32));
+
+            string[] names = { "Cancelled", "Finalize" };
+            for (int value = 0; value < names.Length; value++)
+                outcome.Fields.Add(new FieldDefinition(names[value],
+                    FieldAttributes.Public | FieldAttributes.Static | FieldAttributes.Literal
+                        | FieldAttributes.HasDefault, outcome) { Constant = value });
+
+            screen.NestedTypes.Add(outcome);
+            return outcome;
+        }
 
         /// <summary>
         /// <c>Warp(Vector3)</c>: <c>Warp(position, transform.rotation)</c>.
