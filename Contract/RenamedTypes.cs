@@ -27,6 +27,9 @@ namespace Polyfill.Contract
             "Il2CppScheduleOne.UI.Stations.Drying_rack.DryingOperationUI",
             "Il2CppScheduleOne.UI.MainMenu.MainMenuScreen",
             "Il2CppScheduleOne.Dialogue.DialogueContainer",
+            // 0.4.7 moved it to ScheduleOne.CharacterCreator with Done() still on it; Custom Commands
+            // Framework 1.1.3 prefixes Done to switch its console on after character creation.
+            "Il2CppScheduleOne.AvatarFramework.Customization.CharacterCreator",
         };
 
         internal static bool IsStandIn(string fullName)
