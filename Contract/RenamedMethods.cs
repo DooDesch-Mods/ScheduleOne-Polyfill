@@ -78,6 +78,28 @@ namespace Polyfill.Contract
                         + "PlayerName and PlayerCode and logs \"Received player name data\" (Player.cs on "
                         + "0.4.7f6)",
             },
+
+            // Both judged from the 0.4.7 bodies against what the mods' own patches do with them; the version
+            // history has no pairing (HandoverChosen "removed", CreateMessageConversation "ambiguous").
+            new Entry
+            {
+                Type = "Il2CppScheduleOne.Economy.Supplier",
+                OldName = "CreateMessageConversation",
+                NewName = "OnMessageConversationAssigned",
+                Because = "0.4.7 builds the conversation elsewhere and hands it to the NPC; a supplier sets up its "
+                        + "own sendable messages (dead drop, meet-up, pay debt) in OnMessageConversationAssigned "
+                        + "(Supplier.cs on 0.4.7f6), which is the moment a patch after CreateMessageConversation "
+                        + "was waiting for",
+            },
+            new Entry
+            {
+                Type = "Il2CppScheduleOne.Economy.Customer",
+                OldName = "HandoverChosen",
+                NewName = "CompleteContractDialogueChosen",
+                Because = "the dialogue choice that hands over for a contract: 0.4.7's "
+                        + "CompleteContractDialogueChosen skips the dialogue's end and opens the contract "
+                        + "handover screen (Customer.cs on 0.4.7f6)",
+            },
         };
 
         /// <summary>What this name became on the type, or null when nothing is on record.</summary>
