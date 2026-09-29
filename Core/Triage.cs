@@ -637,6 +637,25 @@ namespace Polyfill.Core
         /// Same generic definition, same arity, and every argument either identical or a type Polyfill put back
         /// that became exactly the one in the game's signature - nothing looser.
         /// </remarks>
+        /// <summary>
+        /// Would a forward to <paramref name="candidate"/> hand back a type the caller does not ask for?
+        /// </summary>
+        /// <remarks>
+        /// The same type, a type Polyfill put back that became this one, or the same generic over such a type
+        /// all resolve; anything else is a different signature. Generic parameters are left alone - their names
+        /// are not comparable across the two sides.
+        /// </remarks>
+        private static bool ReturnsSomethingElse(TypeReference wanted, TypeReference candidate,
+                                                 Dictionary<string, TypeDefinition> repaired)
+        {
+            if (wanted == null || candidate == null) return false;
+            if (wanted.IsGenericParameter || candidate.IsGenericParameter) return false;
+            if (string.Equals(wanted.FullName, candidate.FullName, StringComparison.Ordinal)) return false;
+            if (repaired.TryGetValue(wanted.FullName, out var became)
+                && string.Equals(became?.FullName, candidate.FullName, StringComparison.Ordinal)) return false;
+            return !ReturnsRenamedArgument(wanted, candidate, repaired);
+        }
+
         private static bool ReturnsRenamedArgument(TypeReference wanted, TypeReference present,
                                                    Dictionary<string, TypeDefinition> repaired)
         {
@@ -852,7 +871,8 @@ namespace Polyfill.Core
                         Rule = "version history",
                     });
                 }
-                else if (hits.Count == 1 && hits[0].Member is MethodDefinition)
+                else if (hits.Count == 1 && hits[0].Member is MethodDefinition spelled
+                         && !ReturnsSomethingElse(wanted.ReturnType, spelled.ReturnType, repaired))
                 {
                     // One candidate on this type, reached by spelling alone. No inference, but the weakest
                     // of the three: it is a fact about English, not about the game.
@@ -867,6 +887,15 @@ namespace Polyfill.Core
                     });
                 }
             }
+
+            // Named, not repaired: the spelling found a member, but it hands back something else, so a forward
+            // to it would be a method the mod's call still does not resolve to - reported as applied while
+            // the mod goes on throwing MissingMethodException. MSGConversation.sender on 0.4.7 is the case
+            // that was measured: get__sender returns the contact info where four mods ask for the NPC.
+            if (repairKey == null && hits.Count == 1 && hits[0].Member is MethodDefinition mismatched
+                && ReturnsSomethingElse(wanted.ReturnType, mismatched.ReturnType, repaired))
+                hint = $"{hits[0].NewName} [{hits[0].Rule}], but it returns {mismatched.ReturnType?.Name} "
+                     + $"where the mod expects {wanted.ReturnType?.Name}";
 
             string reason = nameExists
                 ? "the method still exists but its parameters changed"
