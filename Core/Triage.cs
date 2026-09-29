@@ -624,6 +624,40 @@ namespace Polyfill.Core
             return null;
         }
 
+        /// <summary>
+        /// Does the mod ask for the same generic the method hands back, with a renamed type as an argument?
+        /// </summary>
+        /// <remarks>
+        /// <c>DialogueHandler.dialogueContainers</c> is still there on 0.4.7 and still a list - of
+        /// <c>Conversation</c>, the name <c>DialogueContainer</c> became. A mod built against 0.4.6 asks for
+        /// <c>List&lt;DialogueContainer&gt; get_dialogueContainers()</c>, which is not that signature, so the call
+        /// throws MissingMethodException while the plain return-type check above saw a present member: the
+        /// whole generic's name is not a key in <paramref name="repaired"/>, only its argument is.
+        /// Measured: RVRepairVan's questline never offers its dialogue, one failed attempt every two seconds.
+        /// Same generic definition, same arity, and every argument either identical or a type Polyfill put back
+        /// that became exactly the one in the game's signature - nothing looser.
+        /// </remarks>
+        private static bool ReturnsRenamedArgument(TypeReference wanted, TypeReference present,
+                                                   Dictionary<string, TypeDefinition> repaired)
+        {
+            if (wanted is not GenericInstanceType asked || present is not GenericInstanceType has) return false;
+            if (!string.Equals(asked.ElementType.FullName, has.ElementType.FullName, StringComparison.Ordinal))
+                return false;
+            if (asked.GenericArguments.Count != has.GenericArguments.Count) return false;
+
+            bool renamed = false;
+            for (int i = 0; i < asked.GenericArguments.Count; i++)
+            {
+                string mine = asked.GenericArguments[i].FullName, theirs = has.GenericArguments[i].FullName;
+                if (string.Equals(mine, theirs, StringComparison.Ordinal)) continue;
+                if (repaired.TryGetValue(mine, out var became)
+                    && string.Equals(became?.FullName, theirs, StringComparison.Ordinal))
+                { renamed = true; continue; }
+                return false;
+            }
+            return renamed;
+        }
+
         private static void CheckMethod(MethodReference wanted, TypeDefinition declaring, string scope,
                                         string kindPrefix, ModReport report, InteropIndex index,
                                         Dictionary<string, TypeDefinition> repaired)
@@ -681,7 +715,8 @@ namespace Polyfill.Core
                 // resolve and this check called it present. Only ever raised for a type Polyfill itself put
                 // back, which is the one case where the two names are known to mean the same thing.
                 string returns = wanted.ReturnType?.FullName;
-                if (returns != null && repaired.ContainsKey(returns)
+                bool renamedArgument = ReturnsRenamedArgument(wanted.ReturnType, method.ReturnType, repaired);
+                if (returns != null && (repaired.ContainsKey(returns) || renamedArgument)
                     && !string.Equals(returns, method.ReturnType?.FullName, StringComparison.Ordinal))
                 {
                     // AND IT IS REPAIRABLE, which it was not until the stand-in existed. The forward for a
@@ -701,7 +736,7 @@ namespace Polyfill.Core
                             ParameterCount = wanted.Parameters?.Count ?? 0,
                             ParameterTypes = ParameterTypes(wanted),
                             SameNameNewSignature = true,
-                            Rule = "return type",
+                            Rule = renamedArgument ? "return type (generic argument)" : "return type",
                         })
                         : null;
 

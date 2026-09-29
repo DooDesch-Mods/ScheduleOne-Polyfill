@@ -576,11 +576,21 @@ namespace Polyfill.Core
             // an instance of it. In interop a managed object is a shell around a pointer, and a second shell
             // of the other class around the same pointer IS the same object.
             var shadow = ShadowTypes.Shadowing(module, target.ReturnType);
-            var returns = shadow ?? target.ReturnType;
 
-            if (ShadowTypes.BuriesAShadow(target.ReturnType))
+            // An interop generic around a renamed type - List<Conversation> for a mod that knows
+            // List<DialogueContainer> - is rebuilt as the old instantiation around the same native object.
+            // See ShadowTypes.ReshadowGeneric for why that is the same list and not a copy or a cast.
+            GenericInstanceType reshadowed = null;
+            string notReshadowed = null;
+            if (shadow == null && ShadowTypes.BuriesAShadow(target.ReturnType))
+                reshadowed = ShadowTypes.ReshadowGeneric(module, target.ReturnType, out notReshadowed);
+
+            var returns = (TypeReference)shadow ?? (TypeReference)reshadowed ?? target.ReturnType;
+
+            if (reshadowed == null && ShadowTypes.BuriesAShadow(target.ReturnType))
             { Refuse(result, member, label, "it hands back a renamed type wrapped in a list or an array, "
-                                          + "which cannot stand in for the old one"); return false; }
+                                          + "which cannot stand in for the old one"
+                                          + (notReshadowed == null ? "" : ": " + notReshadowed)); return false; }
 
             var forward = new MethodDefinition(member.OldName,
                 MethodAttributes.Public | MethodAttributes.HideBySig
@@ -622,7 +632,7 @@ namespace Polyfill.Core
             // A second method under the same name that differs in nothing would be identical to the first,
             // and two of those are worse than the mismatch: a call can no longer be resolved to either. It
             // has to carry a stand-in somewhere - in what it hands back, or in what it takes.
-            if (member.SameNameNewSignature && shadow == null && !shadowedParameter)
+            if (member.SameNameNewSignature && shadow == null && reshadowed == null && !shadowedParameter)
             {
                 Refuse(result, member, label, "nothing stands in for any type in its signature, so putting "
                                             + "the name back a second time would only duplicate it");
@@ -639,6 +649,10 @@ namespace Polyfill.Core
 
             if (shadow != null && !ShadowTypes.EmitRewrap(module, il, shadow, out string cannot))
             { Refuse(result, member, label, "its answer cannot be handed back under the old name: " + cannot); return false; }
+
+            if (reshadowed != null
+                && !ShadowTypes.EmitRewrapGeneric(module, il, target.ReturnType, reshadowed, out string cannotGeneric))
+            { Refuse(result, member, label, "its answer cannot be handed back under the old name: " + cannotGeneric); return false; }
 
             il.Emit(OpCodes.Ret);
 
