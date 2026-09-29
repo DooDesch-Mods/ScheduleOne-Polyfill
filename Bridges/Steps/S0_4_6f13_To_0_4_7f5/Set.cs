@@ -250,6 +250,20 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                     name => name.StartsWith("RpcLogic___ProcessHandoverServerSide_", StringComparison.Ordinal)),
             },
 
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = HandoverScreen,
+                OldName = "get_CurrentContract",
+                ParameterCount = 0,
+                Because = "0.4.7 split the handover screen into modes and the contract moved onto the contract "
+                        + "mode: set when a contract handover opens and cleared when it closes "
+                        + "(HandoverScreenContractMode.cs:25, :46, :81 on 0.4.7f6), and never set by the "
+                        + "sample, offer or special-customer modes, so it is null exactly when no contract "
+                        + "handover is open",
+                Emit = EmitCurrentContract,
+            },
+
             // Both kept their fade time and gained a completion callback after it; null is what the
             // parameter defaults to, and the body only hands it to the fade coroutine (BlackOverlay.cs
             // Open/Close(float fadeTime = 0.5f, Action onComplete = null) on 0.4.7f6). Listed in
@@ -325,6 +339,36 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             il.Emit(OpCodes.Ldarg_0);
             for (int i = 1; i < method.Parameters.Count; i++) il.Emit(OpCodes.Ldarg, method.Parameters[i]);
             il.Emit(target.IsVirtual ? OpCodes.Callvirt : OpCodes.Call, module.ImportReference(target));
+            il.Emit(OpCodes.Ret);
+            return method;
+        }
+
+        /// <summary>
+        /// <c>HandoverScreen.CurrentContract</c>: the contract mode's contract, null without one.
+        /// </summary>
+        private static MethodDefinition EmitCurrentContract(ModuleDefinition module, TypeDefinition screen)
+        {
+            var getMode = Getter(screen, "_contractMode");
+            var mode = getMode?.ReturnType?.Resolve();
+            var getContract = Getter(mode, "CurrentContract");
+            if (getMode == null || getContract == null) return null;
+
+            var method = new MethodDefinition("get_CurrentContract",
+                MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName,
+                module.ImportReference(getContract.ReturnType));
+
+            var il = method.Body.GetILProcessor();
+            var have = il.Create(OpCodes.Call, getContract);
+
+            // var m = _contractMode; return m == null ? null : m.CurrentContract;
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, getMode);
+            il.Emit(OpCodes.Dup);
+            il.Emit(OpCodes.Brtrue_S, have);
+            il.Emit(OpCodes.Pop);
+            il.Emit(OpCodes.Ldnull);
+            il.Emit(OpCodes.Ret);
+            il.Append(have);
             il.Emit(OpCodes.Ret);
             return method;
         }
