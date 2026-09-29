@@ -65,6 +65,19 @@ namespace Polyfill.Contract
                         + "Open_SpecialCustomer, and each ends in OnOpen(EMode mode), which does what the end "
                         + "of Open did (HandoverScreen.cs:148-174, OnOpen at :181 on 0.4.7f6)",
             },
+
+            // FishNet hashes the parameter list, not the name, so the RPC body kept its hash through the
+            // rename - and its body still logs "Received player name data".
+            new Entry
+            {
+                Type = "Il2CppScheduleOne.PlayerScripts.Player",
+                OldName = "RpcLogic___ReceivePlayerNameData_3895153758",
+                NewName = "RpcLogic___SetPlayerNameAndId_Client_3895153758",
+                Because = "0.4.7 renamed the client half of the player name RPC to SetPlayerNameAndId_Client "
+                        + "with the same (conn, playerName, id) and the same signature hash; its body sets "
+                        + "PlayerName and PlayerCode and logs \"Received player name data\" (Player.cs on "
+                        + "0.4.7f6)",
+            },
         };
 
         /// <summary>What this name became on the type, or null when nothing is on record.</summary>
