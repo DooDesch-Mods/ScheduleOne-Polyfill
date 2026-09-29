@@ -201,7 +201,114 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                         + "placed with (NPC.cs:437-442, :3302 on 0.4.7f6), so there is nothing to hand back",
                 Emit = EmitNoNpcContainer,
             },
+
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = Movement,
+                OldName = "CanMove",
+                ParameterCount = 0,
+                Because = "the check became a read-only property of the same name: CanMove is true unless the "
+                        + "NPC is ragdolled, in a building or in a vehicle (NPCMovement.cs:193-203 on "
+                        + "0.4.7f6), and the movement code gates on it where it gated on the method "
+                        + "(NPCMovement.cs:775, :831)",
+                Emit = EmitCanMoveMethod,
+            },
+
+            HandBridge("get_RightHandContainer"),
+            HandBridge("get_LeftHandContainer"),
+            HandBridge("get_RightHandAlignmentPoint"),
+            HandBridge("get_LeftHandAlignmentPoint"),
+
+            // Both kept their fade time and gained a completion callback after it; null is what the
+            // parameter defaults to, and the body only hands it to the fade coroutine (BlackOverlay.cs
+            // Open/Close(float fadeTime = 0.5f, Action onComplete = null) on 0.4.7f6). Listed in
+            // GrownOverloads too, so a patch on the old signature moves to the method the game calls.
+            Defaulted("Il2CppScheduleOne.UI.BlackOverlay", "Open", new[] { "System.Single" }, new object[] { null },
+                      "0.4.7 gave BlackOverlay.Open a completion callback after the fade time, defaulting to null "
+                      + "and only passed on to the fade (BlackOverlay.cs on 0.4.7f6)"),
+            Defaulted("Il2CppScheduleOne.UI.BlackOverlay", "Close", new[] { "System.Single" }, new object[] { null },
+                      "0.4.7 gave BlackOverlay.Close the same completion callback as Open, defaulting to null "
+                      + "(BlackOverlay.cs on 0.4.7f6)"),
         };
+
+        private const string Animation = "Il2CppScheduleOne.AvatarFramework.Animation.AvatarAnimation";
+
+        /// <summary>
+        /// The hand transforms moved from the animation component up onto the avatar that owns it.
+        /// </summary>
+        /// <remarks>
+        /// Same transforms, not look-alikes: Avatar serialises them and hands each back unchanged
+        /// (Avatar.cs:51-60, :101-107 on 0.4.7f6), and AvatarAnimation keeps that avatar in its own field,
+        /// taken from the same GameObject in Awake (AvatarAnimation.cs:81, :125).
+        /// </remarks>
+        private static Bridge HandBridge(string getter) => new Bridge
+        {
+            Assembly = "Assembly-CSharp",
+            DeclaringType = Animation,
+            OldName = getter,
+            ParameterCount = 0,
+            Because = "the hand containers and alignment points moved from AvatarAnimation onto Avatar, which "
+                    + "serialises and returns them as they are (Avatar.cs:51-60, :101-107 on 0.4.7f6); "
+                    + "AvatarAnimation reaches it through its avatar field (AvatarAnimation.cs:81, :125)",
+            Emit = (module, animation) => EmitAvatarForward(module, animation, getter),
+        };
+
+        /// <summary>
+        /// <c>NPCMovement.CanMove()</c>, the method: the property that replaced it.
+        /// </summary>
+        private static MethodDefinition EmitCanMoveMethod(ModuleDefinition module, TypeDefinition movement)
+        {
+            var getCanMove = Getter(movement, "CanMove");
+            if (getCanMove == null) return null;
+
+            var method = new MethodDefinition("CanMove",
+                MethodAttributes.Public | MethodAttributes.HideBySig,
+                module.TypeSystem.Boolean);
+
+            // return this.CanMove;
+            var il = method.Body.GetILProcessor();
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, getCanMove);
+            il.Emit(OpCodes.Ret);
+            return method;
+        }
+
+        /// <summary>
+        /// <c>AvatarAnimation.get_X()</c>: the same getter on the avatar.
+        /// </summary>
+        /// <remarks>
+        /// Null before the avatar is known, which is what the old serialised field read as on a component
+        /// nobody had wired up - a getter that throws there would break the mod on the one frame where the
+        /// old code simply read nothing.
+        /// </remarks>
+        private static MethodDefinition EmitAvatarForward(ModuleDefinition module, TypeDefinition animation,
+                                                          string getter)
+        {
+            var getAvatar = Getter(animation, "avatar");
+            var avatar = getAvatar?.ReturnType?.Resolve();
+            var target = Method(avatar, getter, 0);
+            if (getAvatar == null || target == null) return null;
+
+            var method = new MethodDefinition(getter,
+                MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName,
+                module.ImportReference(target.ReturnType));
+
+            var il = method.Body.GetILProcessor();
+            var have = il.Create(OpCodes.Call, target);
+
+            // var a = avatar; return a == null ? null : a.X;
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, getAvatar);
+            il.Emit(OpCodes.Dup);
+            il.Emit(OpCodes.Brtrue_S, have);
+            il.Emit(OpCodes.Pop);
+            il.Emit(OpCodes.Ldnull);
+            il.Emit(OpCodes.Ret);
+            il.Append(have);
+            il.Emit(OpCodes.Ret);
+            return method;
+        }
 
         private const string SleepControllerType = "Il2CppScheduleOne.GameTime.SleepController";
 
