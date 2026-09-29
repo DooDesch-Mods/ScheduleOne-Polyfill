@@ -305,6 +305,35 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                 Emit = EmitConversationSender,
             },
 
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = "Il2CppScheduleOne.Dialogue.DialogueController",
+                OldName = "get_IntObj",
+                ParameterCount = 0,
+                Because = "renamed in place, and the game says so: [FormerlySerializedAs(\"IntObj\")] private "
+                        + "InteractableObject _interactable (DialogueController.cs:82-83 on 0.4.7f6)",
+                Emit = (module, controller) => EmitGetterForward(module, controller, "get_IntObj", "_interactable"),
+            },
+
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = "Il2CppScheduleOne.Messaging.MSGConversation",
+                OldName = "get_messageHistory",
+                ParameterCount = 0,
+                Because = "the message list is _messageHistory on 0.4.7 (MSGConversation.cs:27, read by every "
+                        + "history method); MessageHistory is now a const int, the history limit "
+                        + "(MSGConversation.cs:23), which is why the casing rule and the underscore rule "
+                        + "disagreed and neither was chosen",
+                Emit = (module, conversation) => EmitGetterForward(module, conversation, "get_messageHistory", "_messageHistory"),
+            },
+
+            Defaulted("Il2CppScheduleOne.DevUtilities.IconGenerator", "GeneratePackagingIcon",
+                      new[] { "System.String", "System.String" }, new object[] { 512 },
+                      "0.4.7 gave GeneratePackagingIcon a trailing iconSize defaulting to 512 "
+                      + "(IconGenerator.cs:79 on 0.4.7f6)"),
+
             // Both kept their fade time and gained a completion callback after it; null is what the
             // parameter defaults to, and the body only hands it to the fade coroutine (BlackOverlay.cs
             // Open/Close(float fadeTime = 0.5f, Action onComplete = null) on 0.4.7f6). Listed in
@@ -468,6 +497,23 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             il.Emit(OpCodes.Ldc_I4_1);                                   // notify: true
             il.Emit(OpCodes.Ldc_I4_1);                                   // network: true
             il.Emit(send.IsVirtual ? OpCodes.Callvirt : OpCodes.Call, send);
+            il.Emit(OpCodes.Ret);
+            return method;
+        }
+
+        /// <summary>A getter under its old name that returns the one it was renamed to, unchanged.</summary>
+        private static MethodDefinition EmitGetterForward(ModuleDefinition module, TypeDefinition type,
+                                                          string oldName, string member)
+        {
+            var target = Getter(type, member);
+            if (target == null) return null;
+            var method = new MethodDefinition(oldName,
+                MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName
+                    | (target.IsStatic ? MethodAttributes.Static : 0),
+                module.ImportReference(target.ReturnType));
+            var il = method.Body.GetILProcessor();
+            if (!target.IsStatic) il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, target);
             il.Emit(OpCodes.Ret);
             return method;
         }
