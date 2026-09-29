@@ -41,6 +41,16 @@ namespace Polyfill.ModFixes
             internal int StandInArity;
             internal string Dropped;
 
+            /// <summary>
+            /// When the method the game calls now has a different name, what that name starts with.
+            /// </summary>
+            /// <remarks>
+            /// A FishNet RPC body is named after a hash of its signature, so dropping an argument renamed it:
+            /// RpcLogic___ProcessHandoverServerSide_3760244802 became ..._3315874220. Matched by prefix so the
+            /// next hash change does not need a new entry. Null means the same name as the stand-in.
+            /// </remarks>
+            internal string RealPrefix;
+
             /// <summary>What every caller of the old method passed, given the parameter's type.</summary>
             internal Func<Type, object> Value;
 
@@ -59,6 +69,28 @@ namespace Polyfill.ModFixes
                 // RequestProductBehaviour.cs:365 on 0.4.6f13).
                 Value = type => Enum.ToObject(type, 1),
                 Because = "every 0.4.6 caller passed Finalize",
+            },
+
+            // The server half: 0.4.7 calls it only from ProcessHandover (Customer.cs:1438 on 0.4.7f6), which
+            // is where 0.4.6 forwarded that same Finalize.
+            new Entry
+            {
+                Type = "Il2CppScheduleOne.Economy.Customer",
+                Name = "ProcessHandoverServerSide",
+                StandInArity = 7,
+                Dropped = "outcome",
+                Value = type => Enum.ToObject(type, 1),
+                Because = "it only ever received ProcessHandover's outcome, and that was always Finalize",
+            },
+            new Entry
+            {
+                Type = "Il2CppScheduleOne.Economy.Customer",
+                Name = "RpcLogic___ProcessHandoverServerSide_3760244802",
+                RealPrefix = "RpcLogic___ProcessHandoverServerSide_",
+                StandInArity = 7,
+                Dropped = "outcome",
+                Value = type => Enum.ToObject(type, 1),
+                Because = "the RPC body of the server half, renamed by FishNet when its signature lost the outcome",
             },
         };
 
@@ -88,9 +120,21 @@ namespace Polyfill.ModFixes
                 var type = AccessTools.TypeByName(entry.Type);
                 if (type == null) { log.Warning($"[fix] {Id}: {label}: the type is not on this build."); continue; }
 
-                var methods = type.GetMethods(AccessTools.all).Where(m => m.DeclaringType == type && m.Name == entry.Name).ToList();
+                var declared = type.GetMethods(AccessTools.all).Where(m => m.DeclaringType == type).ToList();
+                var methods = declared.Where(m => m.Name == entry.Name).ToList();
                 var standIn = methods.FirstOrDefault(m => m.GetParameters().Length == entry.StandInArity);
-                var real = methods.FirstOrDefault(m => m.GetParameters().Length == entry.StandInArity - 1);
+                var reals = (entry.RealPrefix == null
+                        ? methods
+                        : declared.Where(m => m.Name != entry.Name
+                                              && m.Name.StartsWith(entry.RealPrefix, StringComparison.Ordinal)))
+                    .Where(m => m.GetParameters().Length == entry.StandInArity - 1).ToList();
+                if (reals.Count > 1)
+                {
+                    log.Warning($"[fix] {Id}: {label}: {reals.Count} methods could be the one the game calls now; "
+                              + "choosing would be a guess.");
+                    continue;
+                }
+                var real = reals.FirstOrDefault();
                 if (standIn == null)
                 {
                     log.Msg($"[fix] {Id}: {label}: no mod needed the old form, so nothing patches it.");

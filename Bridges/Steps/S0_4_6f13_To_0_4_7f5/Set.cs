@@ -220,6 +220,36 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             HandBridge("get_RightHandAlignmentPoint"),
             HandBridge("get_LeftHandAlignmentPoint"),
 
+            // The server half of the handover lost the same leading outcome as ProcessHandover. 0.4.7 calls
+            // it from exactly one place, ProcessHandover, which is where 0.4.6 forwarded its own outcome -
+            // and every 0.4.6 caller of that passed Finalize (see the ProcessHandover rule above).
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = Customer,
+                OldName = "ProcessHandoverServerSide",
+                ParameterCount = 7,
+                AllowOverload = true,
+                Because = "the outcome argument went with the enum, as on ProcessHandover: 0.4.7 calls the "
+                        + "server half only from ProcessHandover (Customer.cs:1438 on 0.4.7f6), where 0.4.6 "
+                        + "forwarded the outcome every caller passed as Finalize",
+                Emit = (module, customer) => EmitDroppedOutcome(module, customer, "ProcessHandoverServerSide",
+                                                                name => name == "ProcessHandoverServerSide"),
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = Customer,
+                OldName = "RpcLogic___ProcessHandoverServerSide_3760244802",
+                ParameterCount = 7,
+                Because = "FishNet names the RPC body after a hash of the signature, so dropping the outcome "
+                        + "renamed it (RpcLogic___ProcessHandoverServerSide_3315874220 on 0.4.7f6); it is the "
+                        + "same body ProcessHandoverServerSide runs on the server",
+                Emit = (module, customer) => EmitDroppedOutcome(module, customer,
+                    "RpcLogic___ProcessHandoverServerSide_3760244802",
+                    name => name.StartsWith("RpcLogic___ProcessHandoverServerSide_", StringComparison.Ordinal)),
+            },
+
             // Both kept their fade time and gained a completion callback after it; null is what the
             // parameter defaults to, and the body only hands it to the fade coroutine (BlackOverlay.cs
             // Open/Close(float fadeTime = 0.5f, Action onComplete = null) on 0.4.7f6). Listed in
@@ -253,6 +283,51 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                     + "AvatarAnimation reaches it through its avatar field (AvatarAnimation.cs:81, :125)",
             Emit = (module, animation) => EmitAvatarForward(module, animation, getter),
         };
+
+        /// <summary>
+        /// The old form of a handover method that took the outcome first: calls the six-argument one the
+        /// game has now, dropping the outcome.
+        /// </summary>
+        /// <remarks>
+        /// The target is found by a predicate on its name rather than the name itself, because a FishNet RPC
+        /// body carries a signature hash that the dropped argument changed. Exactly one six-argument match
+        /// taking the item list first, or nothing: choosing between two would be a guess.
+        /// </remarks>
+        private static MethodDefinition EmitDroppedOutcome(ModuleDefinition module, TypeDefinition customer,
+                                                           string oldName, Func<string, bool> isTarget)
+        {
+            var screen = module.GetType(HandoverScreen);
+            if (screen == null) return null;
+
+            MethodDefinition target = null;
+            foreach (var candidate in customer.Methods)
+            {
+                // Six parameters is what rules the stand-in out: it takes seven, and for the server half it
+                // shares the target's name, so the name cannot be what excludes it.
+                if (!isTarget(candidate.Name) || candidate.Parameters.Count != 6) continue;
+                if (!candidate.Parameters[0].ParameterType.Name.StartsWith("List", StringComparison.Ordinal)) continue;
+                if (target != null) return null;
+                target = candidate;
+            }
+            if (target == null || target.IsStatic) return null;
+
+            var outcome = OutcomeEnum(module, screen);
+
+            var method = new MethodDefinition(oldName,
+                MethodAttributes.Public | MethodAttributes.HideBySig, module.ImportReference(target.ReturnType));
+            method.Parameters.Add(new ParameterDefinition("outcome", ParameterAttributes.None, outcome));
+            foreach (var parameter in target.Parameters)
+                method.Parameters.Add(new ParameterDefinition(parameter.Name, ParameterAttributes.None,
+                                                              module.ImportReference(parameter.ParameterType)));
+
+            // this.<target>(items, handoverByPlayer, totalPayment, productList, satisfaction, dealerObject);
+            var il = method.Body.GetILProcessor();
+            il.Emit(OpCodes.Ldarg_0);
+            for (int i = 1; i < method.Parameters.Count; i++) il.Emit(OpCodes.Ldarg, method.Parameters[i]);
+            il.Emit(target.IsVirtual ? OpCodes.Callvirt : OpCodes.Call, module.ImportReference(target));
+            il.Emit(OpCodes.Ret);
+            return method;
+        }
 
         /// <summary>
         /// <c>NPCMovement.CanMove()</c>, the method: the property that replaced it.
