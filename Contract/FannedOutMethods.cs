@@ -30,6 +30,14 @@ namespace Polyfill.Contract
             internal string Because;
         }
 
+        /// <summary>The entry for this type and old name, or null.</summary>
+        internal static Entry For(string type, string oldName)
+        {
+            foreach (var entry in All)
+                if (entry.Type == type && entry.OldName == oldName) return entry;
+            return null;
+        }
+
         internal static readonly Entry[] All =
         {
             new Entry

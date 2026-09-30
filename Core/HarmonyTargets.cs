@@ -426,6 +426,27 @@ namespace Polyfill.Core
                 return;
             }
 
+            // A method the game fanned out into one per case: the patch is attached to each successor it fits
+            // once the game is up (ModFixes/PatchesOnFannedOutMethods). Said as covered, not applied - this
+            // knows the fix exists, and the fix logs which successors it fitted and which it did not.
+            var fanned = FannedOutMethods.For(owner, name);
+            if (fanned != null)
+            {
+                report.Findings.Add(new Finding
+                {
+                    Kind = "harmony-target",
+                    Scope = scope,
+                    Symbol = owner + "::" + name,
+                    Reason = "the patched method is gone",
+                    Hint = "covered by the fix patches-on-fanned-out-methods: the patch is attached to "
+                         + string.Join(", ", fanned.NowCalled) + " wherever its parameters bind ("
+                         + fanned.Because + ")",
+                    Covered = true,
+                    Site = site,
+                });
+                return;
+            }
+
             // UP THE CHAIN, the same way the member check does it (Triage.CheckMethod). Harmony resolves
             // a name up the hierarchy, so the method that replaced this one may well sit on a base type -
             // and asking only the type the patch names meant the hint was empty for every one of those.
