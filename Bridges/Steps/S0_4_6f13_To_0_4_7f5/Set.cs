@@ -230,7 +230,6 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                 OldName = "ProcessHandoverServerSide",
                 ParameterCount = 7,
                 AllowOverload = true,
-                Creates = HandoverOutcome,
                 Because = "the outcome argument went with the enum, as on ProcessHandover: 0.4.7 calls the "
                         + "server half only from ProcessHandover (Customer.cs:1438 on 0.4.7f6), where 0.4.6 "
                         + "forwarded the outcome every caller passed as Finalize",
@@ -243,7 +242,6 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                 DeclaringType = Customer,
                 OldName = "RpcLogic___ProcessHandoverServerSide_3760244802",
                 ParameterCount = 7,
-                Creates = HandoverOutcome,
                 Because = "FishNet names the RPC body after a hash of the signature, so dropping the outcome "
                         + "renamed it (RpcLogic___ProcessHandoverServerSide_3315874220 on 0.4.7f6); it is the "
                         + "same body ProcessHandoverServerSide runs on the server",
