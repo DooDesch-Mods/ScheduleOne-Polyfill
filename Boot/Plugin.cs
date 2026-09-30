@@ -108,6 +108,7 @@ namespace Polyfill.Boot
                 // mod's LOOKUP. This changes nothing about what a patch resolves to - it only stops one
                 // class that will not bind from ending the mod's whole registration.
                 if (!DryRun) PatchClassIsolation.Install(LoggerInstance);
+                if (!DryRun) BulkTargetsSkipBridges.Install(LoggerInstance);
 
                 // Beside the isolation, and earlier in the failure: this makes an argument bind that
                 // Harmony could not place, so the class the isolation would have caught never fails.
