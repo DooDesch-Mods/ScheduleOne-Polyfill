@@ -29,8 +29,10 @@ namespace Polyfill.ModFixes
     ///
     /// The guard is a first-running prefix that reads the object's native class - the first word of every
     /// Il2CppObject, so no call into the runtime - and compares it with the patched class. When the object is
-    /// not one, every other mod's prefix and postfix on that method stands down for the call, and the game's
-    /// own code runs as it would unpatched. The verdict per pair of classes is cached, so the steady-state
+    /// not one, every other mod's prefix and postfix on that method stands down for the call - unless the
+    /// patch's own <c>__instance</c> takes that object: a postfix on <c>Bungalow.Awake</c> declared for any
+    /// <c>Property</c> is written for the Sweatshop too, and still runs for it. The game's own code runs as it
+    /// would unpatched either way. The verdict per pair of classes is cached, so the steady-state
     /// cost is a pointer read and a compare.
     /// </remarks>
     internal sealed class PatchesOnFoldedCode : Fix
@@ -60,6 +62,14 @@ namespace Polyfill.ModFixes
         // Nesting: bit n of _foreignMask says whether the call at depth n is foreign. No allocation per call.
         [ThreadStatic] private static int _depth;
         [ThreadStatic] private static ulong _foreignMask;
+        [ThreadStatic] private static IntPtr[] _actual;      // the foreign object's class, per depth
+
+        /// <summary>
+        /// The native class each guarded patch declares for <c>__instance</c>: <see cref="AnyObject"/> when it
+        /// takes any object, zero when it takes none.
+        /// </summary>
+        private static readonly Dictionary<MethodBase, IntPtr> Accepts = new();
+        private static readonly IntPtr AnyObject = new IntPtr(-1);
         [ThreadStatic] private static Dictionary<(IntPtr, IntPtr), bool> _verdicts;
         [ThreadStatic] private static Type _lastType;
         [ThreadStatic] private static IntPtr _lastWanted;
@@ -122,6 +132,12 @@ namespace Polyfill.ModFixes
                     foreach (var patch in info.Prefixes.Concat(info.Postfixes))
                     {
                         if (patch.owner == HarmonyId || !Guarded.Add(patch.PatchMethod)) continue;
+                        var accepts = Accepted(patch.PatchMethod);
+                        lock (Accepts) Accepts[patch.PatchMethod] = accepts;
+                        if (accepts != IntPtr.Zero && accepts != klass)
+                            _log.Msg($"[fix] {Id}: {patch.owner}'s {patch.PatchMethod.DeclaringType?.Name}.{patch.PatchMethod.Name} "
+                                   + $"takes any {(accepts == AnyObject ? "object" : ClassName(accepts))} as __instance, so it "
+                                   + "still runs for every class of that kind sharing the code.");
                         var guard = patch.PatchMethod.ReturnType == typeof(bool) ? nameof(GuardBool) : nameof(GuardVoid);
                         _harmony.Patch(patch.PatchMethod, prefix: new HarmonyMethod(typeof(PatchesOnFoldedCode), guard));
                         guarded++;
@@ -200,6 +216,7 @@ namespace Polyfill.ModFixes
         private static void Enter(object __instance)
         {
             bool foreign = false;
+            IntPtr actualClass = IntPtr.Zero;
             try
             {
                 if (__instance is Il2CppObjectBase o)
@@ -218,13 +235,18 @@ namespace Polyfill.ModFixes
                         }
                         IntPtr actual = wanted == IntPtr.Zero ? IntPtr.Zero : Marshal.ReadIntPtr(ptr);
                         if (actual != IntPtr.Zero && actual != wanted) foreign = Foreign(wanted, actual, type);
+                        actualClass = actual;
                     }
                 }
             }
             catch { }
             if (_depth < 64)
             {
-                if (foreign) _foreignMask |= 1UL << _depth;
+                if (foreign)
+                {
+                    _foreignMask |= 1UL << _depth;
+                    (_actual ??= new IntPtr[64])[_depth] = actualClass;
+                }
                 else _foreignMask &= ~(1UL << _depth);
             }
             _depth++;
@@ -238,7 +260,7 @@ namespace Polyfill.ModFixes
             verdicts[(wanted, actual)] = foreign;
             if (foreign)
                 _log?.Msg($"[fix] patches-on-folded-code: a {type.Name} method was called on a {ClassName(actual)} "
-                        + "through shared code; mod patches stood down for it.");
+                        + "through shared code; mod patches written for the one class stood down for it.");
             return foreign;
         }
 
@@ -253,11 +275,52 @@ namespace Polyfill.ModFixes
 
         private static bool InForeignCall => _depth > 0 && _depth <= 64 && (_foreignMask & (1UL << (_depth - 1))) != 0;
 
-        private static bool GuardVoid() => !InForeignCall;
-
-        private static bool GuardBool(ref bool __result)
+        /// <summary>
+        /// Should this mod patch stand down for the current call? Only on a foreign object, and only when the
+        /// patch's own <c>__instance</c> does not take it.
+        /// </summary>
+        /// <remarks>
+        /// A patch declares what it accepts. Production Expansion Reborn's postfix on
+        /// <c>BagTrashCanBehaviour.SetTargetTrashCan</c> takes a <c>BagTrashCanBehaviour</c>, so a Customer
+        /// reaching it through the shared setter is foreign to it. Employee Tweaks patches
+        /// <c>Bungalow.Awake</c> - folded with the Sweatshop's, the motel room's and the others' - with a
+        /// postfix that takes any <c>Property</c>: it is written for all of them, and standing it down for the
+        /// Sweatshop took that property's employee setup away. A patch that names no <c>__instance</c> makes no
+        /// claim and stands down.
+        /// </remarks>
+        private static bool StandsDown(MethodBase patch)
         {
-            if (!InForeignCall) return true;
+            if (!InForeignCall) return false;
+            IntPtr accepts;
+            lock (Accepts) Accepts.TryGetValue(patch, out accepts);
+            if (accepts == IntPtr.Zero) return true;
+            if (accepts == AnyObject) return false;
+            var actual = _actual?[_depth - 1] ?? IntPtr.Zero;
+            return actual == IntPtr.Zero || !IL2CPP.il2cpp_class_is_assignable_from(accepts, actual);
+        }
+
+        /// <summary>The native class a patch's <c>__instance</c> is declared as.</summary>
+        private static IntPtr Accepted(MethodInfo patch)
+        {
+            var parameter = patch.GetParameters().FirstOrDefault(p => p.Name == "__instance");
+            if (parameter == null) return IntPtr.Zero;
+            var type = parameter.ParameterType.IsByRef ? parameter.ParameterType.GetElementType() : parameter.ParameterType;
+            if (type == typeof(object) || type == typeof(Il2CppObjectBase) || !typeof(Il2CppObjectBase).IsAssignableFrom(type))
+                return AnyObject;
+            try
+            {
+                var store = typeof(Il2CppClassPointerStore<>).MakeGenericType(type);
+                var pointer = (IntPtr)store.GetField("NativeClassPtr").GetValue(null);
+                return pointer == IntPtr.Zero ? IntPtr.Zero : pointer;
+            }
+            catch { return IntPtr.Zero; }
+        }
+
+        private static bool GuardVoid(MethodBase __originalMethod) => !StandsDown(__originalMethod);
+
+        private static bool GuardBool(ref bool __result, MethodBase __originalMethod)
+        {
+            if (!StandsDown(__originalMethod)) return true;
             __result = true;   // a mod prefix that did not run lets the game's method run
             return false;
         }
