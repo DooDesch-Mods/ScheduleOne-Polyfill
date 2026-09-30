@@ -250,6 +250,22 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                     name => name.StartsWith("RpcLogic___ProcessHandoverServerSide_", StringComparison.Ordinal)),
             },
 
+            // A trash bag lost the flag that made it start kinematic: 0.4.7 has no such option and creates every
+            // bag as a physics object (TrashManager.cs:203-211, CreateAndReturnTrashBag :233 on 0.4.7f6). The
+            // stand-in lets a call and a patch naming the seven-argument form bind; ModFixes/
+            // PatchesOnDroppedArguments makes a patch on it run when the game calls the six-argument one.
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = "Il2CppScheduleOne.Trash.TrashManager",
+                OldName = "CreateTrashBag",
+                ParameterCount = 7,
+                AllowOverload = true,
+                Because = "the startKinematic argument went: 0.4.7 creates every trash bag as a physics object "
+                        + "(TrashManager.cs:203-211 on 0.4.7f6), which is the old call with false",
+                Emit = EmitTrashBagKinematic,
+            },
+
             new Bridge
             {
                 Assembly = "Assembly-CSharp",
@@ -410,6 +426,38 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             il.Emit(OpCodes.Ldarg_0);
             for (int i = 1; i < method.Parameters.Count; i++) il.Emit(OpCodes.Ldarg, method.Parameters[i]);
             il.Emit(target.IsVirtual ? OpCodes.Callvirt : OpCodes.Call, module.ImportReference(target));
+            il.Emit(OpCodes.Ret);
+            return method;
+        }
+
+        /// <summary>
+        /// <c>TrashManager.CreateTrashBag(id, posiiton, rotation, content, initialVelocity, guid, startKinematic)</c>:
+        /// the six-argument method, with the flag 0.4.7 no longer has ignored.
+        /// </summary>
+        private static MethodDefinition EmitTrashBagKinematic(ModuleDefinition module, TypeDefinition manager)
+        {
+            MethodDefinition target = null;
+            foreach (var candidate in manager.Methods)
+            {
+                if (candidate.Name != "CreateTrashBag" || candidate.Parameters.Count != 6 || candidate.IsStatic) continue;
+                if (candidate.Parameters[0].ParameterType.MetadataType != MetadataType.String) continue;
+                if (target != null) return null;
+                target = candidate;
+            }
+            if (target == null) return null;
+
+            var method = new MethodDefinition("CreateTrashBag",
+                MethodAttributes.Public | MethodAttributes.HideBySig, module.ImportReference(target.ReturnType));
+            foreach (var parameter in target.Parameters)
+                method.Parameters.Add(new ParameterDefinition(parameter.Name, ParameterAttributes.None,
+                                                              module.ImportReference(parameter.ParameterType)));
+            method.Parameters.Add(new ParameterDefinition("startKinematic", ParameterAttributes.None, module.TypeSystem.Boolean));
+
+            // return this.CreateTrashBag(id, posiiton, rotation, content, initialVelocity, guid);
+            var il = method.Body.GetILProcessor();
+            il.Emit(OpCodes.Ldarg_0);
+            for (int i = 0; i < target.Parameters.Count; i++) il.Emit(OpCodes.Ldarg, method.Parameters[i]);
+            il.Emit(target.IsVirtual ? OpCodes.Callvirt : OpCodes.Call, target);
             il.Emit(OpCodes.Ret);
             return method;
         }

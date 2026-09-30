@@ -92,13 +92,28 @@ namespace Polyfill.ModFixes
                 Value = type => Enum.ToObject(type, 1),
                 Because = "the RPC body of the server half, renamed by FishNet when its signature lost the outcome",
             },
+
+            // A trash bag's startKinematic went: 0.4.7 has no such option and creates every bag as a physics
+            // object (TrashManager.cs:203-211 on 0.4.7f6), which is what the old call did with false.
+            // Production Expansion Reborn 1.0.2B throws its cleaner-station bags from a patch on the old form.
+            new Entry
+            {
+                Type = "Il2CppScheduleOne.Trash.TrashManager",
+                Name = "CreateTrashBag",
+                StandInArity = 7,
+                Dropped = "startKinematic",
+                Value = _ => false,
+                Because = "0.4.7 creates every bag as a physics object, which is the old call with false",
+            },
         };
 
         private sealed class Relay
         {
             internal Entry Entry;
             internal object DroppedValue;
+            internal int DroppedPosition;
             internal string[] RealNames;
+            internal bool HasResult;
             internal readonly List<MethodInfo> Before = new();
             internal readonly List<MethodInfo> After = new();
         }
@@ -156,7 +171,9 @@ namespace Polyfill.ModFixes
                 {
                     Entry = entry,
                     DroppedValue = entry.Value(droppedParameter.ParameterType),
+                    DroppedPosition = droppedParameter.Position,
                     RealNames = real.GetParameters().Select(p => p.Name).ToArray(),
+                    HasResult = real.ReturnType != typeof(void),
                 };
                 if (!Collect(standIn, relay, label)) continue;
 
@@ -167,7 +184,8 @@ namespace Polyfill.ModFixes
                     finalizer: new HarmonyMethod(typeof(PatchesOnDroppedArguments), nameof(LeaveStandIn)));
                 harmony.Patch(real,
                     prefix: new HarmonyMethod(typeof(PatchesOnDroppedArguments), nameof(RunBefore)),
-                    postfix: new HarmonyMethod(typeof(PatchesOnDroppedArguments), nameof(RunAfter)));
+                    postfix: new HarmonyMethod(typeof(PatchesOnDroppedArguments),
+                                               relay.HasResult ? nameof(RunAfterWithResult) : nameof(RunAfter)));
                 wired++;
                 log.Msg($"[fix] {Id}: {label}: {relay.Before.Count} prefix(es) and {relay.After.Count} postfix(es) "
                       + $"now run when the game calls it, with {entry.Dropped} as {relay.DroppedValue} ({entry.Because}).");
@@ -183,12 +201,16 @@ namespace Polyfill.ModFixes
             if (info == null) { _log.Msg($"[fix] patches-on-dropped-arguments: {label}: nothing patches the old form."); return false; }
 
             var names = new HashSet<string>(relay.RealNames, StringComparer.Ordinal) { "__instance", relay.Entry.Dropped };
+            for (int i = 0; i < relay.Entry.StandInArity; i++) names.Add("__" + i);   // by position, as Harmony allows
             void Take(IEnumerable<HarmonyLib.Patch> patches, List<MethodInfo> into, string kind)
             {
+                // The game's result reaches a postfix; a prefix asking for it would be setting it, which is not relayed.
+                bool result = kind == "postfix" && relay.HasResult;
                 foreach (var patch in patches)
                 {
                     if (patch.owner != null && patch.owner.StartsWith("doodesch.polyfill", StringComparison.Ordinal)) continue;
-                    var missing = patch.PatchMethod.GetParameters().FirstOrDefault(p => !names.Contains(p.Name));
+                    var missing = patch.PatchMethod.GetParameters()
+                        .FirstOrDefault(p => !names.Contains(p.Name) && !(result && p.Name == "__result"));
                     if (!patch.PatchMethod.IsStatic || missing != null)
                     {
                         _log.Warning($"[fix] patches-on-dropped-arguments: {patch.owner}'s {kind} on {label} takes "
@@ -244,7 +266,36 @@ namespace Polyfill.ModFixes
             foreach (var patch in relay.After) Call(patch, Arguments(patch, relay, __instance, __args));
         }
 
-        private static object[] Arguments(MethodInfo patch, Relay relay, object instance, object[] args)
+        /// <summary><see cref="RunAfter"/> for a method with a result, which its postfixes may read.</summary>
+        private static void RunAfterWithResult(object __instance, object[] __args, MethodBase __originalMethod, object __result)
+        {
+            if (!Relays.TryGetValue(__originalMethod, out var relay) || InStandIn(relay)) return;
+            foreach (var patch in relay.After) Call(patch, Arguments(patch, relay, __instance, __args, __result));
+        }
+
+        /// <summary>
+        /// Where a patch parameter's value is in the game's call: an index into its arguments, -1 for the dropped
+        /// one, or -2 for none.
+        /// </summary>
+        /// <remarks>
+        /// By name, or by position as <c>__N</c> - Production Expansion Reborn writes its patch as <c>__0</c> to
+        /// <c>__6</c>. A position counts the stand-in's parameters, so everything after the dropped one sits one
+        /// place earlier in the game's call.
+        /// </remarks>
+        private static int Source(Relay relay, string name)
+        {
+            if (name == relay.Entry.Dropped) return -1;
+            if (name.Length > 2 && name.StartsWith("__", StringComparison.Ordinal)
+                && int.TryParse(name.Substring(2), out int position) && position >= 0 && position < relay.Entry.StandInArity)
+            {
+                if (position == relay.DroppedPosition) return -1;
+                return position < relay.DroppedPosition ? position : position - 1;
+            }
+            int at = Array.IndexOf(relay.RealNames, name);
+            return at < 0 ? -2 : at;
+        }
+
+        private static object[] Arguments(MethodInfo patch, Relay relay, object instance, object[] args, object result = null)
         {
             var wanted = patch.GetParameters();
             var values = new object[wanted.Length];
@@ -252,10 +303,11 @@ namespace Polyfill.ModFixes
             {
                 string name = wanted[i].Name;
                 if (name == "__instance") values[i] = instance;
-                else if (name == relay.Entry.Dropped) values[i] = relay.DroppedValue;
+                else if (name == "__result") values[i] = result;
                 else
                 {
-                    int at = Array.IndexOf(relay.RealNames, name);
+                    int at = Source(relay, name);
+                    if (at == -1) { values[i] = relay.DroppedValue; continue; }
                     values[i] = at < 0
                         ? (wanted[i].HasDefaultValue ? wanted[i].DefaultValue : null)
                         : Fit(args[at], wanted[i].ParameterType, patch);
@@ -304,7 +356,7 @@ namespace Polyfill.ModFixes
             for (int i = 0; i < wanted.Length; i++)
             {
                 if (!wanted[i].ParameterType.IsByRef) continue;
-                int at = Array.IndexOf(relay.RealNames, wanted[i].Name);
+                int at = Source(relay, wanted[i].Name);
                 if (at >= 0) args[at] = values[i];
             }
         }
