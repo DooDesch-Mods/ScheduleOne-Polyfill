@@ -237,9 +237,43 @@ namespace Polyfill.ModFixes
                 string name = wanted[i].Name;
                 if (name == "__instance") values[i] = instance;
                 else if (name == relay.Entry.Dropped) values[i] = relay.DroppedValue;
-                else values[i] = args[Array.IndexOf(relay.RealNames, name)];
+                else
+                {
+                    int at = Array.IndexOf(relay.RealNames, name);
+                    values[i] = at < 0
+                        ? (wanted[i].HasDefaultValue ? wanted[i].DefaultValue : null)
+                        : Fit(args[at], wanted[i].ParameterType);
+                }
             }
             return values;
+        }
+
+        /// <summary>The argument as the patch declared it, where the two spell the same list differently.</summary>
+        /// <remarks>
+        /// A patch written as <c>List&lt;ItemInstance&gt; items</c> with <c>using System.Collections.Generic</c>
+        /// declares a managed list; the game hands over an Il2CppSystem one. Harmony would never have bound that
+        /// parameter, but the relay calls the patch itself, and reflection refuses the call outright
+        /// (Cartel Influence Enhancements 0.3.0, on every handover). A copy of the items is what the patch reads;
+        /// changes it makes to the copy do not reach the game, as they never could have.
+        /// </remarks>
+        private static object Fit(object value, Type wanted)
+        {
+            if (value == null || wanted.IsInstanceOfType(value)) return value;
+            try
+            {
+                var type = value.GetType();
+                if (wanted.IsGenericType && wanted.GetGenericTypeDefinition() == typeof(List<>)
+                    && type.IsGenericType && type.FullName?.StartsWith("Il2CppSystem.Collections.Generic.List`1") == true)
+                {
+                    var count = (int)type.GetProperty("Count").GetValue(value);
+                    var item = type.GetProperty("Item");
+                    var copy = (System.Collections.IList)Activator.CreateInstance(wanted);
+                    for (int i = 0; i < count; i++) copy.Add(item.GetValue(value, new object[] { i }));
+                    return copy;
+                }
+            }
+            catch { }
+            return value;
         }
 
         /// <summary>A prefix that changed an argument through ref changes it for the game's method too.</summary>
