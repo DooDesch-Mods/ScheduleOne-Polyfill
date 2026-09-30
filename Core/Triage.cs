@@ -625,19 +625,6 @@ namespace Polyfill.Core
         }
 
         /// <summary>
-        /// Does the mod ask for the same generic the method hands back, with a renamed type as an argument?
-        /// </summary>
-        /// <remarks>
-        /// <c>DialogueHandler.dialogueContainers</c> is still there on 0.4.7 and still a list - of
-        /// <c>Conversation</c>, the name <c>DialogueContainer</c> became. A mod built against 0.4.6 asks for
-        /// <c>List&lt;DialogueContainer&gt; get_dialogueContainers()</c>, which is not that signature, so the call
-        /// throws MissingMethodException while the plain return-type check above saw a present member: the
-        /// whole generic's name is not a key in <paramref name="repaired"/>, only its argument is.
-        /// Measured: RVRepairVan's questline never offers its dialogue, one failed attempt every two seconds.
-        /// Same generic definition, same arity, and every argument either identical or a type Polyfill put back
-        /// that became exactly the one in the game's signature - nothing looser.
-        /// </remarks>
-        /// <summary>
         /// Would a forward to <paramref name="candidate"/> hand back a type the caller does not ask for?
         /// </summary>
         /// <remarks>
@@ -656,6 +643,19 @@ namespace Polyfill.Core
             return !ReturnsRenamedArgument(wanted, candidate, repaired);
         }
 
+        /// <summary>
+        /// Does the mod ask for the same generic the method hands back, with a renamed type as an argument?
+        /// </summary>
+        /// <remarks>
+        /// <c>DialogueHandler.dialogueContainers</c> is still there on 0.4.7 and still a list - of
+        /// <c>Conversation</c>, the name <c>DialogueContainer</c> became. A mod built against 0.4.6 asks for
+        /// <c>List&lt;DialogueContainer&gt; get_dialogueContainers()</c>, which is not that signature, so the call
+        /// throws MissingMethodException while the plain return-type check above saw a present member: the
+        /// whole generic's name is not a key in <paramref name="repaired"/>, only its argument is.
+        /// Measured: RVRepairVan's questline never offers its dialogue, one failed attempt every two seconds.
+        /// Same generic definition, same arity, and every argument either identical or a type Polyfill put back
+        /// that became exactly the one in the game's signature - nothing looser.
+        /// </remarks>
         private static bool ReturnsRenamedArgument(TypeReference wanted, TypeReference present,
                                                    Dictionary<string, TypeDefinition> repaired)
         {
