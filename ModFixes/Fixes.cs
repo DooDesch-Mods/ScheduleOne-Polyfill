@@ -84,6 +84,7 @@ namespace Polyfill.ModFixes
             new PlayerLoadRelay(),
             new AvatarSettingsBridge(),
             new PatchesOnDroppedArguments(),
+            new PatchesOnFoldedCode(),
         };
 
         private static MelonPreferences_Entry<string> _disabled;
