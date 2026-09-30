@@ -624,6 +624,59 @@ namespace Polyfill.Core
             return null;
         }
 
+        /// <summary>
+        /// Does the mod ask for the same generic the method hands back, with a renamed type as an argument?
+        /// </summary>
+        /// <remarks>
+        /// <c>DialogueHandler.dialogueContainers</c> is still there on 0.4.7 and still a list - of
+        /// <c>Conversation</c>, the name <c>DialogueContainer</c> became. A mod built against 0.4.6 asks for
+        /// <c>List&lt;DialogueContainer&gt; get_dialogueContainers()</c>, which is not that signature, so the call
+        /// throws MissingMethodException while the plain return-type check above saw a present member: the
+        /// whole generic's name is not a key in <paramref name="repaired"/>, only its argument is.
+        /// Measured: RVRepairVan's questline never offers its dialogue, one failed attempt every two seconds.
+        /// Same generic definition, same arity, and every argument either identical or a type Polyfill put back
+        /// that became exactly the one in the game's signature - nothing looser.
+        /// </remarks>
+        /// <summary>
+        /// Would a forward to <paramref name="candidate"/> hand back a type the caller does not ask for?
+        /// </summary>
+        /// <remarks>
+        /// The same type, a type Polyfill put back that became this one, or the same generic over such a type
+        /// all resolve; anything else is a different signature. Generic parameters are left alone - their names
+        /// are not comparable across the two sides.
+        /// </remarks>
+        private static bool ReturnsSomethingElse(TypeReference wanted, TypeReference candidate,
+                                                 Dictionary<string, TypeDefinition> repaired)
+        {
+            if (wanted == null || candidate == null) return false;
+            if (wanted.IsGenericParameter || candidate.IsGenericParameter) return false;
+            if (string.Equals(wanted.FullName, candidate.FullName, StringComparison.Ordinal)) return false;
+            if (repaired.TryGetValue(wanted.FullName, out var became)
+                && string.Equals(became?.FullName, candidate.FullName, StringComparison.Ordinal)) return false;
+            return !ReturnsRenamedArgument(wanted, candidate, repaired);
+        }
+
+        private static bool ReturnsRenamedArgument(TypeReference wanted, TypeReference present,
+                                                   Dictionary<string, TypeDefinition> repaired)
+        {
+            if (wanted is not GenericInstanceType asked || present is not GenericInstanceType has) return false;
+            if (!string.Equals(asked.ElementType.FullName, has.ElementType.FullName, StringComparison.Ordinal))
+                return false;
+            if (asked.GenericArguments.Count != has.GenericArguments.Count) return false;
+
+            bool renamed = false;
+            for (int i = 0; i < asked.GenericArguments.Count; i++)
+            {
+                string mine = asked.GenericArguments[i].FullName, theirs = has.GenericArguments[i].FullName;
+                if (string.Equals(mine, theirs, StringComparison.Ordinal)) continue;
+                if (repaired.TryGetValue(mine, out var became)
+                    && string.Equals(became?.FullName, theirs, StringComparison.Ordinal))
+                { renamed = true; continue; }
+                return false;
+            }
+            return renamed;
+        }
+
         private static void CheckMethod(MethodReference wanted, TypeDefinition declaring, string scope,
                                         string kindPrefix, ModReport report, InteropIndex index,
                                         Dictionary<string, TypeDefinition> repaired)
@@ -681,7 +734,8 @@ namespace Polyfill.Core
                 // resolve and this check called it present. Only ever raised for a type Polyfill itself put
                 // back, which is the one case where the two names are known to mean the same thing.
                 string returns = wanted.ReturnType?.FullName;
-                if (returns != null && repaired.ContainsKey(returns)
+                bool renamedArgument = ReturnsRenamedArgument(wanted.ReturnType, method.ReturnType, repaired);
+                if (returns != null && (repaired.ContainsKey(returns) || renamedArgument)
                     && !string.Equals(returns, method.ReturnType?.FullName, StringComparison.Ordinal))
                 {
                     // AND IT IS REPAIRABLE, which it was not until the stand-in existed. The forward for a
@@ -701,7 +755,7 @@ namespace Polyfill.Core
                             ParameterCount = wanted.Parameters?.Count ?? 0,
                             ParameterTypes = ParameterTypes(wanted),
                             SameNameNewSignature = true,
-                            Rule = "return type",
+                            Rule = renamedArgument ? "return type (generic argument)" : "return type",
                         })
                         : null;
 
@@ -817,7 +871,8 @@ namespace Polyfill.Core
                         Rule = "version history",
                     });
                 }
-                else if (hits.Count == 1 && hits[0].Member is MethodDefinition)
+                else if (hits.Count == 1 && hits[0].Member is MethodDefinition spelled
+                         && !ReturnsSomethingElse(wanted.ReturnType, spelled.ReturnType, repaired))
                 {
                     // One candidate on this type, reached by spelling alone. No inference, but the weakest
                     // of the three: it is a fact about English, not about the game.
@@ -832,6 +887,15 @@ namespace Polyfill.Core
                     });
                 }
             }
+
+            // Named, not repaired: the spelling found a member, but it hands back something else, so a forward
+            // to it would be a method the mod's call still does not resolve to - reported as applied while
+            // the mod goes on throwing MissingMethodException. MSGConversation.sender on 0.4.7 is the case
+            // that was measured: get__sender returns the contact info where four mods ask for the NPC.
+            if (repairKey == null && hits.Count == 1 && hits[0].Member is MethodDefinition mismatched
+                && ReturnsSomethingElse(wanted.ReturnType, mismatched.ReturnType, repaired))
+                hint = $"{hits[0].NewName} [{hits[0].Rule}], but it returns {mismatched.ReturnType?.Name} "
+                     + $"where the mod expects {wanted.ReturnType?.Name}";
 
             string reason = nameExists
                 ? "the method still exists but its parameters changed"

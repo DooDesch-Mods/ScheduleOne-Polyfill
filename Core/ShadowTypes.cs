@@ -357,6 +357,81 @@ namespace Polyfill.Core
             return true;
         }
 
+        /// <summary>
+        /// The same interop generic with every argument that has a shadow replaced by it, or null.
+        /// </summary>
+        /// <remarks>
+        /// <c>List&lt;Conversation&gt;</c> becomes <c>List&lt;DialogueContainer&gt;</c>. BuriesAShadow is right
+        /// that the two do not convert as managed types - a generic class is invariant. But an interop generic
+        /// is a shell around a native pointer like any other interop type, and its native class is built from
+        /// the class pointers of its arguments; a shadow carries its base's (CarryTheClassPointer). So a shell
+        /// of the old instantiation around the SAME native list resolves every method against the same native
+        /// class, and reads and writes go to the one list the game holds. Not a copy, not a cast.
+        ///
+        /// Refused rather than approximated when any of that does not hold: the generic is not an interop type
+        /// (no pointer constructor), a shadow it would use has no native class, or the arguments nest another
+        /// generic or array - one level is the case that was measured.
+        /// </remarks>
+        internal static GenericInstanceType ReshadowGeneric(ModuleDefinition module, TypeReference type,
+                                                            out string refusal)
+        {
+            refusal = null;
+            if (type is not GenericInstanceType generic) return null;
+
+            TypeDefinition definition = null;
+            try { definition = generic.ElementType.Resolve(); } catch { }
+            if (definition == null) { refusal = $"{generic.ElementType.Name} cannot be resolved"; return null; }
+            if (PointerConstructor(definition) == null || PointerGetter(definition) == null)
+            { refusal = $"{definition.Name} is not an interop type that can be rebuilt around a pointer"; return null; }
+
+            var reshadowed = new GenericInstanceType(module.ImportReference(generic.ElementType));
+            bool any = false;
+            foreach (var argument in generic.GenericArguments)
+            {
+                if (argument is GenericInstanceType || argument is ArrayType || argument.IsByReference)
+                { refusal = "a renamed type is nested more than one level deep"; return null; }
+                if (Made.TryGetValue(argument.FullName, out var shadow))
+                {
+                    if (WithoutAClass.TryGetValue(shadow.FullName, out var why))
+                    { refusal = $"{shadow.Name} has no native class ({why})"; return null; }
+                    reshadowed.GenericArguments.Add(shadow);
+                    any = true;
+                }
+                else reshadowed.GenericArguments.Add(module.ImportReference(argument));
+            }
+            return any ? reshadowed : null;
+        }
+
+        /// <summary>
+        /// Turn the generic on the stack into its reshadowed instantiation around the same pointer.
+        /// </summary>
+        /// <remarks>EmitRewrap for a generic: the constructor is referenced on the constructed type.</remarks>
+        internal static bool EmitRewrapGeneric(ModuleDefinition module, ILProcessor il, TypeReference from,
+                                               GenericInstanceType to, out string refusal)
+        {
+            refusal = null;
+            TypeDefinition definition = null;
+            try { definition = to.ElementType.Resolve(); } catch { }
+            var pointer = definition == null ? null : PointerGetter(definition);
+            if (definition == null || pointer == null || PointerConstructor(definition) == null)
+            { refusal = $"{to.ElementType.Name} cannot be rebuilt around a pointer"; return false; }
+
+            var constructor = new MethodReference(".ctor", module.TypeSystem.Void, to) { HasThis = true };
+            constructor.Parameters.Add(new ParameterDefinition(module.TypeSystem.IntPtr));
+
+            var keepNull = il.Create(OpCodes.Ret);
+
+            il.Emit(OpCodes.Dup);
+            il.Emit(OpCodes.Brfalse_S, keepNull);          // null in, null out
+
+            il.Emit(OpCodes.Call, module.ImportReference(pointer));
+            il.Emit(OpCodes.Newobj, module.ImportReference(constructor));
+            il.Emit(OpCodes.Ret);
+
+            il.Append(keepNull);
+            return true;
+        }
+
 
 
         /// <summary>Put a built type into the module, nested where the old name was nested.</summary>
