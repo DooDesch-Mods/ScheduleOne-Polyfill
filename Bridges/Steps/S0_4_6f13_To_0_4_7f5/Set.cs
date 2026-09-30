@@ -230,6 +230,7 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                 OldName = "ProcessHandoverServerSide",
                 ParameterCount = 7,
                 AllowOverload = true,
+                Creates = HandoverOutcome,
                 Because = "the outcome argument went with the enum, as on ProcessHandover: 0.4.7 calls the "
                         + "server half only from ProcessHandover (Customer.cs:1438 on 0.4.7f6), where 0.4.6 "
                         + "forwarded the outcome every caller passed as Finalize",
@@ -242,6 +243,7 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                 DeclaringType = Customer,
                 OldName = "RpcLogic___ProcessHandoverServerSide_3760244802",
                 ParameterCount = 7,
+                Creates = HandoverOutcome,
                 Because = "FishNet names the RPC body after a hash of the signature, so dropping the outcome "
                         + "renamed it (RpcLogic___ProcessHandoverServerSide_3315874220 on 0.4.7f6); it is the "
                         + "same body ProcessHandoverServerSide runs on the server",
@@ -270,10 +272,11 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                 DeclaringType = "Il2CppScheduleOne.AvatarFramework.Avatar",
                 OldName = "get_RagdollRBs",
                 ParameterCount = 0,
-                Because = "0.4.6 kept the ragdoll's rigidbodies in a permanent RagdollRBs field; 0.4.7 builds a "
-                        + "Ragdoll when the avatar goes down and drops it when it gets up (Avatar.cs:115-117, "
-                        + "Ragdoll.cs:23 on 0.4.7f6), so the same rigidbodies exist exactly while Ragdolled is "
-                        + "true and there are none to hand back otherwise",
+                Because = "0.4.6 kept the ragdoll's rigidbodies in a permanent RagdollRBs array; 0.4.7 builds a "
+                        + "Ragdoll, with new Rigidbody components, each time the avatar goes down and drops it "
+                        + "when it gets up (Avatar.cs:115-117, RagdollTemplate.cs:30 on 0.4.7f6). The active "
+                        + "ragdoll's rigidbodies are handed back while there is one, and an empty array otherwise, "
+                        + "so a 0.4.6 caller that loops over it without a null check still runs",
                 Emit = EmitRagdollRigidbodies,
             },
 
@@ -283,10 +286,10 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                 DeclaringType = "Il2CppScheduleOne.NPCs.NPC",
                 OldName = "SendTextMessage",
                 ParameterCount = 1,
-                Because = "0.4.7 has no SendTextMessage; its own NPCs text the player with "
-                        + "MSGConversation.SendMessage(new Message(text, ESenderType.Other)) and the default "
-                        + "notify and network (the Dealer robbery and cash texts on 0.4.7f6), so that is what "
-                        + "the old call does",
+                Because = "0.4.7 has no SendTextMessage; 0.4.6's sent new Message(message, ESenderType.Other, "
+                        + "endOfGroup: true) through the NPC's conversation (NPC.cs:415-418 on 0.4.6f13), and "
+                        + "0.4.7's conversation still takes that message (MSGConversation.SendMessage), so the "
+                        + "old call does the same",
                 Emit = EmitSendTextMessage,
             },
 
@@ -296,12 +299,12 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                 DeclaringType = "Il2CppScheduleOne.Messaging.MSGConversation",
                 OldName = "get_sender",
                 ParameterCount = 0,
-                Because = "0.4.6's conversation held the NPC it belonged to; 0.4.7's holds only its "
-                        + "MessageContactInfo (MSGConversation.cs:35, :113-115 on 0.4.7f6) and the NPC holds the "
-                        + "conversation instead (NPC.MSGConversation, set in AssignConversationMessage, "
-                        + "NPC.cs:270, :629-638). The NPC is the one whose MSGConversation is this; the "
-                        + "syncvar-accessor heuristic's get__sender hands back the contact info, which is not "
-                        + "what a caller naming NPC get_sender() resolves to",
+                Because = "0.4.6's conversation held the NPC it belonged to; 0.4.7's holds a MessageContactInfo "
+                        + "that carries the NPC's id (MSGConversation.cs:35 on 0.4.7f6), and resolves the NPC "
+                        + "from it itself with _sender.TryGetNPC (NPCManager.GetNPC(_npcId), "
+                        + "MSGConversation.cs:313, MessageContactInfo.cs:50-54). The syncvar-accessor "
+                        + "heuristic's get__sender hands back the contact info, which is not what a caller "
+                        + "naming NPC get_sender() resolves to",
                 Emit = EmitConversationSender,
             },
 
@@ -414,16 +417,13 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
         }
 
         /// <summary>
-        /// <c>HandoverScreen.CurrentContract</c>: the contract mode's contract, null without one.
-        /// </summary>
-        /// <summary>
-        /// <c>Avatar.RagdollRBs</c>: the active ragdoll's rigidbodies, null while standing.
+        /// <c>Avatar.RagdollRBs</c>: the active ragdoll's rigidbodies, or an empty array while standing.
         /// </summary>
         /// <remarks>
-        /// Null, not an empty array, because a caller that reads it while standing is asking for parts that do
-        /// not exist on 0.4.7 - Yoink, the one mod measured, ragdolls the NPC first and treats null as "not
-        /// grippable". A fresh Ragdoll per knock-down means an array read before an NPC stands up and goes
-        /// down again is that earlier ragdoll's, which the permanent 0.4.6 field never was.
+        /// Empty rather than null, because 0.4.6's array was always there and a caller could loop over it
+        /// without a check. These are not 0.4.6's rigidbodies either: 0.4.7 adds new Rigidbody components on
+        /// each knock-down (RagdollTemplate.cs:30 on 0.4.7f6), so an array read before an NPC stands up and
+        /// goes down again belongs to the earlier ragdoll.
         /// </remarks>
         private static MethodDefinition EmitRagdollRigidbodies(ModuleDefinition module, TypeDefinition avatar)
         {
@@ -432,6 +432,16 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             var getBodies = Getter(ragdoll, "Rigidbodies");
             if (getRagdoll == null || getBodies == null) return null;
 
+            // The empty array is built from the type the getter already returns, so the interop array type is
+            // never named here: Polyfill.Boot must not carry that assembly's name.
+            var arrayType = getBodies.ReturnType as GenericInstanceType;
+            MethodDefinition sized = null;
+            foreach (var candidate in arrayType?.ElementType.Resolve()?.Methods ?? new Mono.Collections.Generic.Collection<MethodDefinition>())
+                if (candidate.IsConstructor && !candidate.IsStatic && candidate.Parameters.Count == 1
+                    && candidate.Parameters[0].ParameterType.MetadataType == MetadataType.Int64)
+                    sized = candidate;
+            if (arrayType == null || sized == null) return null;
+
             var method = new MethodDefinition("get_RagdollRBs",
                 MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName,
                 module.ImportReference(getBodies.ReturnType));
@@ -439,21 +449,22 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             var il = method.Body.GetILProcessor();
             var have = il.Create(OpCodes.Call, getBodies);
 
-            // var r = ActiveRagdoll; return r == null ? null : r.Rigidbodies;
+            // var r = ActiveRagdoll; return r == null ? new Il2CppReferenceArray<Rigidbody>(0) : r.Rigidbodies;
             il.Emit(OpCodes.Ldarg_0);
             il.Emit(OpCodes.Call, getRagdoll);
             il.Emit(OpCodes.Dup);
             il.Emit(OpCodes.Brtrue_S, have);
             il.Emit(OpCodes.Pop);
-            il.Emit(OpCodes.Ldnull);
+            il.Emit(OpCodes.Ldc_I8, 0L);
+            il.Emit(OpCodes.Newobj, module.ImportReference(Against(module, sized, arrayType)));
             il.Emit(OpCodes.Ret);
             il.Append(have);
             il.Emit(OpCodes.Ret);
-            return method;
+            return WithProperty(avatar, method);
         }
 
         /// <summary>
-        /// <c>NPC.SendTextMessage(text)</c>: the NPC's conversation sends it as the NPC, as 0.4.7's own texts do.
+        /// <c>NPC.SendTextMessage(message)</c>: the NPC's conversation sends it as the NPC, as 0.4.6 did.
         /// </summary>
         /// <remarks>
         /// Nothing when the NPC has no conversation yet - 0.4.7 assigns one once the local player exists
@@ -475,14 +486,15 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
 
             var method = new MethodDefinition("SendTextMessage",
                 MethodAttributes.Public | MethodAttributes.HideBySig, module.TypeSystem.Void);
-            var text = new ParameterDefinition("text", ParameterAttributes.None, module.TypeSystem.String);
+            // Named as the 0.4.6 interop named it, so a patch that binds "string message" still applies.
+            var text = new ParameterDefinition("message", ParameterAttributes.None, module.TypeSystem.String);
             method.Parameters.Add(text);
 
             var il = method.Body.GetILProcessor();
             var have = il.Create(OpCodes.Ldarg, text);
 
             // var c = MSGConversation; if (c == null) return;
-            // c.SendMessage(new Message(text, ESenderType.Other, endOfGroup: false, messageId: -1), true, true);
+            // c.SendMessage(new Message(message, ESenderType.Other, endOfGroup: true, messageId: -1), true, true);
             il.Emit(OpCodes.Ldarg_0);
             il.Emit(OpCodes.Call, getConversation);
             il.Emit(OpCodes.Dup);
@@ -491,7 +503,7 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             il.Emit(OpCodes.Ret);
             il.Append(have);
             il.Emit(OpCodes.Ldc_I4_1);                                   // ESenderType.Other
-            il.Emit(OpCodes.Ldc_I4_0);                                   // _endOfGroup: false
+            il.Emit(OpCodes.Ldc_I4_1);                                   // _endOfGroup: true, as 0.4.6 passed
             il.Emit(OpCodes.Ldc_I4_M1);                                  // _messageId: -1
             il.Emit(OpCodes.Newobj, create);
             il.Emit(OpCodes.Ldc_I4_1);                                   // notify: true
@@ -515,105 +527,69 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             if (!target.IsStatic) il.Emit(OpCodes.Ldarg_0);
             il.Emit(OpCodes.Call, target);
             il.Emit(OpCodes.Ret);
-            return method;
+            return WithProperty(type, method);
         }
 
         /// <summary>
-        /// <c>MSGConversation.sender</c>: the registered NPC whose conversation this is, or null.
+        /// Gives a bridged getter its PropertyDefinition, so reflection by property name
+        /// (<c>AccessTools.Property</c>) finds it as it found the 0.4.6 member.
+        /// </summary>
+        private static MethodDefinition WithProperty(TypeDefinition type, MethodDefinition getter)
+        {
+            string name = getter.Name.Substring(4);
+            foreach (var existing in type.Properties)
+                if (existing.Name == name) { existing.GetMethod ??= getter; return getter; }
+            type.Properties.Add(new PropertyDefinition(name, PropertyAttributes.None, getter.ReturnType) { GetMethod = getter });
+            return getter;
+        }
+
+        /// <summary>
+        /// <c>MSGConversation.sender</c>: the NPC the conversation's contact info names, or null.
         /// </summary>
         /// <remarks>
-        /// Compared by native pointer, because two interop shells around the same conversation are two managed
-        /// objects. A walk over NPCManager.NPCRegistry per call - a hundred-odd NPCs, and the mods measured ask
-        /// once per message, not per frame. Null for a conversation no NPC holds (a player-made one), which is
-        /// the honest answer; 0.4.6 had no such conversations to ask about.
+        /// The path 0.4.7 takes itself: <c>_sender.TryGetNPC(out npc)</c>, which is
+        /// <c>NPCManager.GetNPC(_npcId)</c> (MSGConversation.cs:313, MessageContactInfo.cs:50-54 on 0.4.7f6). It
+        /// finds the NPC for a conversation that is not assigned yet as well, and for one built through the
+        /// old-constructor bridge. Null for a contact that names no NPC.
         /// </remarks>
         private static MethodDefinition EmitConversationSender(ModuleDefinition module, TypeDefinition conversation)
         {
-            var manager = module.GetType("Il2CppScheduleOne.NPCs.NPCManager");
-            var getRegistry = Getter(manager, "NPCRegistry");
-            var registry = getRegistry?.ReturnType as GenericInstanceType;
-            var list = registry?.ElementType.Resolve();
-            var npc = registry?.GenericArguments.Count == 1 ? registry.GenericArguments[0].Resolve() : null;
-            var getCount = Getter(list, "Count");
-            var getItem = Method(list, "get_Item", 1);
-            var getConversation = Getter(npc, "MSGConversation");
-            var pointer = Polyfill.Core.ShadowTypes.PointerGetter(conversation);
-            if (getRegistry == null || !getRegistry.IsStatic || getCount == null || getItem == null
-                || getConversation == null || pointer == null) return null;
+            var getSender = Getter(conversation, "_sender");
+            var contact = getSender?.ReturnType?.Resolve();
+            var tryGet = Method(contact, "TryGetNPC", 1);
+            var npcType = (tryGet?.Parameters[0].ParameterType as ByReferenceType)?.ElementType;
+            if (getSender == null || tryGet == null || npcType == null) return null;
 
             var method = new MethodDefinition("get_sender",
                 MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName,
-                module.ImportReference(registry.GenericArguments[0]));
-            var body = method.Body;
-            var listLocal = new VariableDefinition(module.ImportReference(registry));
-            var me = new VariableDefinition(module.TypeSystem.IntPtr);
-            var i = new VariableDefinition(module.TypeSystem.Int32);
-            var count = new VariableDefinition(module.TypeSystem.Int32);
-            var candidate = new VariableDefinition(module.ImportReference(registry.GenericArguments[0]));
-            foreach (var v in new[] { listLocal, me, i, count, candidate }) body.Variables.Add(v);
-            body.InitLocals = true;
-
-            var countRef = module.ImportReference(Against(module, getCount, registry));
-            var itemRef = module.ImportReference(Against(module, getItem, registry));
-            var il = body.GetILProcessor();
-
+                module.ImportReference(npcType));
+            var npc = new VariableDefinition(module.ImportReference(npcType));
+            method.Body.Variables.Add(npc);
+            method.Body.InitLocals = true;
+            var il = method.Body.GetILProcessor();
             var none = il.Create(OpCodes.Ldnull);
-            var test = il.Create(OpCodes.Ldloc, i);
-            var next = il.Create(OpCodes.Ldloc, i);
 
-            // var me = this.Pointer; var list = NPCManager.NPCRegistry; if (list == null) return null;
+            // var s = _sender; if (s == null) return null; s.TryGetNPC(out npc); return npc;
             il.Emit(OpCodes.Ldarg_0);
-            il.Emit(OpCodes.Call, module.ImportReference(pointer));
-            il.Emit(OpCodes.Stloc, me);
-            il.Emit(OpCodes.Call, getRegistry);
-            il.Emit(OpCodes.Stloc, listLocal);
-            il.Emit(OpCodes.Ldloc, listLocal);
-            il.Emit(OpCodes.Brfalse, none);
-
-            // for (int i = 0, count = list.Count; i < count; i++)
-            il.Emit(OpCodes.Ldloc, listLocal);
-            il.Emit(OpCodes.Callvirt, countRef);
-            il.Emit(OpCodes.Stloc, count);
-            il.Emit(OpCodes.Ldc_I4_0);
-            il.Emit(OpCodes.Stloc, i);
-            il.Emit(OpCodes.Br, test);
-
-            // var c = list[i]; if (c != null && c.MSGConversation != null && c.MSGConversation.Pointer == me) return c;
-            var body0 = il.Create(OpCodes.Ldloc, listLocal);
-            il.Append(body0);
-            il.Emit(OpCodes.Ldloc, i);
-            il.Emit(OpCodes.Callvirt, itemRef);
-            il.Emit(OpCodes.Stloc, candidate);
-            il.Emit(OpCodes.Ldloc, candidate);
-            il.Emit(OpCodes.Brfalse, next);
-            il.Emit(OpCodes.Ldloc, candidate);
-            il.Emit(OpCodes.Call, getConversation);
+            il.Emit(OpCodes.Call, getSender);
             il.Emit(OpCodes.Dup);
-            var drop = il.Create(OpCodes.Pop);
-            il.Emit(OpCodes.Brfalse, drop);
-            il.Emit(OpCodes.Call, module.ImportReference(pointer));
-            il.Emit(OpCodes.Ldloc, me);
-            il.Emit(OpCodes.Ceq);                                        // IntPtr is a native int: no call needed
-            il.Emit(OpCodes.Brfalse, next);
-            il.Emit(OpCodes.Ldloc, candidate);
+            var have = il.Create(OpCodes.Ldloca, npc);
+            il.Emit(OpCodes.Brtrue_S, have);
+            il.Emit(OpCodes.Pop);
+            il.Emit(OpCodes.Br_S, none);
+            il.Append(have);
+            il.Emit(OpCodes.Call, module.ImportReference(tryGet));
+            il.Emit(OpCodes.Pop);
+            il.Emit(OpCodes.Ldloc, npc);
             il.Emit(OpCodes.Ret);
-            il.Append(drop);
-            il.Emit(OpCodes.Br, next);
-
-            // i++
-            il.Append(next);
-            il.Emit(OpCodes.Ldc_I4_1);
-            il.Emit(OpCodes.Add);
-            il.Emit(OpCodes.Stloc, i);
-            il.Append(test);
-            il.Emit(OpCodes.Ldloc, count);
-            il.Emit(OpCodes.Blt, body0);
-
             il.Append(none);
             il.Emit(OpCodes.Ret);
-            return method;
+            return WithProperty(conversation, method);
         }
 
+        /// <summary>
+        /// <c>HandoverScreen.CurrentContract</c>: the contract mode's contract, null without one.
+        /// </summary>
         private static MethodDefinition EmitCurrentContract(ModuleDefinition module, TypeDefinition screen)
         {
             var getMode = Getter(screen, "_contractMode");
@@ -638,7 +614,7 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             il.Emit(OpCodes.Ret);
             il.Append(have);
             il.Emit(OpCodes.Ret);
-            return method;
+            return WithProperty(screen, method);
         }
 
         /// <summary>
@@ -694,7 +670,7 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             il.Emit(OpCodes.Ret);
             il.Append(have);
             il.Emit(OpCodes.Ret);
-            return method;
+            return WithProperty(animation, method);
         }
 
         private const string SleepControllerType = "Il2CppScheduleOne.GameTime.SleepController";

@@ -608,11 +608,11 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             // The two calls that go with the flag. Both bodies are line for line the same in the two
             // builds, and the argument 0.4.6 added guards exactly the line the old one ran every time -
             // so true is what reproduces the old behaviour, not a value picked from the declaration.
-            ElsewhereStatic(PlayerCameraType, "LockMouse", 0, MouseControllerType,
+            ElsewhereStatic(PlayerCameraType, "LockMouse", 0, new[] { MouseControllerType, MouseControllerType047 },
                             "PlayerCamera.cs:523 until 0.4.5f2, now MouseController.cs:11 with the same "
                           + "body; its showCrosshair guards the line the old one ran unconditionally, so "
                           + "true is the old behaviour", new object[] { true }),
-            ElsewhereStatic(PlayerCameraType, "FreeMouse", 0, MouseControllerType,
+            ElsewhereStatic(PlayerCameraType, "FreeMouse", 0, new[] { MouseControllerType, MouseControllerType047 },
                             "PlayerCamera.cs:534 until 0.4.5f2, now MouseController.cs:23 with the same "
                           + "body; its hideCrosshair guards the line the old one ran unconditionally, so "
                           + "true is the old behaviour", new object[] { true }),
@@ -1359,17 +1359,6 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         }
 
         /// <summary>
-        /// A static that kept its signature and moved to another type, under this name or another one.
-        /// </summary>
-        /// <remarks>
-        /// The parameter types are named rather than counted, because the set that moved carries two pairs
-        /// of same-arity overloads - <c>GetPlayer(string)</c> beside <c>GetPlayer(NetworkConnection)</c> -
-        /// and picking by count would pick whichever the metadata lists first.
-        ///
-        /// <c>nowCalled</c> is for a move that renamed on the way. It is left null where the name is the
-        /// same, which is most of them, so that a rename is always a thing somebody wrote down.
-        /// </remarks>
-        /// <summary>
         /// <see cref="Elsewhere"/> for a member whose new home itself moved in a later build: the first of
         /// <paramref name="nowOn"/> that is on this build and carries the member is used.
         /// </summary>
@@ -1395,6 +1384,17 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                 },
             };
 
+        /// <summary>
+        /// A static that kept its signature and moved to another type, under this name or another one.
+        /// </summary>
+        /// <remarks>
+        /// The parameter types are named rather than counted, because the set that moved carries two pairs
+        /// of same-arity overloads - <c>GetPlayer(string)</c> beside <c>GetPlayer(NetworkConnection)</c> -
+        /// and picking by count would pick whichever the metadata lists first.
+        ///
+        /// <c>nowCalled</c> is for a move that renamed on the way. It is left null where the name is the
+        /// same, which is most of them, so that a rename is always a thing somebody wrote down.
+        /// </remarks>
         private static Bridge Elsewhere(string declaringType, string name, string[] parameters,
                                         string nowOn, string because, string nowCalled = null)
             => new()
@@ -1487,9 +1487,12 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         /// target wants beyond that comes from <paramref name="defaults"/>, and each of those values has
         /// to be the one that reproduces the old body rather than the one the C# declaration happens to
         /// default to - they are the same number here and that is a fact to check, not to assume.
+        ///
+        /// <paramref name="nowOn"/> lists the homes in order, for a static whose new home moved again in a
+        /// later build (0.4.7 took MouseController out of ScheduleOne.Input); the first that carries it is used.
         /// </remarks>
         private static Bridge ElsewhereStatic(string declaringType, string oldName, int oldParameterCount,
-                                              string nowOn, string because, object[] defaults = null)
+                                              string[] nowOn, string because, object[] defaults = null)
             => new()
             {
                 Assembly = "Assembly-CSharp",
@@ -1497,8 +1500,16 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                 OldName = oldName,
                 ParameterCount = oldParameterCount,
                 Because = because,
-                Emit = (module, type) => EmitElsewhereStatic(module, oldName, oldParameterCount, nowOn,
-                                                             defaults ?? Array.Empty<object>()),
+                Emit = (module, type) =>
+                {
+                    foreach (var home in nowOn)
+                    {
+                        var emitted = EmitElsewhereStatic(module, oldName, oldParameterCount, home,
+                                                          defaults ?? Array.Empty<object>());
+                        if (emitted != null) return emitted;
+                    }
+                    return null;
+                },
             };
 
         private static MethodDefinition EmitElsewhereStatic(ModuleDefinition module, string name,

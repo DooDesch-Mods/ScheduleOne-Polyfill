@@ -89,7 +89,10 @@ namespace Polyfill.Contract
                 Because = "0.4.7 builds the conversation elsewhere and hands it to the NPC; a supplier sets up its "
                         + "own sendable messages (dead drop, meet-up, pay debt) in OnMessageConversationAssigned "
                         + "(Supplier.cs on 0.4.7f6), which is the moment a patch after CreateMessageConversation "
-                        + "was waiting for",
+                        + "was waiting for. A postfix means the same thing; a prefix does not: on 0.4.6 it ran "
+                        + "before the conversation existed and returning false stopped it being made, while on "
+                        + "0.4.7 it runs after the conversation is assigned, cannot stop that, and runs again if "
+                        + "the conversation is reassigned",
             },
             new Entry
             {

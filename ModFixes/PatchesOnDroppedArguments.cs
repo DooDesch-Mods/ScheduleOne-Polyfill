@@ -106,7 +106,14 @@ namespace Polyfill.ModFixes
         private static readonly Dictionary<MethodBase, Relay> Relays = new();
         private static MelonLogger.Instance _log;
 
-        [ThreadStatic] private static int _inStandIn;
+        // The relay behind each stand-in, so entering one stand-in suppresses only its own relay. One shared
+        // counter suppressed every relay: the old five-argument ProcessHandover runs the real
+        // ProcessHandoverServerSide inside it, and a patch relayed onto that did not fire - where 0.4.6 ran both.
+        private static readonly Dictionary<MethodBase, Relay> StandIns = new();
+        [ThreadStatic] private static Dictionary<Relay, int> _inStandIn;
+
+        private static bool InStandIn(Relay relay)
+            => _inStandIn != null && _inStandIn.TryGetValue(relay, out int depth) && depth > 0;
 
         internal override bool Apply(MelonLogger.Instance log)
         {
@@ -154,6 +161,7 @@ namespace Polyfill.ModFixes
                 if (!Collect(standIn, relay, label)) continue;
 
                 Relays[real] = relay;
+                StandIns[standIn] = relay;
                 harmony.Patch(standIn,
                     prefix: new HarmonyMethod(typeof(PatchesOnDroppedArguments), nameof(EnterStandIn)) { priority = Priority.First },
                     finalizer: new HarmonyMethod(typeof(PatchesOnDroppedArguments), nameof(LeaveStandIn)));
@@ -200,17 +208,25 @@ namespace Polyfill.ModFixes
             return true;
         }
 
-        private static void EnterStandIn() => _inStandIn++;
-
-        private static Exception LeaveStandIn(Exception __exception)
+        private static void EnterStandIn(MethodBase __originalMethod)
         {
-            _inStandIn--;
+            if (!StandIns.TryGetValue(__originalMethod, out var relay)) return;
+            var depths = _inStandIn ??= new Dictionary<Relay, int>();
+            depths.TryGetValue(relay, out int depth);
+            depths[relay] = depth + 1;
+        }
+
+        private static Exception LeaveStandIn(Exception __exception, MethodBase __originalMethod)
+        {
+            if (StandIns.TryGetValue(__originalMethod, out var relay) && _inStandIn != null
+                && _inStandIn.TryGetValue(relay, out int depth) && depth > 0)
+                _inStandIn[relay] = depth - 1;
             return __exception;
         }
 
         private static bool RunBefore(object __instance, object[] __args, MethodBase __originalMethod)
         {
-            if (_inStandIn > 0 || !Relays.TryGetValue(__originalMethod, out var relay)) return true;
+            if (!Relays.TryGetValue(__originalMethod, out var relay) || InStandIn(relay)) return true;
             bool runOriginal = true;
             foreach (var patch in relay.Before)
             {
@@ -224,7 +240,7 @@ namespace Polyfill.ModFixes
 
         private static void RunAfter(object __instance, object[] __args, MethodBase __originalMethod)
         {
-            if (_inStandIn > 0 || !Relays.TryGetValue(__originalMethod, out var relay)) return;
+            if (!Relays.TryGetValue(__originalMethod, out var relay) || InStandIn(relay)) return;
             foreach (var patch in relay.After) Call(patch, Arguments(patch, relay, __instance, __args));
         }
 
@@ -242,7 +258,7 @@ namespace Polyfill.ModFixes
                     int at = Array.IndexOf(relay.RealNames, name);
                     values[i] = at < 0
                         ? (wanted[i].HasDefaultValue ? wanted[i].DefaultValue : null)
-                        : Fit(args[at], wanted[i].ParameterType);
+                        : Fit(args[at], wanted[i].ParameterType, patch);
                 }
             }
             return values;
@@ -256,7 +272,7 @@ namespace Polyfill.ModFixes
         /// (Cartel Influence Enhancements 0.3.0, on every handover). A copy of the items is what the patch reads;
         /// changes it makes to the copy do not reach the game, as they never could have.
         /// </remarks>
-        private static object Fit(object value, Type wanted)
+        private static object Fit(object value, Type wanted, MethodInfo patch)
         {
             if (value == null || wanted.IsInstanceOfType(value)) return value;
             try
@@ -272,7 +288,12 @@ namespace Polyfill.ModFixes
                     return copy;
                 }
             }
-            catch { }
+            catch (Exception e)
+            {
+                _log?.Warning($"[fix] patches-on-dropped-arguments: {patch.DeclaringType?.Name}.{patch.Name}: could not "
+                            + $"copy the game's {value.GetType().Name} into the {wanted.Name} it declares, so it gets "
+                            + "the game's object and may refuse it: " + (e.InnerException ?? e).Message);
+            }
             return value;
         }
 
