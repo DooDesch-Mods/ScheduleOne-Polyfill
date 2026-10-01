@@ -1,6 +1,6 @@
 # Polyfill
 
-> 🛟 **Need help or found a bug?** [support.doodesch.de/polyfill](https://support.doodesch.de/polyfill)
+> 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/polyfill](https://support.doodesch.de/polyfill).
 
 **Your old mods stopped working after a Schedule I update? Polyfill gets a lot of them running again.**
 
@@ -113,6 +113,10 @@ Both need the Schedule I workspace libraries; point `WorkspaceLibPath` at them.
 Schedule I by TVGS. Built on [MelonLoader](https://github.com/LavaGang/MelonLoader) and
 [Mono.Cecil](https://github.com/jbevain/cecil).
 
+This mod is written with help from generative AI tools (Anthropic Claude, OpenAI Codex).
+
 ## License
 
 MIT - see [LICENSE.md](LICENSE.md).
+
+The compatibility index runs on a server I pay for. Tips: [ko-fi.com/doodesch](https://ko-fi.com/doodesch)

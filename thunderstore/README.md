@@ -1,6 +1,6 @@
 # Polyfill
 
-> 🛟 **Need help or found a bug?** [support.doodesch.de/polyfill](https://support.doodesch.de/polyfill)
+> 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/polyfill](https://support.doodesch.de/polyfill).
 
 **Your old mods stopped working after a Schedule I update? Polyfill gets a lot of them running again.**
 
@@ -58,3 +58,9 @@ Switch the developer console on in the game's settings.
 
 Schedule I by TVGS. Built on [MelonLoader](https://github.com/LavaGang/MelonLoader) and
 [Mono.Cecil](https://github.com/jbevain/cecil). MIT licence.
+
+This mod is written with help from generative AI tools (Anthropic Claude, OpenAI Codex).
+
+If you have fun with it, a like on the [Thunderstore page](https://thunderstore.io/c/schedule-i/p/DooDesch/Polyfill/) really helps other people find it (thumbs up next to Download, you need to be logged in) - ty either way, and lemme know if anything breaks or you've got ideas
+
+The compatibility index runs on a server I pay for. Tips: [ko-fi.com/doodesch](https://ko-fi.com/doodesch)
