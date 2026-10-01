@@ -119,10 +119,9 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             RigBone("get_HeadBone", 10, "HumanBodyBones.Head"),
             RigBone("get_LeftFootBone", 5, "HumanBodyBones.LeftFoot"),
             RigBone("get_RightFootBone", 6, "HumanBodyBones.RightFoot"),
-            RigBone("get_LowerSpine", 7, "HumanBodyBones.Spine, the first bone above the hips. 0.4.7's own "
-                    + "AttachmentAnchorProviderComponent names the bones above Hips LowerSpine, MiddleSpine and "
-                    + "UpperSpine (AttachmentAnchorProviderComponent.cs:12-21 on 0.4.7f6), which the humanoid rig "
-                    + "calls Spine, Chest and UpperChest"),
+            RigBone("get_LowerSpine", 8, "HumanBodyBones.Chest, the second bone above the hips. 0.4.6 had four spine "
+                    + "fields, and LowerSpine was mixamorig:Spine1 on 0.4.6f13, which the humanoid rig calls Chest; "
+                    + "the bone below it is LowestSpine, still a member on 0.4.7"),
             new Bridge
             {
                 Assembly = "Assembly-CSharp", DeclaringType = AvatarType, OldName = "SetBodyLayer", ParameterCount = 3,
