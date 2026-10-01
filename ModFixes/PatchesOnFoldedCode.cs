@@ -28,7 +28,11 @@ namespace Polyfill.ModFixes
     /// class (an RPC's writer and logic halves, say) cannot be told apart by its object and is left alone.
     ///
     /// The guard is a first-running prefix that reads the object's native class - the first word of every
-    /// Il2CppObject, so no call into the runtime - and compares it with the patched class. When the object is
+    /// Il2CppObject, so no runtime call beyond the GC-handle lookup <c>Pointer</c> is - and compares it with
+    /// the patched class. The prefix's <c>__instance</c> costs nothing extra: Il2CppInterop's patcher detours
+    /// the native function and its native-to-managed trampoline already wraps the raw <c>this</c> as the
+    /// declaring type (<c>Il2CppObjectPool.Get&lt;T&gt;</c>) for every call, as soon as any mod patch is on the
+    /// method; HarmonyX hands that wrapper over as a plain <c>ldarg.0</c>, no box, no cast. When the object is
     /// not one, every other mod's prefix and postfix on that method stands down for the call - unless the
     /// patch's own <c>__instance</c> takes that object: a postfix on <c>Bungalow.Awake</c> declared for any
     /// <c>Property</c> is written for the Sweatshop too, and still runs for it. The game's own code runs as it
@@ -299,6 +303,17 @@ namespace Polyfill.ModFixes
             }
         }
 
+        /// <summary>
+        /// Opens the frame for a call of a folded method: foreign or not, by the object's native class.
+        /// </summary>
+        /// <remarks>
+        /// <c>__instance</c> is the managed wrapper that Il2CppInterop's native-to-managed trampoline makes for
+        /// every call of a patched method whatever the patches ask for (<c>Il2CppDetourMethodPatcher</c> converts
+        /// the <c>this</c> argument unconditionally), so taking it here adds no wrapping; typed as
+        /// <c>object</c> or as an interop type HarmonyX emits the same <c>ldarg.0</c>. A struct's <c>this</c> would
+        /// reach that trampoline as a pointer into the struct, not an object - the same hazard for the mod's own
+        /// patch - which is why code shared with a value type's method is not guarded at all (see <see cref="Guard"/>).
+        /// </remarks>
         private static void Enter(object __instance)
         {
             bool foreign = false;
