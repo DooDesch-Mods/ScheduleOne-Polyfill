@@ -346,6 +346,8 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                 Emit = (module, conversation) => EmitGetterForward(module, conversation, "get_messageHistory", "_messageHistory"),
             },
 
+            // Listed in GrownOverloads too, so a patch naming no parameters resolves to the game's method
+            // instead of finding two and failing.
             Defaulted("Il2CppScheduleOne.DevUtilities.IconGenerator", "GeneratePackagingIcon",
                       new[] { "System.String", "System.String" }, new object[] { 512 },
                       "0.4.7 gave GeneratePackagingIcon a trailing iconSize defaulting to 512 "
