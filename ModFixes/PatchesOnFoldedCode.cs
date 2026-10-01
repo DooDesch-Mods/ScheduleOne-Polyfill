@@ -64,12 +64,27 @@ namespace Polyfill.ModFixes
         [ThreadStatic] private static ulong _foreignMask;
         [ThreadStatic] private static IntPtr[] _actual;      // the foreign object's class, per depth
 
-        /// <summary>
-        /// The native class each guarded patch declares for <c>__instance</c>: <see cref="AnyObject"/> when it
-        /// takes any object, zero when it takes none.
-        /// </summary>
-        private static readonly Dictionary<MethodBase, IntPtr> Accepts = new();
+        /// <summary>What the guard knows and counts about one guarded mod patch.</summary>
+        private sealed class PatchStats
+        {
+            public string Owner, Label;
+            /// <summary>The native class the patch declares for <c>__instance</c>: <see cref="AnyObject"/> for any object, zero for none.</summary>
+            public IntPtr Accepts;
+            /// <summary>For a postfix that returns a value: the index of the parameter it passes through.</summary>
+            public int PassThrough = -1;
+            public int Own, Down;
+            public bool Warned;
+        }
+
+        private static readonly Dictionary<MethodBase, PatchStats> Stats = new();
         private static readonly IntPtr AnyObject = new IntPtr(-1);
+
+        /// <summary>A patch stood down this many times without once running for its own class is reported.</summary>
+        private const int WarnAfterStandDowns = 100;
+
+        /// <summary>Wanted class -> how many other classes have called it through shared code.</summary>
+        private static readonly Dictionary<IntPtr, (string name, int classes)> ForeignCallers = new();
+        private static readonly HashSet<string> Reported = new();
         [ThreadStatic] private static Dictionary<(IntPtr, IntPtr), bool> _verdicts;
         [ThreadStatic] private static Type _lastType;
         [ThreadStatic] private static IntPtr _lastWanted;
@@ -86,6 +101,7 @@ namespace Polyfill.ModFixes
                 int more = Guard();
                 if (more > 0) _log.Msg($"[fix] {Id}: {more} more mod patch(es) guarded after the game scene loaded.");
             });
+            MelonEvents.OnApplicationQuit.Subscribe(Summarise);
             return guarded > 0 || Folded.Count > 0;
         }
 
@@ -117,30 +133,50 @@ namespace Polyfill.ModFixes
                 if (foreign == IntPtr.Zero) continue;   // folded only within its own class hierarchy
 
                 string label = method.DeclaringType.Name + "." + method.Name;
+                if (classes.Any(other => other != klass && IL2CPP.il2cpp_class_is_valuetype(other)))
+                {
+                    // A struct method's `this` is a pointer into the struct, not an object: its first word is not a class.
+                    ReportOnce(label, $"{label} shares its code with a struct's method, whose object cannot be told from a class's; "
+                                    + "mod patches on it are left to run for every caller.");
+                    continue;
+                }
                 try
                 {
+                    // The patch methods first, the folded method after: patching the folded method rebuilds
+                    // Harmony's wrapper, and a patch method small enough for the JIT to inline there would
+                    // no longer be reached through the detour that guards it.
+                    var info = HarmonyLib.Harmony.GetPatchInfo(method);
+                    int before = guarded;
+                    foreach (var patch in info.Prefixes)
+                    {
+                        if (!Register(patch, klass, label, postfix: false)) continue;
+                        var guard = patch.PatchMethod.ReturnType == typeof(bool) ? nameof(GuardBool) : nameof(GuardVoid);
+                        _harmony.Patch(patch.PatchMethod, prefix: new HarmonyMethod(typeof(PatchesOnFoldedCode), guard));
+                        guarded++;
+                    }
+                    foreach (var patch in info.Postfixes)
+                    {
+                        if (!Register(patch, klass, label, postfix: true)) continue;
+                        var returned = patch.PatchMethod.ReturnType;
+                        HarmonyMethod guard;
+                        if (returned == typeof(void)) guard = new HarmonyMethod(typeof(PatchesOnFoldedCode), nameof(GuardVoid));
+                        else if (Stats[patch.PatchMethod].PassThrough >= 0)
+                            guard = new HarmonyMethod(typeof(PatchesOnFoldedCode).GetMethod(nameof(GuardPassThrough), BindingFlags.NonPublic | BindingFlags.Static).MakeGenericMethod(returned));
+                        else
+                        {
+                            ReportOnce(patch.PatchMethod.ToString(), $"{patch.owner}'s {patch.PatchMethod.DeclaringType?.Name}.{patch.PatchMethod.Name} "
+                                     + "returns a value but passes none of its parameters through, so it cannot be stood down and runs for every class.");
+                            continue;
+                        }
+                        _harmony.Patch(patch.PatchMethod, prefix: guard);
+                        guarded++;
+                    }
                     if (Folded.Add(method))
                     {
                         lock (WantedByType) WantedByType[method.DeclaringType] = klass;
                         _harmony.Patch(method,
                             prefix: new HarmonyMethod(typeof(PatchesOnFoldedCode), nameof(Enter)) { priority = Priority.First + 100 },
-                            postfix: new HarmonyMethod(typeof(PatchesOnFoldedCode), nameof(Leave)) { priority = Priority.Last - 100 },
-                            finalizer: new HarmonyMethod(typeof(PatchesOnFoldedCode), nameof(LeaveOnThrow)) { priority = Priority.Last - 100 });
-                    }
-                    var info = HarmonyLib.Harmony.GetPatchInfo(method);
-                    int before = guarded;
-                    foreach (var patch in info.Prefixes.Concat(info.Postfixes))
-                    {
-                        if (patch.owner == HarmonyId || !Guarded.Add(patch.PatchMethod)) continue;
-                        var accepts = Accepted(patch.PatchMethod);
-                        lock (Accepts) Accepts[patch.PatchMethod] = accepts;
-                        if (accepts != IntPtr.Zero && accepts != klass)
-                            _log.Msg($"[fix] {Id}: {patch.owner}'s {patch.PatchMethod.DeclaringType?.Name}.{patch.PatchMethod.Name} "
-                                   + $"takes any {(accepts == AnyObject ? "object" : ClassName(accepts))} as __instance, so it "
-                                   + "still runs for every class of that kind sharing the code.");
-                        var guard = patch.PatchMethod.ReturnType == typeof(bool) ? nameof(GuardBool) : nameof(GuardVoid);
-                        _harmony.Patch(patch.PatchMethod, prefix: new HarmonyMethod(typeof(PatchesOnFoldedCode), guard));
-                        guarded++;
+                            finalizer: new HarmonyMethod(typeof(PatchesOnFoldedCode), nameof(Leave)) { priority = Priority.Last - 100 });
                     }
                     if (guarded > before)
                         _log.Msg($"[fix] {Id}: {label} shares its code with {ClassName(foreign)} "
@@ -152,6 +188,38 @@ namespace Polyfill.ModFixes
                 }
             }
             return guarded;
+        }
+
+        /// <summary>Notes a mod patch for guarding; false when it is ours or already guarded.</summary>
+        /// <remarks>
+        /// What a patch accepts depends on its own <c>__instance</c> only, not on which folded method it sits on,
+        /// so a patch method listed under several folded targets (<c>TargetMethods()</c>) is registered once.
+        /// </remarks>
+        private static bool Register(HarmonyLib.Patch patch, IntPtr klass, string label, bool postfix)
+        {
+            if (patch.owner == HarmonyId || !Guarded.Add(patch.PatchMethod)) return false;
+            var stats = new PatchStats { Owner = patch.owner, Label = label, Accepts = Accepted(patch.PatchMethod) };
+            if (postfix && patch.PatchMethod.ReturnType != typeof(void))
+            {
+                // Harmony hands a returning postfix its result back as the first parameter of the return type.
+                var parameters = patch.PatchMethod.GetParameters();
+                int named = Array.FindIndex(parameters, p => p.Name == "__result");
+                stats.PassThrough = named >= 0 && parameters[named].ParameterType == patch.PatchMethod.ReturnType ? named
+                    : Array.FindIndex(parameters, p => p.ParameterType == patch.PatchMethod.ReturnType);
+            }
+            lock (Stats) Stats[patch.PatchMethod] = stats;
+            if (stats.Accepts != IntPtr.Zero && stats.Accepts != klass)
+                _log.Msg($"[fix] patches-on-folded-code: {patch.owner}'s {patch.PatchMethod.DeclaringType?.Name}.{patch.PatchMethod.Name} "
+                       + $"takes any {(stats.Accepts == AnyObject ? "object" : ClassName(stats.Accepts))} as __instance, so it "
+                       + "still runs for every class of that kind sharing the code.");
+            return true;
+        }
+
+        /// <summary>Says once per <paramref name="key"/>, so a check that fails on every call is one line.</summary>
+        private static void ReportOnce(string key, string message)
+        {
+            lock (Reported) if (!Reported.Add(key)) return;
+            _log?.Warning($"[fix] patches-on-folded-code: {message}");
         }
 
         /// <summary>The native function a generated method runs, and the class that declares it.</summary>
@@ -168,7 +236,12 @@ namespace Polyfill.ModFixes
                 klass = IL2CPP.il2cpp_method_get_class(info);
                 return function != IntPtr.Zero && klass != IntPtr.Zero;
             }
-            catch { return false; }
+            catch (Exception e)
+            {
+                ReportOnce("native:" + method, $"could not read the native function of {method.DeclaringType?.Name}.{method.Name} "
+                         + $"({e.GetType().Name}: {e.Message}); mod patches on it are not guarded.");
+                return false;
+            }
         }
 
         /// <summary>Every method in every loaded image, grouped by native function; only shared functions are kept.</summary>
@@ -210,7 +283,11 @@ namespace Polyfill.ModFixes
         private static string ClassName(IntPtr klass)
         {
             try { return Marshal.PtrToStringAnsi(IL2CPP.il2cpp_class_get_name(klass)) ?? "?"; }
-            catch { return "?"; }
+            catch (Exception e)
+            {
+                ReportOnce("classname", $"could not read a class name ({e.GetType().Name}: {e.Message}); logged as \"?\".");
+                return "?";
+            }
         }
 
         private static void Enter(object __instance)
@@ -239,7 +316,12 @@ namespace Polyfill.ModFixes
                     }
                 }
             }
-            catch { }
+            catch (Exception e)
+            {
+                // The frame counts as not foreign, so every patch runs for this call. Say so, once.
+                ReportOnce("enter", $"reading an object's class failed ({e.GetType().Name}: {e.Message}); "
+                         + "mod patches run unguarded for the calls it fails on.");
+            }
             if (_depth < 64)
             {
                 if (foreign)
@@ -259,17 +341,30 @@ namespace Polyfill.ModFixes
             bool foreign = !IL2CPP.il2cpp_class_is_assignable_from(wanted, actual);
             verdicts[(wanted, actual)] = foreign;
             if (foreign)
-                _log?.Msg($"[fix] patches-on-folded-code: a {type.Name} method was called on a {ClassName(actual)} "
-                        + "through shared code; mod patches written for the one class stood down for it.");
+            {
+                int classes;
+                lock (ForeignCallers)
+                {
+                    ForeignCallers.TryGetValue(wanted, out var seen);
+                    classes = seen.classes + 1;
+                    ForeignCallers[wanted] = (type.Name, classes);
+                }
+                // One line per patched method, on its first foreign caller; the count follows in Summarise.
+                if (classes == 1)
+                    _log?.Msg($"[fix] patches-on-folded-code: a {type.Name} method was called on a {ClassName(actual)} "
+                            + "through shared code; mod patches written for the one class stood down for it.");
+            }
             return foreign;
         }
 
-        private static void Leave() { if (_depth > 0) _depth--; }
-
-        private static Exception LeaveOnThrow(Exception __exception)
+        /// <summary>
+        /// Pops the frame. A finalizer, because HarmonyX emits the postfixes that return a value after the void
+        /// ones whatever their priority, so only a finalizer runs after every postfix - and on a throw too, and
+        /// whether or not a mod's finalizer swallows the exception.
+        /// </summary>
+        private static Exception Leave(Exception __exception)
         {
-            // The postfix does not run on a throw; balance the depth here instead.
-            if (__exception != null && _depth > 0) _depth--;
+            if (_depth > 0) _depth--;
             return __exception;
         }
 
@@ -290,13 +385,40 @@ namespace Polyfill.ModFixes
         /// </remarks>
         private static bool StandsDown(MethodBase patch)
         {
-            if (!InForeignCall) return false;
-            IntPtr accepts;
-            lock (Accepts) Accepts.TryGetValue(patch, out accepts);
-            if (accepts == IntPtr.Zero) return true;
-            if (accepts == AnyObject) return false;
-            var actual = _actual?[_depth - 1] ?? IntPtr.Zero;
-            return actual == IntPtr.Zero || !IL2CPP.il2cpp_class_is_assignable_from(accepts, actual);
+            PatchStats stats;
+            lock (Stats) Stats.TryGetValue(patch, out stats);
+            if (!InForeignCall)
+            {
+                if (stats != null) Interlocked.Increment(ref stats.Own);
+                return false;
+            }
+            if (stats == null || stats.Accepts == AnyObject) return stats == null;
+            bool down = stats.Accepts == IntPtr.Zero;
+            if (!down)
+            {
+                var actual = _actual?[_depth - 1] ?? IntPtr.Zero;
+                down = actual != IntPtr.Zero && !IL2CPP.il2cpp_class_is_assignable_from(stats.Accepts, actual);
+            }
+            if (down) NoteStoodDown(stats);
+            return down;
+        }
+
+        /// <summary>
+        /// IL2CPP can inline a small method at its call sites, so a class's own calls may never reach the shared
+        /// function; a patch that only ever ran because another class came through it then runs for nothing once
+        /// this guard stands it down. A patch stood down many times without running for its own class is named.
+        /// </summary>
+        private static void NoteStoodDown(PatchStats stats)
+        {
+            if (Interlocked.Increment(ref stats.Down) < WarnAfterStandDowns || stats.Warned || Volatile.Read(ref stats.Own) > 0) return;
+            lock (stats)
+            {
+                if (stats.Warned) return;
+                stats.Warned = true;
+            }
+            _log?.Warning($"[fix] patches-on-folded-code: {stats.Owner}'s patch on {stats.Label} was stood down {stats.Down} times "
+                        + "and has not run once for its own class. If the game inlines the call, the patch never ran for its class "
+                        + "even before this - it may have only ever run for the other classes sharing the code.");
         }
 
         /// <summary>The native class a patch's <c>__instance</c> is declared as.</summary>
@@ -313,7 +435,12 @@ namespace Polyfill.ModFixes
                 var pointer = (IntPtr)store.GetField("NativeClassPtr").GetValue(null);
                 return pointer == IntPtr.Zero ? IntPtr.Zero : pointer;
             }
-            catch { return IntPtr.Zero; }
+            catch (Exception e)
+            {
+                ReportOnce("accepted:" + patch, $"could not read the class {patch.DeclaringType?.Name}.{patch.Name} declares for __instance "
+                         + $"({e.GetType().Name}: {e.Message}); it is treated as taking none.");
+                return IntPtr.Zero;
+            }
         }
 
         private static bool GuardVoid(MethodBase __originalMethod) => !StandsDown(__originalMethod);
@@ -323,6 +450,28 @@ namespace Polyfill.ModFixes
             if (!StandsDown(__originalMethod)) return true;
             __result = true;   // a mod prefix that did not run lets the game's method run
             return false;
+        }
+
+        /// <summary>
+        /// A postfix that returns a value (<c>T Postfix(T __result)</c>): Harmony stores what it returns as the
+        /// method's result, so standing it down hands the value it was given back unchanged, never a default.
+        /// </summary>
+        private static bool GuardPassThrough<T>(ref T __result, object[] __args, MethodBase __originalMethod)
+        {
+            if (!StandsDown(__originalMethod)) return true;
+            PatchStats stats;
+            lock (Stats) Stats.TryGetValue(__originalMethod, out stats);
+            if (stats == null || stats.PassThrough < 0 || stats.PassThrough >= __args.Length) return true;
+            __result = (T)__args[stats.PassThrough];
+            return false;
+        }
+
+        /// <summary>One line per patched method that other classes called through shared code, with how many.</summary>
+        internal static void Summarise()
+        {
+            lock (ForeignCallers)
+                foreach (var (name, classes) in ForeignCallers.Values)
+                    _log?.Msg($"[fix] patches-on-folded-code: {name} was reached through shared code by {classes} other class(es).");
         }
     }
 }
