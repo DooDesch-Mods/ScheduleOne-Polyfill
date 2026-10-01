@@ -92,18 +92,45 @@ namespace Polyfill.ModFixes
                 Value = type => Enum.ToObject(type, 1),
                 Because = "the RPC body of the server half, renamed by FishNet when its signature lost the outcome",
             },
+
+            // A trash bag's startKinematic went: 0.4.7 has no such option and creates every bag as a physics
+            // object (TrashManager.cs:203-211 on 0.4.7f6), which is what the old call did with false.
+            // Production Expansion Reborn 1.0.2B throws its cleaner-station bags from a patch on the old form.
+            new Entry
+            {
+                Type = "Il2CppScheduleOne.Trash.TrashManager",
+                Name = "CreateTrashBag",
+                StandInArity = 7,
+                Dropped = "startKinematic",
+                Value = _ => false,
+                Because = "0.4.7 creates every bag as a physics object, which is the old call with false",
+            },
         };
 
         private sealed class Relay
         {
             internal Entry Entry;
             internal object DroppedValue;
+            internal int DroppedPosition;
             internal string[] RealNames;
+            internal Type[] RealTypes;
+            /// <summary>Which of the game's parameters are by-ref: Harmony copies those back out of <c>__args</c>.</summary>
+            internal bool[] RealByRef;
+            /// <summary>
+            /// The game's by-value parameters a relayed prefix takes by ref: <see cref="ByValueRefPrefix"/> hands
+            /// those back, where <c>__args</c> alone cannot.
+            /// </summary>
+            internal bool[] RefByValue;
+            internal bool HasResult;
             internal readonly List<MethodInfo> Before = new();
             internal readonly List<MethodInfo> After = new();
         }
 
         private static readonly Dictionary<MethodBase, Relay> Relays = new();
+
+        // The typed prefix for each game method a relayed prefix writes a by-value argument of, handed to Harmony
+        // by RunBeforeWithRefs. Held here also so the DynamicMethods stay alive.
+        private static readonly Dictionary<MethodBase, MethodInfo> RefPrefixes = new();
         private static MelonLogger.Instance _log;
 
         // The relay behind each stand-in, so entering one stand-in suppresses only its own relay. One shared
@@ -156,9 +183,33 @@ namespace Polyfill.ModFixes
                 {
                     Entry = entry,
                     DroppedValue = entry.Value(droppedParameter.ParameterType),
+                    DroppedPosition = droppedParameter.Position,
                     RealNames = real.GetParameters().Select(p => p.Name).ToArray(),
+                    RealTypes = real.GetParameters().Select(p => p.ParameterType).ToArray(),
+                    RealByRef = real.GetParameters().Select(p => p.ParameterType.IsByRef).ToArray(),
+                    RefByValue = new bool[real.GetParameters().Length],
+                    HasResult = real.ReturnType != typeof(void),
                 };
                 if (!Collect(standIn, relay, label)) continue;
+
+                string prefix = nameof(RunBefore);
+                var refPositions = Enumerable.Range(0, relay.RefByValue.Length).Where(i => relay.RefByValue[i]).ToList();
+                if (refPositions.Count > 0)
+                {
+                    try
+                    {
+                        RefPrefixes[real] = ByValueRefPrefix.Build(real, refPositions,
+                            AccessTools.Method(typeof(PatchesOnDroppedArguments), nameof(RunBefore)));
+                        prefix = nameof(RunBeforeWithRefs);
+                    }
+                    catch (Exception e)
+                    {
+                        Array.Clear(relay.RefByValue);
+                        log.Warning($"[fix] {Id}: {label}: could not build the prefix that hands back "
+                                  + string.Join(", ", refPositions.Select(i => relay.RealNames[i]))
+                                  + ", so what relayed prefixes write to them does not reach the game: " + e.Message);
+                    }
+                }
 
                 Relays[real] = relay;
                 StandIns[standIn] = relay;
@@ -166,8 +217,9 @@ namespace Polyfill.ModFixes
                     prefix: new HarmonyMethod(typeof(PatchesOnDroppedArguments), nameof(EnterStandIn)) { priority = Priority.First },
                     finalizer: new HarmonyMethod(typeof(PatchesOnDroppedArguments), nameof(LeaveStandIn)));
                 harmony.Patch(real,
-                    prefix: new HarmonyMethod(typeof(PatchesOnDroppedArguments), nameof(RunBefore)),
-                    postfix: new HarmonyMethod(typeof(PatchesOnDroppedArguments), nameof(RunAfter)));
+                    prefix: new HarmonyMethod(typeof(PatchesOnDroppedArguments), prefix),
+                    postfix: new HarmonyMethod(typeof(PatchesOnDroppedArguments),
+                                               relay.HasResult ? nameof(RunAfterWithResult) : nameof(RunAfter)));
                 wired++;
                 log.Msg($"[fix] {Id}: {label}: {relay.Before.Count} prefix(es) and {relay.After.Count} postfix(es) "
                       + $"now run when the game calls it, with {entry.Dropped} as {relay.DroppedValue} ({entry.Because}).");
@@ -183,18 +235,29 @@ namespace Polyfill.ModFixes
             if (info == null) { _log.Msg($"[fix] patches-on-dropped-arguments: {label}: nothing patches the old form."); return false; }
 
             var names = new HashSet<string>(relay.RealNames, StringComparer.Ordinal) { "__instance", relay.Entry.Dropped };
+            for (int i = 0; i < relay.Entry.StandInArity; i++) names.Add("__" + i);   // by position, as Harmony allows
             void Take(IEnumerable<HarmonyLib.Patch> patches, List<MethodInfo> into, string kind)
             {
+                // The game's result reaches a postfix; a prefix asking for it would be setting it, which is not relayed.
+                bool result = kind == "postfix" && relay.HasResult;
                 foreach (var patch in patches)
                 {
                     if (patch.owner != null && patch.owner.StartsWith("doodesch.polyfill", StringComparison.Ordinal)) continue;
-                    var missing = patch.PatchMethod.GetParameters().FirstOrDefault(p => !names.Contains(p.Name));
+                    var missing = patch.PatchMethod.GetParameters()
+                        .FirstOrDefault(p => !names.Contains(p.Name) && !(result && p.Name == "__result"));
                     if (!patch.PatchMethod.IsStatic || missing != null)
                     {
                         _log.Warning($"[fix] patches-on-dropped-arguments: {patch.owner}'s {kind} on {label} takes "
                                    + $"'{missing?.Name}', which cannot be filled from the new method. Left alone.");
                         continue;
                     }
+                    if (kind == "prefix")
+                        foreach (var parameter in patch.PatchMethod.GetParameters())
+                        {
+                            if (!parameter.ParameterType.IsByRef || parameter.Name == "__instance") continue;
+                            int at = Source(relay, parameter.Name);
+                            if (at >= 0 && !relay.RealByRef[at]) relay.RefByValue[at] = true;
+                        }
                     into.Add(patch.PatchMethod);
                 }
             }
@@ -238,13 +301,57 @@ namespace Polyfill.ModFixes
             return runOriginal;
         }
 
+        /// <summary>
+        /// The prefix on a game method some relayed prefix writes a by-value argument of: the
+        /// <see cref="ByValueRefPrefix"/> built for it, which runs <see cref="RunBefore"/> and hands those back.
+        /// </summary>
+        private static MethodInfo RunBeforeWithRefs(MethodBase original)
+        {
+            if (original != null && RefPrefixes.TryGetValue(original, out var prefix)) return prefix;
+            foreach (var pair in RefPrefixes)
+                if (original != null && pair.Key.MetadataToken == original.MetadataToken && pair.Key.Module == original.Module)
+                    return pair.Value;
+            _log?.Warning($"[fix] patches-on-dropped-arguments: no typed prefix for {original?.Name}, so what relayed "
+                        + "prefixes write to its by-value arguments does not reach the game.");
+            return AccessTools.Method(typeof(PatchesOnDroppedArguments), nameof(RunBefore));
+        }
+
         private static void RunAfter(object __instance, object[] __args, MethodBase __originalMethod)
         {
             if (!Relays.TryGetValue(__originalMethod, out var relay) || InStandIn(relay)) return;
             foreach (var patch in relay.After) Call(patch, Arguments(patch, relay, __instance, __args));
         }
 
-        private static object[] Arguments(MethodInfo patch, Relay relay, object instance, object[] args)
+        /// <summary><see cref="RunAfter"/> for a method with a result, which its postfixes may read.</summary>
+        private static void RunAfterWithResult(object __instance, object[] __args, MethodBase __originalMethod, object __result)
+        {
+            if (!Relays.TryGetValue(__originalMethod, out var relay) || InStandIn(relay)) return;
+            foreach (var patch in relay.After) Call(patch, Arguments(patch, relay, __instance, __args, __result));
+        }
+
+        /// <summary>
+        /// Where a patch parameter's value is in the game's call: an index into its arguments, -1 for the dropped
+        /// one, or -2 for none.
+        /// </summary>
+        /// <remarks>
+        /// By name, or by position as <c>__N</c> - Production Expansion Reborn writes its patch as <c>__0</c> to
+        /// <c>__6</c>. A position counts the stand-in's parameters, so everything after the dropped one sits one
+        /// place earlier in the game's call.
+        /// </remarks>
+        private static int Source(Relay relay, string name)
+        {
+            if (name == relay.Entry.Dropped) return -1;
+            if (name.Length > 2 && name.StartsWith("__", StringComparison.Ordinal)
+                && int.TryParse(name.Substring(2), out int position) && position >= 0 && position < relay.Entry.StandInArity)
+            {
+                if (position == relay.DroppedPosition) return -1;
+                return position < relay.DroppedPosition ? position : position - 1;
+            }
+            int at = Array.IndexOf(relay.RealNames, name);
+            return at < 0 ? -2 : at;
+        }
+
+        private static object[] Arguments(MethodInfo patch, Relay relay, object instance, object[] args, object result = null)
         {
             var wanted = patch.GetParameters();
             var values = new object[wanted.Length];
@@ -252,10 +359,11 @@ namespace Polyfill.ModFixes
             {
                 string name = wanted[i].Name;
                 if (name == "__instance") values[i] = instance;
-                else if (name == relay.Entry.Dropped) values[i] = relay.DroppedValue;
+                else if (name == "__result") values[i] = result;
                 else
                 {
-                    int at = Array.IndexOf(relay.RealNames, name);
+                    int at = Source(relay, name);
+                    if (at == -1) { values[i] = relay.DroppedValue; continue; }
                     values[i] = at < 0
                         ? (wanted[i].HasDefaultValue ? wanted[i].DefaultValue : null)
                         : Fit(args[at], wanted[i].ParameterType, patch);
@@ -297,15 +405,35 @@ namespace Polyfill.ModFixes
             return value;
         }
 
-        /// <summary>A prefix that changed an argument through ref changes it for the game's method too.</summary>
+        /// <summary>
+        /// A prefix that changed an argument through ref changes it for the game's method too.
+        /// </summary>
+        /// <remarks>
+        /// HarmonyX copies <c>__args</c> back into the real arguments only for parameters the game's method takes
+        /// by ref. The by-value ones a relayed prefix takes by ref (<see cref="Relay.RefByValue"/>) come back
+        /// through the typed prefix from <see cref="ByValueRefPrefix"/>, which reads them out of <c>__args</c>
+        /// after this. Anything else written here goes nowhere, as before.
+        ///
+        /// That prefix unboxes what is left in <c>__args</c> as the game's type, so a value that is not one - a
+        /// null for a struct, or the managed copy <see cref="Fit"/> made of an Il2Cpp list - is not stored.
+        /// </remarks>
         private static void WriteBack(MethodInfo patch, Relay relay, object[] values, object[] args)
         {
             var wanted = patch.GetParameters();
             for (int i = 0; i < wanted.Length; i++)
             {
                 if (!wanted[i].ParameterType.IsByRef) continue;
-                int at = Array.IndexOf(relay.RealNames, wanted[i].Name);
-                if (at >= 0) args[at] = values[i];
+                int at = Source(relay, wanted[i].Name);
+                if (at < 0 || !(relay.RealByRef[at] || relay.RefByValue[at])) continue;
+                var type = (relay.RealTypes[at].IsByRef ? relay.RealTypes[at].GetElementType() : relay.RealTypes[at]);
+                if (values[i] == null ? type.IsValueType : !type.IsInstanceOfType(values[i]))
+                {
+                    _log?.Warning($"[fix] patches-on-dropped-arguments: {patch.DeclaringType?.Name}.{patch.Name} left "
+                                + $"{values[i]?.GetType().Name ?? "null"} in {relay.RealNames[at]}, which the game's "
+                                + $"{type.Name} cannot take, so its change is dropped.");
+                    continue;
+                }
+                args[at] = values[i];
             }
         }
 
