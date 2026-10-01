@@ -65,6 +65,44 @@ namespace Polyfill.Contract
                         + "Open_SpecialCustomer, and each ends in OnOpen(EMode mode), which does what the end "
                         + "of Open did (HandoverScreen.cs:148-174, OnOpen at :181 on 0.4.7f6)",
             },
+
+            // FishNet hashes the parameter list, not the name, so the RPC body kept its hash through the
+            // rename - and its body still logs "Received player name data".
+            new Entry
+            {
+                Type = "Il2CppScheduleOne.PlayerScripts.Player",
+                OldName = "RpcLogic___ReceivePlayerNameData_3895153758",
+                NewName = "RpcLogic___SetPlayerNameAndId_Client_3895153758",
+                Because = "0.4.7 renamed the client half of the player name RPC to SetPlayerNameAndId_Client "
+                        + "with the same (conn, playerName, id) and the same signature hash; its body sets "
+                        + "PlayerName and PlayerCode and logs \"Received player name data\" (Player.cs on "
+                        + "0.4.7f6)",
+            },
+
+            // Both judged from the 0.4.7 bodies against what the mods' own patches do with them; the version
+            // history has no pairing (HandoverChosen "removed", CreateMessageConversation "ambiguous").
+            new Entry
+            {
+                Type = "Il2CppScheduleOne.Economy.Supplier",
+                OldName = "CreateMessageConversation",
+                NewName = "OnMessageConversationAssigned",
+                Because = "0.4.7 builds the conversation elsewhere and hands it to the NPC; a supplier sets up its "
+                        + "own sendable messages (dead drop, meet-up, pay debt) in OnMessageConversationAssigned "
+                        + "(Supplier.cs on 0.4.7f6), which is the moment a patch after CreateMessageConversation "
+                        + "was waiting for. A postfix means the same thing; a prefix does not: on 0.4.6 it ran "
+                        + "before the conversation existed and returning false stopped it being made, while on "
+                        + "0.4.7 it runs after the conversation is assigned, cannot stop that, and runs again if "
+                        + "the conversation is reassigned",
+            },
+            new Entry
+            {
+                Type = "Il2CppScheduleOne.Economy.Customer",
+                OldName = "HandoverChosen",
+                NewName = "CompleteContractDialogueChosen",
+                Because = "the dialogue choice that hands over for a contract: 0.4.7's "
+                        + "CompleteContractDialogueChosen skips the dialogue's end and opens the contract "
+                        + "handover screen (Customer.cs on 0.4.7f6)",
+            },
         };
 
         /// <summary>What this name became on the type, or null when nothing is on record.</summary>

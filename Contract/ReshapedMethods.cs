@@ -23,6 +23,8 @@ namespace Polyfill.Contract
             ("Il2CppScheduleOne.Economy.Customer", "ProcessHandover", 5,
              "0.4.7 dropped the leading outcome argument along with the enum, so a patch naming it binds "
              + "only on the stand-in"),
+            ("Il2CppScheduleOne.Economy.Customer", "ProcessHandoverServerSide", 7,
+             "the server half of the handover lost the same leading outcome as ProcessHandover"),
         };
 
         /// <summary>The arity of the stand-in a name-only lookup should get, or -1.</summary>

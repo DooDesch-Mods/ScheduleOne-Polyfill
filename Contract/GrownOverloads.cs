@@ -118,6 +118,24 @@ namespace Polyfill.Contract
                 OldParameters = new[] { "System.Single", "System.Single" },
                 Because = "GetOrderDays stopped returning the list and started filling one it is handed",
             },
+            new Entry
+            {
+                Type = "Il2CppScheduleOne.UI.BlackOverlay",
+                Name = "Open",
+                OldParameters = new[] { "System.Single" },
+                Because = "0.4.7 gave BlackOverlay.Open a completion callback after the fade time, defaulting "
+                        + "to null (BlackOverlay.cs Open(float fadeTime = 0.5f, Action onComplete = null) on "
+                        + "0.4.7f6)",
+            },
+            new Entry
+            {
+                Type = "Il2CppScheduleOne.UI.BlackOverlay",
+                Name = "Close",
+                OldParameters = new[] { "System.Single" },
+                Because = "0.4.7 gave BlackOverlay.Close the same completion callback as Open, defaulting to "
+                        + "null (BlackOverlay.cs Close(float fadeTime = 0.5f, Action onComplete = null) on "
+                        + "0.4.7f6)",
+            },
         };
 
         /// <summary>Has Polyfill put a second signature under this name?</summary>

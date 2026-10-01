@@ -279,6 +279,7 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
 
         private const string PlayerCameraType = "Il2CppScheduleOne.PlayerScripts.PlayerCamera";
         private const string MouseControllerType = "Il2CppScheduleOne.Input.MouseController";
+        private const string MouseControllerType047 = "Il2CppScheduleOne.MouseController";
         private static readonly string[] OneBool = { "System.Boolean" };
         private const string CursorMoved = "the cursor flag left PlayerCamera for MouseController, which "
                                          + "0.4.6 added and which its LockMouse and FreeMouse write the "
@@ -607,19 +608,24 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             // The two calls that go with the flag. Both bodies are line for line the same in the two
             // builds, and the argument 0.4.6 added guards exactly the line the old one ran every time -
             // so true is what reproduces the old behaviour, not a value picked from the declaration.
-            ElsewhereStatic(PlayerCameraType, "LockMouse", 0, MouseControllerType,
+            ElsewhereStatic(PlayerCameraType, "LockMouse", 0, new[] { MouseControllerType, MouseControllerType047 },
                             "PlayerCamera.cs:523 until 0.4.5f2, now MouseController.cs:11 with the same "
                           + "body; its showCrosshair guards the line the old one ran unconditionally, so "
                           + "true is the old behaviour", new object[] { true }),
-            ElsewhereStatic(PlayerCameraType, "FreeMouse", 0, MouseControllerType,
+            ElsewhereStatic(PlayerCameraType, "FreeMouse", 0, new[] { MouseControllerType, MouseControllerType047 },
                             "PlayerCamera.cs:534 until 0.4.5f2, now MouseController.cs:23 with the same "
                           + "body; its hideCrosshair guards the line the old one ran unconditionally, so "
                           + "true is the old behaviour", new object[] { true }),
 
-            Elsewhere(PlayerCameraType, "get_isCursorShowing", NoParameters, MouseControllerType,
-                      CursorMoved, "get_IsMouseVisible"),
-            Elsewhere(PlayerCameraType, "set_isCursorShowing", OneBool, MouseControllerType,
-                      CursorMoved, "set_IsMouseVisible"),
+            // 0.4.7 moved MouseController out of the Input namespace to ScheduleOne.MouseController, still a
+            // static class with the same IsMouseVisible (MouseController.cs on 0.4.7f6); the 0.4.6 home is
+            // tried first so nothing changes there.
+            ElsewhereEither(PlayerCameraType, "get_isCursorShowing", NoParameters,
+                            new[] { MouseControllerType, MouseControllerType047 },
+                            CursorMoved, "get_IsMouseVisible"),
+            ElsewhereEither(PlayerCameraType, "set_isCursorShowing", OneBool,
+                            new[] { MouseControllerType, MouseControllerType047 },
+                            CursorMoved, "set_IsMouseVisible"),
 
             // "Which player is that" was five statics on Player and is five statics on PlayerManager now.
             // Nothing about them changed except where they live, so each is put back where it was called.
@@ -1353,6 +1359,32 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         }
 
         /// <summary>
+        /// <see cref="Elsewhere"/> for a member whose new home itself moved in a later build: the first of
+        /// <paramref name="nowOn"/> that is on this build and carries the member is used.
+        /// </summary>
+        private static Bridge ElsewhereEither(string declaringType, string name, string[] parameters,
+                                              string[] nowOn, string because, string nowCalled)
+            => new()
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = declaringType,
+                OldName = name,
+                ParameterCount = parameters.Length,
+                ParameterTypes = parameters,
+                AllowOverload = true,
+                Because = because,
+                Emit = (module, type) =>
+                {
+                    foreach (var home in nowOn)
+                    {
+                        var emitted = EmitElsewhere(module, type, name, parameters, home, nowCalled);
+                        if (emitted != null) return emitted;
+                    }
+                    return null;
+                },
+            };
+
+        /// <summary>
         /// A static that kept its signature and moved to another type, under this name or another one.
         /// </summary>
         /// <remarks>
@@ -1455,9 +1487,12 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         /// target wants beyond that comes from <paramref name="defaults"/>, and each of those values has
         /// to be the one that reproduces the old body rather than the one the C# declaration happens to
         /// default to - they are the same number here and that is a fact to check, not to assume.
+        ///
+        /// <paramref name="nowOn"/> lists the homes in order, for a static whose new home moved again in a
+        /// later build (0.4.7 took MouseController out of ScheduleOne.Input); the first that carries it is used.
         /// </remarks>
         private static Bridge ElsewhereStatic(string declaringType, string oldName, int oldParameterCount,
-                                              string nowOn, string because, object[] defaults = null)
+                                              string[] nowOn, string because, object[] defaults = null)
             => new()
             {
                 Assembly = "Assembly-CSharp",
@@ -1465,8 +1500,16 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                 OldName = oldName,
                 ParameterCount = oldParameterCount,
                 Because = because,
-                Emit = (module, type) => EmitElsewhereStatic(module, oldName, oldParameterCount, nowOn,
-                                                             defaults ?? Array.Empty<object>()),
+                Emit = (module, type) =>
+                {
+                    foreach (var home in nowOn)
+                    {
+                        var emitted = EmitElsewhereStatic(module, oldName, oldParameterCount, home,
+                                                          defaults ?? Array.Empty<object>());
+                        if (emitted != null) return emitted;
+                    }
+                    return null;
+                },
             };
 
         private static MethodDefinition EmitElsewhereStatic(ModuleDefinition module, string name,

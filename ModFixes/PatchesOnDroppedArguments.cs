@@ -41,6 +41,16 @@ namespace Polyfill.ModFixes
             internal int StandInArity;
             internal string Dropped;
 
+            /// <summary>
+            /// When the method the game calls now has a different name, what that name starts with.
+            /// </summary>
+            /// <remarks>
+            /// A FishNet RPC body is named after a hash of its signature, so dropping an argument renamed it:
+            /// RpcLogic___ProcessHandoverServerSide_3760244802 became ..._3315874220. Matched by prefix so the
+            /// next hash change does not need a new entry. Null means the same name as the stand-in.
+            /// </remarks>
+            internal string RealPrefix;
+
             /// <summary>What every caller of the old method passed, given the parameter's type.</summary>
             internal Func<Type, object> Value;
 
@@ -60,6 +70,28 @@ namespace Polyfill.ModFixes
                 Value = type => Enum.ToObject(type, 1),
                 Because = "every 0.4.6 caller passed Finalize",
             },
+
+            // The server half: 0.4.7 calls it only from ProcessHandover (Customer.cs:1438 on 0.4.7f6), which
+            // is where 0.4.6 forwarded that same Finalize.
+            new Entry
+            {
+                Type = "Il2CppScheduleOne.Economy.Customer",
+                Name = "ProcessHandoverServerSide",
+                StandInArity = 7,
+                Dropped = "outcome",
+                Value = type => Enum.ToObject(type, 1),
+                Because = "it only ever received ProcessHandover's outcome, and that was always Finalize",
+            },
+            new Entry
+            {
+                Type = "Il2CppScheduleOne.Economy.Customer",
+                Name = "RpcLogic___ProcessHandoverServerSide_3760244802",
+                RealPrefix = "RpcLogic___ProcessHandoverServerSide_",
+                StandInArity = 7,
+                Dropped = "outcome",
+                Value = type => Enum.ToObject(type, 1),
+                Because = "the RPC body of the server half, renamed by FishNet when its signature lost the outcome",
+            },
         };
 
         private sealed class Relay
@@ -74,7 +106,14 @@ namespace Polyfill.ModFixes
         private static readonly Dictionary<MethodBase, Relay> Relays = new();
         private static MelonLogger.Instance _log;
 
-        [ThreadStatic] private static int _inStandIn;
+        // The relay behind each stand-in, so entering one stand-in suppresses only its own relay. One shared
+        // counter suppressed every relay: the old five-argument ProcessHandover runs the real
+        // ProcessHandoverServerSide inside it, and a patch relayed onto that did not fire - where 0.4.6 ran both.
+        private static readonly Dictionary<MethodBase, Relay> StandIns = new();
+        [ThreadStatic] private static Dictionary<Relay, int> _inStandIn;
+
+        private static bool InStandIn(Relay relay)
+            => _inStandIn != null && _inStandIn.TryGetValue(relay, out int depth) && depth > 0;
 
         internal override bool Apply(MelonLogger.Instance log)
         {
@@ -88,9 +127,21 @@ namespace Polyfill.ModFixes
                 var type = AccessTools.TypeByName(entry.Type);
                 if (type == null) { log.Warning($"[fix] {Id}: {label}: the type is not on this build."); continue; }
 
-                var methods = type.GetMethods(AccessTools.all).Where(m => m.DeclaringType == type && m.Name == entry.Name).ToList();
+                var declared = type.GetMethods(AccessTools.all).Where(m => m.DeclaringType == type).ToList();
+                var methods = declared.Where(m => m.Name == entry.Name).ToList();
                 var standIn = methods.FirstOrDefault(m => m.GetParameters().Length == entry.StandInArity);
-                var real = methods.FirstOrDefault(m => m.GetParameters().Length == entry.StandInArity - 1);
+                var reals = (entry.RealPrefix == null
+                        ? methods
+                        : declared.Where(m => m.Name != entry.Name
+                                              && m.Name.StartsWith(entry.RealPrefix, StringComparison.Ordinal)))
+                    .Where(m => m.GetParameters().Length == entry.StandInArity - 1).ToList();
+                if (reals.Count > 1)
+                {
+                    log.Warning($"[fix] {Id}: {label}: {reals.Count} methods could be the one the game calls now; "
+                              + "choosing would be a guess.");
+                    continue;
+                }
+                var real = reals.FirstOrDefault();
                 if (standIn == null)
                 {
                     log.Msg($"[fix] {Id}: {label}: no mod needed the old form, so nothing patches it.");
@@ -110,6 +161,7 @@ namespace Polyfill.ModFixes
                 if (!Collect(standIn, relay, label)) continue;
 
                 Relays[real] = relay;
+                StandIns[standIn] = relay;
                 harmony.Patch(standIn,
                     prefix: new HarmonyMethod(typeof(PatchesOnDroppedArguments), nameof(EnterStandIn)) { priority = Priority.First },
                     finalizer: new HarmonyMethod(typeof(PatchesOnDroppedArguments), nameof(LeaveStandIn)));
@@ -156,17 +208,25 @@ namespace Polyfill.ModFixes
             return true;
         }
 
-        private static void EnterStandIn() => _inStandIn++;
-
-        private static Exception LeaveStandIn(Exception __exception)
+        private static void EnterStandIn(MethodBase __originalMethod)
         {
-            _inStandIn--;
+            if (!StandIns.TryGetValue(__originalMethod, out var relay)) return;
+            var depths = _inStandIn ??= new Dictionary<Relay, int>();
+            depths.TryGetValue(relay, out int depth);
+            depths[relay] = depth + 1;
+        }
+
+        private static Exception LeaveStandIn(Exception __exception, MethodBase __originalMethod)
+        {
+            if (StandIns.TryGetValue(__originalMethod, out var relay) && _inStandIn != null
+                && _inStandIn.TryGetValue(relay, out int depth) && depth > 0)
+                _inStandIn[relay] = depth - 1;
             return __exception;
         }
 
         private static bool RunBefore(object __instance, object[] __args, MethodBase __originalMethod)
         {
-            if (_inStandIn > 0 || !Relays.TryGetValue(__originalMethod, out var relay)) return true;
+            if (!Relays.TryGetValue(__originalMethod, out var relay) || InStandIn(relay)) return true;
             bool runOriginal = true;
             foreach (var patch in relay.Before)
             {
@@ -180,7 +240,7 @@ namespace Polyfill.ModFixes
 
         private static void RunAfter(object __instance, object[] __args, MethodBase __originalMethod)
         {
-            if (_inStandIn > 0 || !Relays.TryGetValue(__originalMethod, out var relay)) return;
+            if (!Relays.TryGetValue(__originalMethod, out var relay) || InStandIn(relay)) return;
             foreach (var patch in relay.After) Call(patch, Arguments(patch, relay, __instance, __args));
         }
 
@@ -193,9 +253,48 @@ namespace Polyfill.ModFixes
                 string name = wanted[i].Name;
                 if (name == "__instance") values[i] = instance;
                 else if (name == relay.Entry.Dropped) values[i] = relay.DroppedValue;
-                else values[i] = args[Array.IndexOf(relay.RealNames, name)];
+                else
+                {
+                    int at = Array.IndexOf(relay.RealNames, name);
+                    values[i] = at < 0
+                        ? (wanted[i].HasDefaultValue ? wanted[i].DefaultValue : null)
+                        : Fit(args[at], wanted[i].ParameterType, patch);
+                }
             }
             return values;
+        }
+
+        /// <summary>The argument as the patch declared it, where the two spell the same list differently.</summary>
+        /// <remarks>
+        /// A patch written as <c>List&lt;ItemInstance&gt; items</c> with <c>using System.Collections.Generic</c>
+        /// declares a managed list; the game hands over an Il2CppSystem one. Harmony would never have bound that
+        /// parameter, but the relay calls the patch itself, and reflection refuses the call outright
+        /// (Cartel Influence Enhancements 0.3.0, on every handover). A copy of the items is what the patch reads;
+        /// changes it makes to the copy do not reach the game, as they never could have.
+        /// </remarks>
+        private static object Fit(object value, Type wanted, MethodInfo patch)
+        {
+            if (value == null || wanted.IsInstanceOfType(value)) return value;
+            try
+            {
+                var type = value.GetType();
+                if (wanted.IsGenericType && wanted.GetGenericTypeDefinition() == typeof(List<>)
+                    && type.IsGenericType && type.FullName?.StartsWith("Il2CppSystem.Collections.Generic.List`1") == true)
+                {
+                    var count = (int)type.GetProperty("Count").GetValue(value);
+                    var item = type.GetProperty("Item");
+                    var copy = (System.Collections.IList)Activator.CreateInstance(wanted);
+                    for (int i = 0; i < count; i++) copy.Add(item.GetValue(value, new object[] { i }));
+                    return copy;
+                }
+            }
+            catch (Exception e)
+            {
+                _log?.Warning($"[fix] patches-on-dropped-arguments: {patch.DeclaringType?.Name}.{patch.Name}: could not "
+                            + $"copy the game's {value.GetType().Name} into the {wanted.Name} it declares, so it gets "
+                            + "the game's object and may refuse it: " + (e.InnerException ?? e).Message);
+            }
+            return value;
         }
 
         /// <summary>A prefix that changed an argument through ref changes it for the game's method too.</summary>
