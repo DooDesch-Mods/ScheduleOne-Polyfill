@@ -2,6 +2,26 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.0] - 2026-10-01
+
+### Fixed
+- Production Expansion Reborn no longer crashes the game when you assign a customer to a dealer.
+- On the 0.4.7 beta, the game no longer closes without an error at startup when Expanded Storage is
+  installed.
+- On the 0.4.7 beta, Production Expansion Reborn's cleaner stations throw their trash bags again
+  instead of dropping them where they are made.
+
+### Added
+- On the 0.4.7 beta, RV Repair Van's questline starts again.
+- On the 0.4.7 beta, K9 Patrol's dogs, Yoink, SimpleCall, CityCats and The Big Pimpin's messages work
+  again.
+- On the 0.4.7 beta, Lithium, Drones and BusinessTracker see a finished deal again, and Cartel
+  Influence Enhancements' handover change runs again.
+- On the 0.4.7 beta, All Your Clients Will Order, BFG Better Supplier and BFG Smart Deal Location read
+  the open deal and supplier messages again.
+- On the 0.4.7 beta, NetEye cameras, Personnel's custom NPCs and Police Response Overhaul load without
+  errors about game functions the update removed.
+
 ## [0.12.11] - 2026-09-23
 
 ### Fixed
