@@ -69,6 +69,14 @@ namespace Polyfill.ModFixes
         /// <summary>How long to wait for officers to reach the station before handing out what there is.</summary>
         private const float WaitForPoolSeconds = 30f;
 
+        // MoveSpeedMultiplier is a 0.4.6 member Polyfill's own bridge puts back on 0.4.7 (NPCSpeedController's
+        // multiplier). It exists at runtime, not in every reference build, so it is called by name.
+        private static void SetMoveSpeedMultiplier(Il2CppScheduleOne.NPCs.NPCMovement movement, float value)
+        {
+            var setter = AccessTools.Method(typeof(Il2CppScheduleOne.NPCs.NPCMovement), "set_MoveSpeedMultiplier", new[] { typeof(float) });
+            if (movement != null && setter != null) setter.Invoke(movement, new object[] { value });
+        }
+
         private static MelonLogger.Instance _log;
         private static readonly List<Request> Pending = new();
         private static bool _draining;
@@ -232,7 +240,7 @@ namespace Polyfill.ModFixes
                         if (officer == null) goto done;
 
                         // The mod's own two lines, on an officer the game already owns.
-                        officer.Movement.MoveSpeedMultiplier = request.Speed;
+                        SetMoveSpeedMultiplier(officer.Movement, request.Speed);
                         officer.StartFootPatrol(request.Group, request.Warp);
 
                         staffedRoutes.Add(request.Route);

@@ -337,13 +337,33 @@ namespace Polyfill.ModFixes
         /// exists to end, and handing one over while reporting success would be worse than handing over the
         /// donor and saying so.
         /// </remarks>
+        // The NPC's data object is _npcData on 0.4.7f5 and _defaultNPCData from 0.4.7f6. Il2CppInterop projects
+        // a native field as a property, so it is looked up as one - by either name, whichever this build has.
+        private static readonly string[] NpcDataNames = { "_npcData", "_defaultNPCData" };
+
+        private static PropertyInfo NpcDataProperty()
+        {
+            foreach (var name in NpcDataNames)
+            {
+                var p = AccessTools.Property(typeof(NPC), name);
+                if (p != null) return p;
+            }
+            return null;
+        }
+
+        private static Il2CppScheduleOne.NPCs.Framework.BaseNPCDataObject NpcData(NPC npc)
+            => NpcDataProperty()?.GetValue(npc) as Il2CppScheduleOne.NPCs.Framework.BaseNPCDataObject;
+
+        private static void SetNpcData(NPC npc, Il2CppScheduleOne.NPCs.Framework.BaseNPCDataObject data)
+            => NpcDataProperty()?.SetValue(npc, data);
+
         private static bool Anonymise(NPC npc, string donorName)
         {
             // NOT AccessTools.Field. Il2CppInterop projects a native field as a PROPERTY over native
             // memory, so the reflection lookup answers null and the first version of this reported "NPC
             // has no _npcData on this build" about a member that is right there. Named directly instead,
             // which is also the only spelling that can be checked at compile time.
-            var shared = npc._npcData;
+            var shared = NpcData(npc);
             if (shared == null)
             {
                 _log?.Warning("[fix] otc-drifter-prefab: '" + donorName + "' carries no NPC data object.");
@@ -378,7 +398,7 @@ namespace Polyfill.ModFixes
             basics.LastName = string.Empty;
             basics.HasLastName = false;
 
-            npc._npcData = mine;
+            SetNpcData(npc, mine);
 
             // A baked GUID is the other half of the same problem: every copy claims that id and displaces
             // whoever held it. Cleared here rather than warned about, because this template is ours.
