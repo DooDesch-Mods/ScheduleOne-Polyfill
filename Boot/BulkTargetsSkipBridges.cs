@@ -1,31 +1,42 @@
 using System.Reflection;
 using HarmonyLib;
 using MelonLoader;
+using Polyfill.Contract;
 
 namespace Polyfill.Boot
 {
     /// <summary>
-    /// A mod that patches every overload of a method through <c>TargetMethods()</c> does not get Polyfill's
-    /// bridges in the list.
+    /// A patch class that names its targets itself is not handed a Polyfill bridge.
     /// </summary>
     /// <remarks>
     /// A bridge is a managed method the plugin wrote into the interop: it forwards to the game's own method and
-    /// has no native function behind it, so there is nothing for the IL2CPP detour to hook and patching it
-    /// fails. A mod never asks for one by name - it was written before the bridge existed. It gets one when it
-    /// enumerates overloads in bulk: Expanded Storage 1.0.4's <c>StorageMenuOpenStoragePatch.TargetMethods</c>
-    /// returns every <c>StorageMenu.Open</c>, which on 0.4.7 includes the <c>Open(StorageEntity)</c> bridge,
-    /// and the failure took the mod's start-up down with it.
+    /// has no native function behind it. Harmony takes its managed route for one, which compiles the bridge
+    /// while the patch is being installed (ManagedMethodPatcher.DetourTo, ILHook, PrepareMethod), and that
+    /// compile can end the process with an access violation in the runtime and no exception to catch.
     ///
-    /// SKIPPED, NOT MOVED, AND ONLY WHEN THE REAL METHOD IS THERE. A bridge is dropped when the method it
-    /// forwards to is in the same list: the mod's patch is on the real method either way, and moving it there
-    /// as well would run it twice. A bridge whose forward target is not in the list stays, because dropping it
-    /// would leave the mod with no patch at all.
+    /// A mod never asks for a bridge on purpose - it was written before the bridge existed. It gets one from
+    /// <c>TargetMethods()</c> when it enumerates overloads: Expanded Storage 1.0.4's
+    /// <c>StorageMenuOpenStoragePatch</c> returns every <c>StorageMenu.Open</c>, stand-ins included. And from
+    /// <c>TargetMethod()</c> when it names the old signature: Over The Counter's <c>StorageMenuOpenPatch</c>
+    /// asks for <c>Open(StorageEntity)</c>.
     ///
-    /// ONE TARGET IS NEVER TOUCHED. <c>GetBulkMethods</c> also serves a single <c>TargetMethod()</c>, wrapped
-    /// into a list of one. A patch that names a bridge that way means it: Over The Counter's
-    /// <c>StorageMenuOpenPatch</c> names the old <c>StorageMenu.Open</c> and PatchesOnGrownOverloads moves it
-    /// onto the method the game calls, and the handover stand-ins are relayed by PatchesOnDroppedArguments.
-    /// An emptied list would end as "Undefined target method" and the class would not bind.
+    /// DROPPED WHEN THE REAL METHOD IS IN THE SAME LIST. The mod's patch is on the real method either way,
+    /// and a second copy on the bridge would run twice for whoever calls the old signature.
+    ///
+    /// SWAPPED FOR THE REAL METHOD WHEN IT IS NOT. Only for a stand-in <see cref="GrownOverloads"/> lists, and
+    /// only when the return type and the parameter names are the same: the old parameter list is a prefix of
+    /// the new one and Harmony binds by name, so the patch binds unchanged. The game calls the real method and
+    /// a mod calling the old signature reaches it through the bridge, so the patch runs once on both roads.
+    /// The swap is noted in <see cref="ReaimedPatches"/> for the mod's row in the report.
+    ///
+    /// EVERY OTHER BRIDGE STAYS. A stand-in whose patches are relayed (PatchesOnDroppedArguments), the empty
+    /// <c>SetIsOpen</c> of a split screen, a grown overload whose return type changed: a patch that names one
+    /// means it. Taking it out of a list of one would end as "Undefined target method" and the class would
+    /// not bind.
+    ///
+    /// ONLY THIS ROUTE. <c>GetBulkMethods</c> serves <c>TargetMethods()</c> and a single
+    /// <c>TargetMethod()</c>. A target declared in a <c>[HarmonyPatch(type, name, argumentTypes)]</c>
+    /// attribute does not pass through here; it lands on the stand-in and PatchesOnGrownOverloads moves it.
     ///
     /// A bridge is told apart by its body rather than a list: every generated interop method loads its
     /// <c>NativeMethodInfoPtr_</c> field, and a bridge loads none. That is the same test Il2CppInterop's own
@@ -48,7 +59,7 @@ namespace Polyfill.Boot
                 if (target == null)
                 {
                     log.Warning("[harmony] PatchClassProcessor.GetBulkMethods is not where it was, so a mod that "
-                              + "patches overloads in bulk may still be handed a bridge.");
+                              + "names its own patch targets may still be handed a bridge.");
                     return;
                 }
                 _container = AccessTools.Field(typeof(PatchClassProcessor), "containerType");
@@ -57,13 +68,13 @@ namespace Polyfill.Boot
             }
             catch (Exception e)
             {
-                log.Warning("[harmony] could not keep bridges out of bulk patch targets: " + e.Message);
+                log.Warning("[harmony] could not keep bridges out of patch targets: " + e.Message);
             }
         }
 
         private static void WithoutBridges(List<MethodBase> __result, object __instance)
         {
-            if (__result == null || __result.Count < 2) return;
+            if (__result == null || __result.Count == 0) return;
 
             // Judged against the list as the mod returned it, so a bridge that forwards to another bridge is
             // dropped with it and the order of the list does not matter.
@@ -72,16 +83,75 @@ namespace Polyfill.Boot
             {
                 var method = __result[i];
                 if (!IsBridge(method)) continue;
-                var real = ForwardTargetIn(method, asked);
-                if (real == null) continue;
-                __result.RemoveAt(i);
+
                 var container = _container?.GetValue(__instance) as Type;
-                _log?.Msg($"[harmony] {container?.FullName ?? "a patch class"}: not patching "
-                        + $"{method.DeclaringType?.Name}.{method.Name}({method.GetParameters().Length} args) - a Polyfill "
-                        + $"bridge with no native method; {real.Name}({real.GetParameters().Length} args), which it "
-                        + "forwards to, is in the same list.");
+                string who = container?.FullName ?? "a patch class";
+
+                var listed = ForwardTargetIn(method, asked);
+                if (listed != null)
+                {
+                    __result.RemoveAt(i);
+                    _log?.Msg($"[harmony] {who}: not patching {Describe(method)} - a Polyfill bridge with no native "
+                            + $"method; {Describe(listed)}, which it forwards to, is in the same list.");
+                    continue;
+                }
+
+                var real = GameMethodBehind(method, who);
+                if (real == null) continue;
+
+                if (Has(__result, real)) __result.RemoveAt(i);
+                else __result[i] = real;
+
+                string owner = container?.Assembly?.GetName()?.Name;
+                if (!string.IsNullOrEmpty(owner))
+                    ReaimedPatches.Add(owner + "|" + real.DeclaringType?.FullName + "::" + real.Name);
+
+                _log?.Msg($"[harmony] {who}: patching {Describe(real)} in place of {Describe(method)} - the old "
+                        + "signature is a Polyfill bridge, and the game calls the method it forwards to.");
             }
         }
+
+        /// <summary>The game's method a listed stand-in forwards to, when a patch written for one binds on the other.</summary>
+        private static MethodInfo GameMethodBehind(MethodBase bridge, string who)
+        {
+            MethodInfo real;
+            try { real = GrownOverloads.RealFor(bridge); }
+            catch (Exception e)
+            {
+                _log?.Warning($"[harmony] {who}: could not look up what {Describe(bridge)} stands in for, so it "
+                            + "stays the patch target: " + e.Message);
+                return null;
+            }
+            if (real == null) return null;
+
+            if (bridge is not MethodInfo standIn || standIn.ReturnType != real.ReturnType)
+            {
+                _log?.Msg($"[harmony] {who}: {Describe(bridge)} stays the patch target - {Describe(real)} returns "
+                        + "something else, so a patch on the result would not bind.");
+                return null;
+            }
+
+            var old = standIn.GetParameters();
+            var now = real.GetParameters();
+            for (int i = 0; i < old.Length; i++)
+            {
+                if (old[i].Name == now[i].Name) continue;
+                _log?.Msg($"[harmony] {who}: {Describe(bridge)} stays the patch target - its parameter "
+                        + $"'{old[i].Name}' is '{now[i].Name}' on {Describe(real)}, and Harmony binds by name.");
+                return null;
+            }
+            return real;
+        }
+
+        private static bool Has(List<MethodBase> list, MethodBase method)
+        {
+            foreach (var other in list)
+                if (Same(other, method)) return true;
+            return false;
+        }
+
+        private static string Describe(MethodBase method)
+            => $"{method.DeclaringType?.Name}.{method.Name}({method.GetParameters().Length} args)";
 
         /// <summary>An interop method with a body that never loads a native method pointer.</summary>
         private static bool IsBridge(MethodBase method)

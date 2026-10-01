@@ -1,3 +1,5 @@
+using System.Reflection;
+
 namespace Polyfill.Contract
 {
     /// <summary>
@@ -155,6 +157,61 @@ namespace Polyfill.Contract
                     && string.Equals(entry.Type, type, StringComparison.Ordinal))
                     return true;
             return false;
+        }
+
+        /// <summary>
+        /// The stand-in (exactly these parameters) or the method that replaced it (these and more).
+        /// </summary>
+        /// <remarks>
+        /// The real one is required to have MORE parameters and to start with the same ones, which is the
+        /// same test the bridge used to build the stand-in. Refuses on a tie rather than picking: two
+        /// candidates means the shape here is not what this was written for.
+        /// </remarks>
+        internal static MethodInfo Find(Type type, string name, string[] parameters, bool exact)
+        {
+            const BindingFlags all = BindingFlags.Public | BindingFlags.NonPublic
+                                   | BindingFlags.Instance | BindingFlags.Static;
+            MethodInfo found = null;
+
+            foreach (var method in type.GetMethods(all))
+            {
+                if (method.Name != name || method.DeclaringType != type) continue;
+
+                var actual = method.GetParameters();
+                if (exact ? actual.Length != parameters.Length : actual.Length <= parameters.Length) continue;
+
+                bool matches = true;
+                for (int i = 0; i < parameters.Length; i++)
+                    if (actual[i].ParameterType.FullName != parameters[i]) { matches = false; break; }
+                if (!matches) continue;
+
+                if (found != null) return null;
+                found = method;
+            }
+            return found;
+        }
+
+        /// <summary>The game's method behind a stand-in from this list, or null when it is not one.</summary>
+        internal static MethodInfo RealFor(MethodBase standIn)
+        {
+            var type = standIn?.DeclaringType;
+            if (type == null) return null;
+
+            var actual = standIn.GetParameters();
+            foreach (var entry in All)
+            {
+                if (entry.Name != standIn.Name || entry.OldParameters.Length != actual.Length
+                    || !string.Equals(entry.Type, type.FullName, StringComparison.Ordinal))
+                    continue;
+
+                bool matches = true;
+                for (int i = 0; i < actual.Length; i++)
+                    if (actual[i].ParameterType.FullName != entry.OldParameters[i]) { matches = false; break; }
+                if (!matches) continue;
+
+                return Find(type, entry.Name, entry.OldParameters, exact: false);
+            }
+            return null;
         }
     }
 }

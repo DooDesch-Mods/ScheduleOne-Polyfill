@@ -56,47 +56,28 @@ namespace Polyfill.ModFixes
                 var type = AccessTools.TypeByName(entry.Type);
                 if (type == null) continue;
 
-                var standIn = Find(type, entry.Name, entry.OldParameters, exact: true);
-                var real = Find(type, entry.Name, entry.OldParameters, exact: false);
+                var standIn = GrownOverloads.Find(type, entry.Name, entry.OldParameters, exact: true);
+                var real = GrownOverloads.Find(type, entry.Name, entry.OldParameters, exact: false);
                 if (standIn == null || real == null || standIn == real) continue;
 
                 moved += Move(standIn, real, Id, log);
             }
 
-            if (moved == 0) return false;
-            log.Msg($"[fix] patches-on-grown-overloads: moved {moved} patch(es) onto the method the game "
-                  + "calls; they were on a stand-in Polyfill added for the old signature.");
+            // A patch class that names its target through TargetMethod() never reaches the stand-in: the
+            // plugin hands Harmony the game's method in its place (Boot/BulkTargetsSkipBridges.cs). Nothing
+            // is left to move for those, and the report still has to hear that they landed.
+            int aimed = 0;
+            foreach (var key in ReaimedPatches.All())
+                if (Fixes.Repaired.Add(key)) aimed++;
+
+            if (moved == 0 && aimed == 0) return false;
+            if (moved > 0)
+                log.Msg($"[fix] patches-on-grown-overloads: moved {moved} patch(es) onto the method the game "
+                      + "calls; they were on a stand-in Polyfill added for the old signature.");
+            if (aimed > 0)
+                log.Msg($"[fix] patches-on-grown-overloads: {aimed} patch class(es) named a stand-in and were "
+                      + "applied to the method the game calls instead.");
             return true;
-        }
-
-        /// <summary>
-        /// The stand-in (exactly these parameters) or the method that replaced it (these and more).
-        /// </summary>
-        /// <remarks>
-        /// The real one is required to have MORE parameters and to start with the same ones, which is the
-        /// same test the bridge used to build the stand-in. Refuses on a tie rather than picking: two
-        /// candidates means the shape here is not what this was written for.
-        /// </remarks>
-        private static MethodInfo Find(Type type, string name, string[] parameters, bool exact)
-        {
-            MethodInfo found = null;
-
-            foreach (var method in type.GetMethods(AccessTools.all))
-            {
-                if (method.Name != name || method.DeclaringType != type) continue;
-
-                var actual = method.GetParameters();
-                if (exact ? actual.Length != parameters.Length : actual.Length <= parameters.Length) continue;
-
-                bool matches = true;
-                for (int i = 0; i < parameters.Length; i++)
-                    if (actual[i].ParameterType.FullName != parameters[i]) { matches = false; break; }
-                if (!matches) continue;
-
-                if (found != null) return null;
-                found = method;
-            }
-            return found;
         }
 
         /// <summary>Copy every prefix and postfix from one method onto another.</summary>
