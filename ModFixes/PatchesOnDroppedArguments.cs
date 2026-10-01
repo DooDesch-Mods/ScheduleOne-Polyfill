@@ -113,6 +113,8 @@ namespace Polyfill.ModFixes
             internal object DroppedValue;
             internal int DroppedPosition;
             internal string[] RealNames;
+            /// <summary>Which of the game's parameters are by-ref: only those get a prefix's change back.</summary>
+            internal bool[] RealByRef;
             internal bool HasResult;
             internal readonly List<MethodInfo> Before = new();
             internal readonly List<MethodInfo> After = new();
@@ -173,6 +175,7 @@ namespace Polyfill.ModFixes
                     DroppedValue = entry.Value(droppedParameter.ParameterType),
                     DroppedPosition = droppedParameter.Position,
                     RealNames = real.GetParameters().Select(p => p.Name).ToArray(),
+                    RealByRef = real.GetParameters().Select(p => p.ParameterType.IsByRef).ToArray(),
                     HasResult = real.ReturnType != typeof(void),
                 };
                 if (!Collect(standIn, relay, label)) continue;
@@ -217,6 +220,16 @@ namespace Polyfill.ModFixes
                                    + $"'{missing?.Name}', which cannot be filled from the new method. Left alone.");
                         continue;
                     }
+                    if (kind == "prefix")
+                        foreach (var parameter in patch.PatchMethod.GetParameters())
+                        {
+                            if (!parameter.ParameterType.IsByRef || parameter.Name == "__instance") continue;
+                            int at = Source(relay, parameter.Name);
+                            if (at >= 0 && !relay.RealByRef[at])
+                                _log.Warning($"[fix] patches-on-dropped-arguments: {patch.owner}'s prefix on {label} takes "
+                                           + $"'{parameter.Name}' by ref, but the game's method takes {relay.RealNames[at]} by value, "
+                                           + "so what the prefix writes to it does not reach the game.");
+                        }
                     into.Add(patch.PatchMethod);
                 }
             }
@@ -349,7 +362,12 @@ namespace Polyfill.ModFixes
             return value;
         }
 
-        /// <summary>A prefix that changed an argument through ref changes it for the game's method too.</summary>
+        /// <summary>
+        /// A prefix that changed an argument through ref changes it for the game's method too - when the game's
+        /// method takes that argument by ref. HarmonyX copies <c>__args</c> back into the real arguments only for
+        /// by-ref parameters of the original, so a by-value argument written here goes nowhere; <see cref="Collect"/>
+        /// warns about those. Reaching them would take a typed prefix per entry, with the argument as <c>ref</c>.
+        /// </summary>
         private static void WriteBack(MethodInfo patch, Relay relay, object[] values, object[] args)
         {
             var wanted = patch.GetParameters();
@@ -357,7 +375,7 @@ namespace Polyfill.ModFixes
             {
                 if (!wanted[i].ParameterType.IsByRef) continue;
                 int at = Source(relay, wanted[i].Name);
-                if (at >= 0) args[at] = values[i];
+                if (at >= 0 && relay.RealByRef[at]) args[at] = values[i];
             }
         }
 
