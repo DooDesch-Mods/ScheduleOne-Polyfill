@@ -78,6 +78,8 @@ namespace Polyfill.ModFixes
             public int PassThrough = -1;
             public int Own, Down;
             public bool Warned;
+            /// <summary>The patch takes nothing from the call that could be an object, so a foreign one cannot be misread by it.</summary>
+            public bool Blind;
         }
 
         private static readonly Dictionary<MethodBase, PatchStats> Stats = new();
@@ -212,6 +214,11 @@ namespace Polyfill.ModFixes
                 return false;
             }
             var stats = new PatchStats { Owner = patch.owner, Label = label, Accepts = Accepted(patch.PatchMethod) };
+            stats.Blind = TakesNoObject(patch.PatchMethod);
+            if (stats.Blind)
+                _log.Msg($"[fix] patches-on-folded-code: {patch.owner}'s {patch.PatchMethod.DeclaringType?.Name}.{patch.PatchMethod.Name} "
+                       + "takes nothing from the call that could be an object, so it keeps running for other classes sharing the "
+                       + "code until it has run once for its own class.");
             if (postfix && patch.PatchMethod.ReturnType != typeof(void))
             {
                 // Harmony hands a returning postfix its result back as the first parameter of the return type.
@@ -417,6 +424,9 @@ namespace Polyfill.ModFixes
                 return false;
             }
             if (stats == null || stats.Accepts == AnyObject) return stats == null;
+            // It cannot misread a foreign object, only run at the wrong time, which it does without this fix. Until
+            // the class's own calls are known to reach the function, it is the only thing that ever runs it.
+            if (stats.Blind && Volatile.Read(ref stats.Own) == 0) return false;
             bool down = stats.Accepts == IntPtr.Zero;
             if (!down)
             {
@@ -443,6 +453,22 @@ namespace Polyfill.ModFixes
             _log?.Warning($"[fix] patches-on-folded-code: {stats.Owner}'s patch on {stats.Label} was stood down {stats.Down} times "
                         + "and has not run once for its own class. If the game inlines the call, the patch never ran for its class "
                         + "even before this - it may have only ever run for the other classes sharing the code.");
+        }
+
+        /// <summary>
+        /// Does the patch take nothing from the call that could be an object? No <c>__instance</c>, no
+        /// <c>__args</c>, and no argument or <c>__result</c> of a reference type: only values. Harmony's own
+        /// <c>__originalMethod</c> is not from the call.
+        /// </summary>
+        private static bool TakesNoObject(MethodInfo patch)
+        {
+            foreach (var parameter in patch.GetParameters())
+            {
+                if (parameter.Name == "__originalMethod") continue;
+                var type = parameter.ParameterType.IsByRef ? parameter.ParameterType.GetElementType() : parameter.ParameterType;
+                if (parameter.Name == "__instance" || parameter.Name == "__args" || !type.IsValueType) return false;
+            }
+            return true;
         }
 
         /// <summary>The native class a patch's <c>__instance</c> is declared as.</summary>
