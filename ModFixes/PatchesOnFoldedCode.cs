@@ -197,7 +197,16 @@ namespace Polyfill.ModFixes
         /// </remarks>
         private static bool Register(HarmonyLib.Patch patch, IntPtr klass, string label, bool postfix)
         {
-            if (patch.owner == HarmonyId || !Guarded.Add(patch.PatchMethod)) return false;
+            if (patch.owner == HarmonyId) return false;
+            if (!Guarded.Add(patch.PatchMethod))
+            {
+                // The same patch method on another folded target (TargetMethods()): one guard serves both, as what
+                // it accepts depends on its own __instance. The target is added to what it is named by in warnings.
+                lock (Stats)
+                    if (Stats.TryGetValue(patch.PatchMethod, out var known) && !known.Label.Split(", ").Contains(label))
+                        known.Label += ", " + label;
+                return false;
+            }
             var stats = new PatchStats { Owner = patch.owner, Label = label, Accepts = Accepted(patch.PatchMethod) };
             if (postfix && patch.PatchMethod.ReturnType != typeof(void))
             {
