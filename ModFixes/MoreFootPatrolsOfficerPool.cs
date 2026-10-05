@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Reflection;
 using HarmonyLib;
 using Il2CppScheduleOne.Map;
 using Il2CppScheduleOne.NPCs.Behaviour;
@@ -69,13 +70,37 @@ namespace Polyfill.ModFixes
         /// <summary>How long to wait for officers to reach the station before handing out what there is.</summary>
         private const float WaitForPoolSeconds = 30f;
 
-        // MoveSpeedMultiplier is a 0.4.6 member Polyfill's own bridge puts back on 0.4.7 (NPCSpeedController's
-        // multiplier). It exists at runtime, not in every reference build, so it is called by name.
+        /// <summary>
+        /// <c>NPCMovement.MoveSpeedMultiplier = value</c>, called by name.
+        /// </summary>
+        /// <remarks>
+        /// A 0.4.6 member. On 0.4.7 it is there only as Polyfill's own bridge onto the speed controller,
+        /// which exists in the running game and not in the game's reference assemblies - so named in code
+        /// it stops Polyfill from building against 0.4.7. More Foot Patrols sets the same property itself,
+        /// which is what asks for that bridge.
+        /// </remarks>
         private static void SetMoveSpeedMultiplier(Il2CppScheduleOne.NPCs.NPCMovement movement, float value)
         {
-            var setter = AccessTools.Method(typeof(Il2CppScheduleOne.NPCs.NPCMovement), "set_MoveSpeedMultiplier", new[] { typeof(float) });
-            if (movement != null && setter != null) setter.Invoke(movement, new object[] { value });
+            if (MoveSpeedMultiplierSetter == null || movement == null)
+            {
+                if (_speedWarned) return;
+                _speedWarned = true;
+                _log?.Warning("[fix] morefootpatrols-officer-pool: "
+                            + (MoveSpeedMultiplierSetter == null
+                                ? "NPCMovement has no MoveSpeedMultiplier on this build"
+                                : "an officer has no movement component")
+                            + ", so patrol officers keep the game's own walking speed.");
+                return;
+            }
+
+            MoveSpeedMultiplierSetter.Invoke(movement, new object[] { value });
         }
+
+        private static readonly MethodInfo MoveSpeedMultiplierSetter =
+            typeof(Il2CppScheduleOne.NPCs.NPCMovement).GetMethod(
+                "set_MoveSpeedMultiplier", AccessTools.all, null, new[] { typeof(float) }, null);
+
+        private static bool _speedWarned;
 
         private static MelonLogger.Instance _log;
         private static readonly List<Request> Pending = new();
