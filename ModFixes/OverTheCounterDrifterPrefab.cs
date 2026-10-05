@@ -322,9 +322,11 @@ namespace Polyfill.ModFixes
             }
             catch (Exception e)
             {
+                // The data object is reached through reflection, which wraps whatever the game threw.
+                var cause = (e as TargetInvocationException)?.InnerException ?? e;
                 _log?.Warning("[fix] otc-drifter-prefab: could not build an unowned body from '"
                             + donor.gameObject.name + "', so the donor was handed over unchanged: "
-                            + e.Message);
+                            + cause.Message);
                 return donor;
             }
         }
@@ -337,32 +339,15 @@ namespace Polyfill.ModFixes
         /// exists to end, and handing one over while reporting success would be worse than handing over the
         /// donor and saying so.
         /// </remarks>
-        // The NPC's data object is _npcData on 0.4.7f5 and _defaultNPCData from 0.4.7f6. Il2CppInterop projects
-        // a native field as a property, so it is looked up as one - by either name, whichever this build has.
-        private static readonly string[] NpcDataNames = { "_npcData", "_defaultNPCData" };
-
-        private static PropertyInfo NpcDataProperty()
-        {
-            foreach (var name in NpcDataNames)
-            {
-                var p = AccessTools.Property(typeof(NPC), name);
-                if (p != null) return p;
-            }
-            return null;
-        }
-
-        private static Il2CppScheduleOne.NPCs.Framework.BaseNPCDataObject NpcData(NPC npc)
-            => NpcDataProperty()?.GetValue(npc) as Il2CppScheduleOne.NPCs.Framework.BaseNPCDataObject;
-
-        private static void SetNpcData(NPC npc, Il2CppScheduleOne.NPCs.Framework.BaseNPCDataObject data)
-            => NpcDataProperty()?.SetValue(npc, data);
-
         private static bool Anonymise(NPC npc, string donorName)
         {
-            // NOT AccessTools.Field. Il2CppInterop projects a native field as a PROPERTY over native
-            // memory, so the reflection lookup answers null and the first version of this reported "NPC
-            // has no _npcData on this build" about a member that is right there. Named directly instead,
-            // which is also the only spelling that can be checked at compile time.
+            if (NpcDataProperty == null)
+            {
+                _log?.Warning("[fix] otc-drifter-prefab: NPC has neither _npcData nor _defaultNPCData on this "
+                            + "build, so '" + donorName + "' could not be given a data object of its own.");
+                return false;
+            }
+
             var shared = NpcData(npc);
             if (shared == null)
             {
@@ -405,6 +390,31 @@ namespace Polyfill.ModFixes
             try { npc.BakedGUID = string.Empty; } catch { }
             return true;
         }
+
+        /// <summary>
+        /// Where an NPC keeps its data object, under whichever name this build gives it, or null when it has
+        /// neither.
+        /// </summary>
+        /// <remarks>
+        /// <c>_npcData</c> through 0.4.6 and <c>_defaultNPCData</c> from 0.4.7f5 - the game renamed the field
+        /// (Core/versiondb/steps/0.4.6f13-0.4.7f5.txt). Named in code, either spelling stops Polyfill from
+        /// building against the other version's game assemblies.
+        ///
+        /// A PROPERTY, NOT A FIELD. Il2CppInterop projects a native field as a property over native memory,
+        /// so a field lookup answers null about a member that is right there.
+        ///
+        /// Asked through Type.GetProperty because AccessTools.Property writes a warning for every name it
+        /// does not find, and one of the two is always missing.
+        /// </remarks>
+        private static readonly PropertyInfo NpcDataProperty =
+            typeof(NPC).GetProperty("_npcData", AccessTools.all)
+            ?? typeof(NPC).GetProperty("_defaultNPCData", AccessTools.all);
+
+        private static Il2CppScheduleOne.NPCs.Framework.BaseNPCDataObject NpcData(NPC npc)
+            => NpcDataProperty.GetValue(npc) as Il2CppScheduleOne.NPCs.Framework.BaseNPCDataObject;
+
+        private static void SetNpcData(NPC npc, Il2CppScheduleOne.NPCs.Framework.BaseNPCDataObject data)
+            => NpcDataProperty.SetValue(npc, data);
 
         /// <summary>
         /// The id every unowned body carries.
@@ -529,9 +539,9 @@ namespace Polyfill.ModFixes
         /// says "not baked" here.
         /// </remarks>
         private static readonly PropertyInfo CurrentSettings =
-            AccessTools.Property(typeof(Il2CppScheduleOne.AvatarFramework.Avatar), "Appearance") != null
+            typeof(Il2CppScheduleOne.AvatarFramework.Avatar).GetProperty("Appearance", AccessTools.all) != null
                 ? null
-                : AccessTools.Property(typeof(Il2CppScheduleOne.AvatarFramework.Avatar), "CurrentSettings");
+                : typeof(Il2CppScheduleOne.AvatarFramework.Avatar).GetProperty("CurrentSettings", AccessTools.all);
 
         private static string Names()
         {
