@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.1] - 2026-10-05
+
+### Fixed
+- On the 0.4.7 beta, mods built on S1API that add their own products or packaging show the right look
+  and icon for them again.
+- With Over The Counter installed, Polyfill no longer writes a "Could not find property" warning into
+  the log at startup.
+
 ## [0.13.0] - 2026-10-01
 
 ### Fixed
