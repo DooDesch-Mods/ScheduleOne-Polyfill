@@ -138,6 +138,15 @@ namespace Polyfill.Contract
                         + "null (BlackOverlay.cs Close(float fadeTime = 0.5f, Action onComplete = null) on "
                         + "0.4.7f6)",
             },
+            new Entry
+            {
+                Type = "Il2CppScheduleOne.DevUtilities.IconGenerator",
+                Name = "GeneratePackagingIcon",
+                OldParameters = new[] { "System.String", "System.String" },
+                Because = "0.4.7 gave GeneratePackagingIcon a trailing iconSize defaulting to 512 (IconGenerator.cs:79 "
+                        + "on 0.4.7f6); unlisted, a patch naming no parameters (S1API's packaging-icon patches) "
+                        + "found two methods and lost its whole patch class",
+            },
         };
 
         /// <summary>Has Polyfill put a second signature under this name?</summary>
