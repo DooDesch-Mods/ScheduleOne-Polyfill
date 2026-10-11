@@ -370,9 +370,8 @@ jobs:
 
             ${{ needs.build.outputs.notes }}
 
-            Installing by hand: `Polyfill.Boot.dll` goes into `Plugins/`, `Polyfill.dll` into `Mods/`. The plugin
-            does the work and has to be a plugin - it runs before any mod is read - so a copy of it in `Mods/` is
-            ignored by MelonLoader. The mod only adds the console commands and can be left out.
+            Installing by hand: `Polyfill.Boot.dll` goes into `Plugins/`, `Polyfill.dll` into `Mods/`. Keep both
+            DLLs installed so repairs that need the running game can run.
 
             Polyfill patches the game, not your mods. Your own files are never changed, and `polyfillrestore` in
             the console takes the patch back out on the next launch.

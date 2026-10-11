@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.3] - 2026-10-12
+
+### Fixed
+- On 0.4.7, ProduceMore 1.2.0's employees can walk to their stations and finish plant work again.
+
 ## [0.13.2] - 2026-10-12
 
 ### Fixed

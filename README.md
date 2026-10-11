@@ -42,10 +42,10 @@ Mod manager: install and it places both files for you.
 By hand:
 
 1. `Polyfill.Boot.dll` into `Plugins/`
-2. `Polyfill.dll` into `Mods/` (optional - it only adds the console commands)
+2. `Polyfill.dll` into `Mods/`
 
-The plugin does the work and has to be a plugin, because it runs before any mod is read from disk. A copy
-of it in `Mods/` is ignored by MelonLoader.
+Keep both files installed. The plugin restores compatibility before mods load; the mod runs repairs
+that need the running game and adds the console commands. MelonLoader ignores the plugin in `Mods/`.
 
 ## Console
 
