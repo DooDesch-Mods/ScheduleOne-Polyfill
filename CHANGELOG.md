@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.2] - 2026-10-12
+
+### Fixed
+- ProduceMore 1.2.0 shows drying rack progress and remaining time correctly again, including when you change its drying speed.
+
 ## [0.13.1] - 2026-10-05
 
 ### Fixed

@@ -71,6 +71,7 @@ namespace Polyfill.ModFixes
             new BorrowedAppLayout(),
             new EmptyDeadDropSearch(),
             new AmountChangedAfterOverride(),
+            new ProduceMoreDryingRack(),
 
             // Last, and that is not cosmetic: these read what other mods have patched, so they have to run
             // after every one of them has had its turn.
