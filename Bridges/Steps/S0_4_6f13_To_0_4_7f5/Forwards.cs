@@ -167,6 +167,14 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                         + "StoredItem (StorableItemInstance.cs:11), so there the member is present and nothing is added",
                 Emit = (module, item) => EmitGetterRename(module, item, "get_StoredItem", "StoredItemPrefab"),
             },
+
+            // ---- properties a mod builds itself (ChemicalPlant) ----
+            Empty("Il2CppScheduleOne.Property.Property", "set_EmployeeContainer", 1, m => m.TypeSystem.Void,
+                  "0.4.6's Property declared a public Transform EmployeeContainer and no game code read or wrote it "
+                  + "(Property.cs:83 is its only mention in Assembly-CSharp on 0.4.6f13); 0.4.7 dropped the field "
+                  + "(Property.cs on 0.4.7f6), so a mod that fills it in while it builds a property has nothing "
+                  + "left to tell the game",
+                  module => TypeIn(module, "UnityEngine.CoreModule", "UnityEngine", "Transform")),
         };
 
         // ---------------------------------------------------------------- speeds
