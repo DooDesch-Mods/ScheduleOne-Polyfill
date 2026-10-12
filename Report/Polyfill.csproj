@@ -62,6 +62,8 @@
   <Import Project="$(MSBuildThisFileDirectory)../Workspace/build/Hardening.props" Condition="Exists('$(MSBuildThisFileDirectory)../Workspace/build/Hardening.props')" />
   <Import Project="$(MSBuildThisFileDirectory)../../Workspace/build/ModVersion.props" Condition="Exists('$(MSBuildThisFileDirectory)../../Workspace/build/ModVersion.props')" />
   <Import Project="$(MSBuildThisFileDirectory)../Workspace/build/ModVersion.props" Condition="Exists('$(MSBuildThisFileDirectory)../Workspace/build/ModVersion.props')" />
+  <!-- No Workspace folder: the repo's own copy writes DooDesch.ModVersion, so a plain clone builds. -->
+  <Import Project="$(MSBuildThisFileDirectory)../build/ModVersion.props" Condition="!Exists('$(MSBuildThisFileDirectory)../../Workspace/build/ModVersion.props') AND !Exists('$(MSBuildThisFileDirectory)../Workspace/build/ModVersion.props')" />
 
   <!-- Hash's command shim, so a terminal and the autocomplete can list these words. Zero-reference source
        file, reflection-bound, and a no-op when Hash is not installed. Optional: no shim, no declaration. -->

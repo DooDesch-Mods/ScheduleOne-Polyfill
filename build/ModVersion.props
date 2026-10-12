@@ -1,0 +1,48 @@
+<Project>
+
+  <!--
+    ModVersion.props - writes DooDesch.ModVersion.Current, the constant MelonInfo takes its version from.
+
+    MelonInfo is an attribute and needs a compile-time constant. This target writes a one-class file with
+    $(Version) in it before every compile, so the attribute carries the version that is actually built
+    instead of a literal somebody has to remember to bump.
+
+    The maintainer's builds and CI take the same target from a shared Workspace folder next to the repo.
+    This copy is only imported when that folder is absent, so a plain clone builds on its own.
+
+    $(Version) is read INSIDE the target and not at import: -p:Version on the command line is a global
+    property and is only settled by then. Without it the project's own 0.0.0-dev applies.
+
+    The class is internal and written once per assembly, so the plugin and the mod each get their own.
+    The file goes to obj/ and is only rewritten when the version changes.
+  -->
+
+  <Target Name="GenerateModVersion" BeforeTargets="BeforeCompile;CoreCompile">
+
+    <PropertyGroup>
+      <ModVersionValue Condition="'$(Version)' != ''">$(Version)</ModVersionValue>
+      <ModVersionValue Condition="'$(ModVersionValue)' == ''">0.0.0-dev</ModVersionValue>
+      <ModVersionFile>$(IntermediateOutputPath)ModVersion.g.cs</ModVersionFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ModVersionLine Include="// &lt;auto-generated /&gt; Written by build/ModVersion.props from $(Version)." />
+      <ModVersionLine Include="namespace DooDesch" />
+      <ModVersionLine Include="{" />
+      <ModVersionLine Include="    internal static class ModVersion" />
+      <ModVersionLine Include="    {" />
+      <ModVersionLine Include="        internal const string Current = &quot;$(ModVersionValue)&quot;%3B" />
+      <ModVersionLine Include="    }" />
+      <ModVersionLine Include="}" />
+    </ItemGroup>
+
+    <WriteLinesToFile File="$(ModVersionFile)" Lines="@(ModVersionLine)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+
+    <ItemGroup>
+      <Compile Include="$(ModVersionFile)" />
+      <FileWrites Include="$(ModVersionFile)" />
+    </ItemGroup>
+
+  </Target>
+
+</Project>
