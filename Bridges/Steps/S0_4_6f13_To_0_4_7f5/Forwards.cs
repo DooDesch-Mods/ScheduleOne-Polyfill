@@ -304,6 +304,26 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                         + ":34 on 0.4.7f6)",
                 Emit = EmitTrashItemLimit,
             },
+
+            // ---- two renames (Tweakables) ----
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = "Il2CppScheduleOne.PlayerScripts.PlayerMovement",
+                OldName = "SetPlayerRotation", ParameterCount = 1,
+                Because = "renamed: 0.4.6's SetPlayerRotation(Quaternion) turned the player to the rotation's yaw "
+                        + "with the controller off (PlayerMovement.cs:683-689 on 0.4.6f13); 0.4.7f12 has "
+                        + "SetRotation(Quaternion) in its place, beside the same LerpPlayerRotation",
+                Emit = (module, movement) => EmitForward1(module, movement, "SetPlayerRotation", "SetRotation"),
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = "Il2CppScheduleOne.Product.ProductIconManager",
+                OldName = "GenerateIcons", ParameterCount = 1,
+                Because = "renamed: 0.4.6's GenerateIcons(productID) made one icon per packaging and returned the "
+                        + "product's own sprite (ProductIconManager.cs:64-94 on 0.4.6f13); 0.4.7f12 calls it "
+                        + "GenerateRuntimeIcons(productID), with the same return",
+                Emit = (module, icons) => EmitForward1(module, icons, "GenerateIcons", "GenerateRuntimeIcons"),
+            },
         };
 
         // ---------------------------------------------------------------- speeds
