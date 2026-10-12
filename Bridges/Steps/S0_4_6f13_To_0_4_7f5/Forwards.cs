@@ -43,6 +43,12 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             + "found in Awake (PoliceOfficer.cs:128, :161 on 0.4.7f6); the AvatarFramework.PoliceBelt the old field "
             + "held is no longer on an officer";
 
+        private const string ParkingSpot = "Il2CppScheduleOne.Map.ParkingSpot";
+
+        private const string ParentLot = "renamed: 0.4.7's ParkingSpot keeps its lot in _parentParentLot, read and "
+            + "filled by the same Awake and Init that used ParentLot (ParkingSpot.cs:8, :20-38 on 0.4.6f13; "
+            + ":12, :21-39 on 0.4.7f6)";
+
         internal override IEnumerable<Bridge> Declare() => new[]
         {
             // ---- NPC movement speeds ----
@@ -175,6 +181,27 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                   + "(Property.cs on 0.4.7f6), so a mod that fills it in while it builds a property has nothing "
                   + "left to tell the game",
                   module => TypeIn(module, "UnityEngine.CoreModule", "UnityEngine", "Transform")),
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = ParkingSpot, OldName = "set_ParentLot", ParameterCount = 1,
+                Because = ParentLot,
+                Emit = (module, spot) => EmitSetterRename(module, spot, "set_ParentLot", "_parentParentLot"),
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = ParkingSpot, OldName = "get_ParentLot", ParameterCount = 0,
+                Because = ParentLot,
+                Emit = (module, spot) => EmitGetterRename(module, spot, "get_ParentLot", "_parentParentLot"),
+            },
+            Empty("Il2CppScheduleOne.Trash.TrashItem", "set_CurrentProperty", 1, m => m.TypeSystem.Void,
+                  "0.4.6's trash kept the owned property it lies in as a cache that only its own RecheckProperty "
+                  + "read and refreshed (TrashItem.cs:66, :249-263 on 0.4.6f13); 0.4.7's trash records no property "
+                  + "and the getter put back for it answers from the bounds each time, so a value written here "
+                  + "has no reader",
+                  module => module.GetType("Il2CppScheduleOne.Property.Property")),
+            Empty(Movement, "WarpToNavMesh", 0, m => m.TypeSystem.Void,
+                  "0.4.6's NPCMovement.WarpToNavMesh() had an empty body (NPCMovement.cs:964-966 on 0.4.6f13) and "
+                  + "0.4.7 dropped the method (NPCMovement.cs on 0.4.7f6); the call did nothing and does nothing"),
         };
 
         // ---------------------------------------------------------------- speeds
@@ -392,6 +419,14 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             il.Emit(OpCodes.Ldarg_0);
             il.Emit(to.IsVirtual ? OpCodes.Callvirt : OpCodes.Call, to);   // an override answers for its own type
             il.Emit(OpCodes.Ret);
+            return AsProperty(type, method);
+        }
+
+        internal static MethodDefinition EmitSetterRename(ModuleDefinition module, TypeDefinition type, string oldName, string member)
+        {
+            var method = EmitForward1(module, type, oldName, "set_" + member);
+            if (method == null) return null;
+            method.Attributes |= MethodAttributes.SpecialName;
             return AsProperty(type, method);
         }
 
