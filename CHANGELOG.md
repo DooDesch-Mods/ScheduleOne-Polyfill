@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.5] - 2026-10-13
+
+### Fixed
+- On 0.4.7, InstantDelivery 1.6.0 finds Albert, Shirley and Salvador again, so its instant deliveries
+  and no debt switches work for the three of them.
+
 ## [0.13.4] - 2026-10-12
 
 ### Fixed
