@@ -105,6 +105,19 @@ namespace Polyfill.ModFixes
                 Value = _ => false,
                 Because = "0.4.7 creates every bag as a physics object, which is the old call with false",
             },
+
+            // The same argument on a single item. Only the save loader passed true on 0.4.6 (TrashLoader.cs:31,
+            // :83 on 0.4.6f13); 0.4.7 has no kinematic start at all (TrashManager.cs:148-201 on 0.4.7f6).
+            // Tweakables 0.6.0 switches trash off with a prefix on the old form that returns false.
+            new Entry
+            {
+                Type = "Il2CppScheduleOne.Trash.TrashManager",
+                Name = "CreateTrashItem",
+                StandInArity = 6,
+                Dropped = "startKinematic",
+                Value = _ => false,
+                Because = "0.4.7 creates every item as a physics object, which is the old call with false",
+            },
         };
 
         private sealed class Relay
