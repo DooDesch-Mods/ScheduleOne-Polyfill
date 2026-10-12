@@ -106,7 +106,14 @@ dotnet build Boot/Polyfill.Boot.csproj -c Release
 dotnet build Report/Polyfill.csproj -c Release
 ```
 
-Both need the Schedule I workspace libraries; point `WorkspaceLibPath` at them.
+Both need DLLs from a Schedule I install that has started once with MelonLoader. Add the two folders
+to each command:
+
+```
+-p:MelonLoaderPath="<game>/MelonLoader/net6" -p:GameManagedPath="<game>/MelonLoader/Il2CppAssemblies"
+```
+
+The plugin only needs the first one. A build without `-p:Version=` calls itself `0.0.0-dev`.
 
 ## Credits
 

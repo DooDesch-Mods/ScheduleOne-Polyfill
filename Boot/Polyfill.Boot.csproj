@@ -44,6 +44,8 @@
   <Import Project="$(MSBuildThisFileDirectory)../Workspace/build/Hardening.props" Condition="Exists('$(MSBuildThisFileDirectory)../Workspace/build/Hardening.props')" />
   <Import Project="$(MSBuildThisFileDirectory)../../Workspace/build/ModVersion.props" Condition="Exists('$(MSBuildThisFileDirectory)../../Workspace/build/ModVersion.props')" />
   <Import Project="$(MSBuildThisFileDirectory)../Workspace/build/ModVersion.props" Condition="Exists('$(MSBuildThisFileDirectory)../Workspace/build/ModVersion.props')" />
+  <!-- No Workspace folder: the repo's own copy writes DooDesch.ModVersion, so a plain clone builds. -->
+  <Import Project="$(MSBuildThisFileDirectory)../build/ModVersion.props" Condition="!Exists('$(MSBuildThisFileDirectory)../../Workspace/build/ModVersion.props') AND !Exists('$(MSBuildThisFileDirectory)../Workspace/build/ModVersion.props')" />
 
   <!-- The analysis core, shared with nothing else today but kept out of Boot/ because it is the part that
        will grow: index, triage, and later the injector. -->
