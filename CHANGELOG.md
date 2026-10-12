@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.4] - 2026-10-12
+
+### Fixed
+- On 0.4.7, Tweakables 0.6.0 gets its teleport rotation and product icons back, and its "no trash" switch
+  stops single trash items again, not only bags.
+- On 0.4.7, SkillTree 3.4.0 can change the time when you sleep again. Without that, beds broke.
+- AutomatedTasksMod 1.3.0 reacts to the chemistry station's Begin button again.
+
+### Added
+- On 0.4.7, TrashCollector 0.22.2 and SkillTree get back six trash functions the update removed.
+- Chemical Plant 1.4.0 gets back four game functions it needs on 0.4.7 for its property, parking, trash
+  and workers.
+- Older mods that set the time of day, hide your own character or use an NPC's default dialogue find
+  those game functions on 0.4.7 again.
+
 ## [0.13.3] - 2026-10-12
 
 ### Fixed
