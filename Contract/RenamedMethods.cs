@@ -52,6 +52,20 @@ namespace Polyfill.Contract
                         + "(float) became SetAmount(float) on it (AmountSelector.cs:61)",
             },
 
+            // The one station screen whose begin handler changed its name along with the screen. Cauldron,
+            // mixing station, packaging station, lab oven and brick press all still have a public
+            // BeginButtonPressed in front of their private BeginTask, so a patch on those binds by itself.
+            new Entry
+            {
+                Type = "Il2CppScheduleOne.UI.Stations.ChemistryStationCanvas",
+                OldName = "BeginButtonPressed",
+                NewName = "BeginTask",
+                Because = "0.4.5f2 ChemistryStationCanvas had one begin method, the public BeginButtonPressed(); "
+                        + "0.4.6 ChemistryStationInterface has one, the private BeginTask(), which Awake adds "
+                        + "to BeginButton.onClick and Update calls on Submit "
+                        + "(ChemistryStationInterface.cs:50, :67 and :190 on 0.4.6f13)",
+            },
+
             // 0.4.7 split HandoverScreen.Open(contract, customer, mode, ...) into one public Open_* per
             // mode, and every one of them ends in the same private OnOpen(mode) - the camera, the slots,
             // the state push, IsOpen and OnHandoverScreenOpened all live there. A patch on Open is a patch
