@@ -44,6 +44,11 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             + "held is no longer on an officer";
 
         private const string ParkingSpot = "Il2CppScheduleOne.Map.ParkingSpot";
+        private const string TrashItem = "Il2CppScheduleOne.Trash.TrashItem";
+
+        private const string CanGoInContainer = "renamed: 0.4.7's TrashItem keeps the flag in "
+            + "_canGoInTrashContainer, serialized under the old name, and reads it where the bag, the bin and "
+            + "the grabber read the field (TrashItem.cs:52, :164, :185 on 0.4.6f13; :33-34, :71-73 on 0.4.7f6)";
 
         private const string ParentLot = "renamed: 0.4.7's ParkingSpot keeps its lot in _parentParentLot, read and "
             + "filled by the same Awake and Init that used ParentLot (ParkingSpot.cs:8, :20-38 on 0.4.6f13; "
@@ -193,7 +198,7 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                 Because = ParentLot,
                 Emit = (module, spot) => EmitGetterRename(module, spot, "get_ParentLot", "_parentParentLot"),
             },
-            Empty("Il2CppScheduleOne.Trash.TrashItem", "set_CurrentProperty", 1, m => m.TypeSystem.Void,
+            Empty(TrashItem, "set_CurrentProperty", 1, m => m.TypeSystem.Void,
                   "0.4.6's trash kept the owned property it lies in as a cache that only its own RecheckProperty "
                   + "read and refreshed (TrashItem.cs:66, :249-263 on 0.4.6f13); 0.4.7's trash records no property "
                   + "and the getter put back for it answers from the bounds each time, so a value written here "
@@ -202,6 +207,48 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             Empty(Movement, "WarpToNavMesh", 0, m => m.TypeSystem.Void,
                   "0.4.6's NPCMovement.WarpToNavMesh() had an empty body (NPCMovement.cs:964-966 on 0.4.6f13) and "
                   + "0.4.7 dropped the method (NPCMovement.cs on 0.4.7f6); the call did nothing and does nothing"),
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = TrashItem, OldName = "get_CanGoInContainer", ParameterCount = 0,
+                Because = CanGoInContainer,
+                Emit = (module, trash) => EmitGetterRename(module, trash, "get_CanGoInContainer", "_canGoInTrashContainer"),
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = TrashItem, OldName = "set_CanGoInContainer", ParameterCount = 1,
+                Because = CanGoInContainer,
+                Emit = (module, trash) => EmitSetterRename(module, trash, "set_CanGoInContainer", "_canGoInTrashContainer"),
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = "Il2CppScheduleOne.GameTime.TimeManager",
+                OldName = "SetTimeAndSync", ParameterCount = 1,
+                Because = "0.4.6's SetTimeAndSync(time) set the time on the host and sent it to everyone through "
+                        + "SetTimeData_Client (TimeManager.cs:317-326 on 0.4.6f13); 0.4.7's SetTime_Server(time) makes "
+                        + "the same host check and the same send, and that send runs on the host too and sets the "
+                        + "time there (TimeManager.cs:196-198, :321-331, :614-623 on 0.4.7f6)",
+                Emit = (module, time) => EmitForward1(module, time, "SetTimeAndSync", "SetTime_Server"),
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = "Il2CppScheduleOne.PlayerScripts.Player",
+                OldName = "SetVisibleToLocalPlayer", ParameterCount = 1,
+                Because = "0.4.6's SetVisibleToLocalPlayer(vis) recorded the flag, moved the avatar to the Player or "
+                        + "the Invisible layer and called SetThirdPersonMeshesVisibility(vis) (Player.cs:1231-1243 on "
+                        + "0.4.6f13); 0.4.7's SetThirdPersonMeshesVisibility moves the avatar to that layer itself "
+                        + "(Player.cs:1649-1669 on 0.4.7f6) and the flag is still on the player (Player.cs:446)",
+                Emit = EmitSetVisibleToLocalPlayer,
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = "Il2CppScheduleOne.Dialogue.DialogueController",
+                OldName = "get_GenericDialogue", ParameterCount = 0,
+                Because = "0.4.6's controller held the dialogue StartGenericDialogue opens in its GenericDialogue "
+                        + "field (DialogueController.cs:82, :129-147 on 0.4.6f13); 0.4.7's controller opens the one "
+                        + "the DialogueManager holds and reads it through _genericConversation "
+                        + "(DialogueController.cs:112, :143-161 on 0.4.7f6)",
+                Emit = EmitGenericDialogue,
+            },
         };
 
         // ---------------------------------------------------------------- speeds
@@ -350,6 +397,60 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             il.Append(have);
             il.Emit(OpCodes.Ret);
             return AsProperty(animation, method);
+        }
+
+        /// <summary>
+        /// <c>Player.SetVisibleToLocalPlayer(vis)</c>: the flag, then the meshes and their layer.
+        /// </summary>
+        /// <remarks>
+        /// 0.4.7 has no writer left for <c>avatarVisibleToLocalPlayer</c>, so the flag is set here the way the
+        /// 0.4.6 method set it: a mod that hides the player and reads the flag back gets what it wrote.
+        /// </remarks>
+        private static MethodDefinition EmitSetVisibleToLocalPlayer(ModuleDefinition module, TypeDefinition player)
+        {
+            var flag = Method(player, "set_avatarVisibleToLocalPlayer", 1);
+            var meshes = Method(player, "SetThirdPersonMeshesVisibility", 1);
+            if (flag == null || meshes == null || flag.IsStatic || meshes.IsStatic) return null;
+            var method = new MethodDefinition("SetVisibleToLocalPlayer", MethodAttributes.Public | MethodAttributes.HideBySig,
+                                              module.TypeSystem.Void);
+            method.Parameters.Add(new ParameterDefinition("vis", ParameterAttributes.None, module.TypeSystem.Boolean));
+            var il = method.Body.GetILProcessor();
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Ldarg_1);
+            il.Emit(OpCodes.Call, flag);
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Ldarg_1);
+            il.Emit(meshes.IsVirtual ? OpCodes.Callvirt : OpCodes.Call, meshes);
+            il.Emit(OpCodes.Ret);
+            return method;
+        }
+
+        /// <summary>
+        /// <c>DialogueController.GenericDialogue</c>, read: the conversation the controller opens, handed back
+        /// under the name the type had.
+        /// </summary>
+        /// <remarks>
+        /// A mod built for 0.4.6 asks for a getter that returns <c>DialogueContainer</c>, and a call matches on
+        /// the return type too. The class put back under that name derives from <c>Conversation</c>, so the
+        /// answer is rebuilt as that class around the same native object. Without that class there is nothing
+        /// to return the answer as, and the getter is not written.
+        ///
+        /// There is no setter: 0.4.7 keeps one generic conversation for every controller, on the
+        /// DialogueManager, so a value written for one NPC has nowhere to live.
+        /// </remarks>
+        private static MethodDefinition EmitGenericDialogue(ModuleDefinition module, TypeDefinition controller)
+        {
+            var to = Getter(controller, "_genericConversation");
+            if (to == null || to.IsStatic) return null;
+            var container = Core.ShadowTypes.Shadowing(module, to.ReturnType);
+            if (container == null) return null;
+            var method = new MethodDefinition("get_GenericDialogue",
+                MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName, container);
+            var il = method.Body.GetILProcessor();
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, to);
+            if (!Core.ShadowTypes.EmitRewrap(module, il, container, out _)) return null;
+            return AsProperty(controller, method);
         }
 
         /// <summary>A getter that answers null: the member exists so callers compile, and they null-check it.</summary>
