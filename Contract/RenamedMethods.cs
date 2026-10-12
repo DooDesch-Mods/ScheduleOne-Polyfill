@@ -117,6 +117,21 @@ namespace Polyfill.Contract
                         + "CompleteContractDialogueChosen skips the dialogue's end and opens the contract "
                         + "handover screen (Customer.cs on 0.4.7f6)",
             },
+
+            // 0.4.7's TrashItem has no Start. Awake runs inside Instantiate, before the item has its GUID;
+            // Initialize is the first moment it is whole, which is what Start was on 0.4.6.
+            new Entry
+            {
+                Type = "Il2CppScheduleOne.Trash.TrashItem",
+                OldName = "Start",
+                NewName = "Initialize",
+                Because = "0.4.6 gave a new trash item its GUID and velocity right after Instantiate and Unity "
+                        + "ran its Start a frame later (TrashManager.cs:165-172, TrashItem.cs:110-116 on "
+                        + "0.4.6f13); 0.4.7 has no Start and calls Initialize(guid, initialVelocity) once on "
+                        + "every item and bag it creates (TrashItem.cs:62-69, TrashManager.cs:198, :242 on "
+                        + "0.4.7f6). A postfix sees the same finished item; a prefix runs before the GUID is "
+                        + "set, where on 0.4.6 it ran after",
+            },
         };
 
         /// <summary>What this name became on the type, or null when nothing is on record.</summary>
