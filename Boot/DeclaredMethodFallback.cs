@@ -184,6 +184,31 @@ namespace Polyfill.Boot
         {
             if (type == null || name == null || parameters != null) return true;
 
+            // A name with two methods where the one the patch means is on record.
+            var meant = NameOnlyTargets.For(type.FullName, name);
+            if (meant != null)
+            {
+                try
+                {
+                    var only = NameOnlyTargets.Find(type, meant);
+                    if (only == null)
+                    {
+                        _log?.Msg($"[harmony] {type.FullName}.{name} has no method taking "
+                                + $"({string.Join(", ", meant.Parameters)}) on this build; the lookup is left "
+                                + "to Harmony.");
+                        return true;
+                    }
+                    __result = only;
+                    return false;
+                }
+                catch (Exception e)
+                {
+                    _log?.Warning($"[harmony] {type.FullName}.{name}: the name-only lookup failed, left to "
+                                + "Harmony: " + e.Message);
+                    return true;
+                }
+            }
+
             // A reshaped method: the patch was written for the old form, and only the stand-in has it.
             // On a build that still has the old form, that is simply the game's own method of that arity.
             int standIn = ReshapedMethods.StandIn(type.FullName, name);

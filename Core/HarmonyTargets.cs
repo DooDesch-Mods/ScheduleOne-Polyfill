@@ -226,6 +226,26 @@ namespace Polyfill.Core
                 yield return Decorated(types[i]?.FullName, variations, i) ?? "?";
         }
 
+        /// <summary>Does the method take exactly these, spelled the way NameOnlyTargets spells them?</summary>
+        private static bool Takes(MethodDefinition method, string[] parameters)
+        {
+            if (method.Parameters.Count != parameters.Length) return false;
+            for (int i = 0; i < parameters.Length; i++)
+                if (Spell(method.Parameters[i].ParameterType) != parameters[i]) return false;
+            return true;
+        }
+
+        /// <summary>The metadata twin of <see cref="NameOnlyTargets.Spell"/>.</summary>
+        private static string Spell(TypeReference type)
+        {
+            if (type is ByReferenceType byReference) return Spell(byReference.ElementType) + "&";
+            if (type is not GenericInstanceType generic) return type.Name;
+
+            var spelled = new string[generic.GenericArguments.Count];
+            for (int i = 0; i < spelled.Length; i++) spelled[i] = Spell(generic.GenericArguments[i]);
+            return NameOnlyTargets.Bare(generic.ElementType.Name) + "<" + string.Join(",", spelled) + ">";
+        }
+
         /// <summary>The method half of the check, once the type it is on has been settled.</summary>
         /// <param name="under">The name the mod used, when that is not the type being searched.</param>
         private static void Verify(Spec spec, string site, InteropIndex index, ModReport report,
@@ -288,6 +308,18 @@ namespace Polyfill.Core
             }
 
             if (exact != null) found = exact;
+
+            // A NAME WITH TWO METHODS WHERE THE ONE MEANT IS ON RECORD. The runtime answers the lookup with
+            // it (DeclaredMethodFallback.Unambiguous), so the patch binds and what is left to check is how
+            // it spells that method's parameters.
+            if (matches > 1 && argumentCount < 0)
+            {
+                var meant = NameOnlyTargets.For(under ?? declaring.FullName, name);
+                if (meant != null)
+                    foreach (var method in declaring.Methods)
+                        if (method.Name == name && Takes(method, meant.Parameters))
+                        { Names(method, patches, site, report); return; }
+            }
 
             // A NAME THE GAME KEPT AND REBUILT UNDER. Two methods of it, a patch that names neither, and a
             // patch written for a third form the game no longer has: that third form is what a stand-in

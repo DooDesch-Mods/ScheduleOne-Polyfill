@@ -50,6 +50,13 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             + "_canGoInTrashContainer, serialized under the old name, and reads it where the bag, the bin and "
             + "the grabber read the field (TrashItem.cs:52, :164, :185 on 0.4.6f13; :33-34, :71-73 on 0.4.7f6)";
 
+        private const string Grabber = "Il2CppScheduleOne.Equipping.Equippable_TrashGrabber";
+
+        private const string EquippedGrabber = "0.4.6's grabber kept the equipped one in a static Instance, set in "
+            + "Equip, and IsEquipped was Instance != null (Equippable_TrashGrabber.cs:47-49, :62 on 0.4.6f13); 0.4.7 "
+            + "has no static and asks the local inventory: isAnythingEquipped and Equippable is "
+            + "Equippable_TrashGrabber (TrashItemDraggable.cs:65-78 on 0.4.7f6)";
+
         private const string ParentLot = "renamed: 0.4.7's ParkingSpot keeps its lot in _parentParentLot, read and "
             + "filled by the same Awake and Init that used ParentLot (ParkingSpot.cs:8, :20-38 on 0.4.6f13; "
             + ":12, :21-39 on 0.4.7f6)";
@@ -248,6 +255,54 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                         + "the DialogueManager holds and reads it through _genericConversation "
                         + "(DialogueController.cs:112, :143-161 on 0.4.7f6)",
                 Emit = EmitGenericDialogue,
+            },
+
+            // ---- trash ----
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = Grabber, OldName = "get_Instance", ParameterCount = 0,
+                Because = EquippedGrabber,
+                Emit = (module, grabber) => EmitEquippedGrabber(module, grabber, "get_Instance", asFlag: false),
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = Grabber, OldName = "get_IsEquipped", ParameterCount = 0,
+                Because = EquippedGrabber,
+                Emit = (module, grabber) => EmitEquippedGrabber(module, grabber, "get_IsEquipped", asFlag: true),
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = TrashItem, OldName = "SetPhysicsActive", ParameterCount = 1,
+                Because = "0.4.6's trash rested kinematic and SetPhysicsActive(true) woke it: called when it was dragged "
+                        + "or hit, undone a minute later (TrashItem.cs:91-107, :265-292 on 0.4.6f13). 0.4.7's trash is "
+                        + "never kinematic and rests asleep, so nothing would wake a body made kinematic "
+                        + "(TrashItem.cs:48-60, Draggable.cs:224-240 on 0.4.7f6): true makes it non-kinematic and "
+                        + "wakes it, false puts it to sleep, which a drag or a hit ends as it did on 0.4.6",
+                Emit = EmitSetPhysicsActive,
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = TrashItem, OldName = "get_Draggable", ParameterCount = 0,
+                Because = "0.4.6's trash item held its Draggable in a public field (TrashItem.cs:41 on 0.4.6f13); "
+                        + "0.4.7 keeps a TrashItemDraggable, which is a Draggable, in _draggable "
+                        + "(TrashItem.cs:38, :51, TrashItemDraggable.cs:9 on 0.4.7f6)",
+                Emit = EmitTrashDraggable,
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = TrashItem, OldName = "get_colliders", ParameterCount = 0,
+                Because = "0.4.6's trash item kept GetComponentsInChildren<Collider>() in its colliders field "
+                        + "(TrashItem.cs:54, :133-136 on 0.4.6f13); 0.4.7 keeps no such list (TrashItem.cs on "
+                        + "0.4.7f6), so the getter collects them when asked",
+                Emit = EmitTrashColliders,
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = "Il2CppScheduleOne.Trash.TrashManager",
+                OldName = "get_TRASH_ITEM_LIMIT", ParameterCount = 0,
+                Because = "renamed: the 2000 item limit is TrashItemLimit on 0.4.7 (TrashManager.cs:33 on 0.4.6f13; "
+                        + ":34 on 0.4.7f6)",
+                Emit = EmitTrashItemLimit,
             },
         };
 
@@ -451,6 +506,171 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             il.Emit(OpCodes.Call, to);
             if (!Core.ShadowTypes.EmitRewrap(module, il, container, out _)) return null;
             return AsProperty(controller, method);
+        }
+
+        // ---------------------------------------------------------------- trash
+
+        /// <summary>
+        /// The trash grabber the local player holds, or whether there is one: the local inventory's equippable,
+        /// when anything is equipped and it is a grabber.
+        /// </summary>
+        private static MethodDefinition EmitEquippedGrabber(ModuleDefinition module, TypeDefinition grabber,
+                                                            string name, bool asFlag)
+        {
+            var inventory = module.GetType("Il2CppScheduleOne.PlayerScripts.PlayerInventory");
+            var holder = module.GetType("Il2CppScheduleOne.DevUtilities.PlayerSingleton`1");
+            var instance = Method(holder, "get_Instance", 0);
+            var anything = Getter(inventory, "isAnythingEquipped");
+            var equippable = Getter(inventory, "Equippable");
+            var cast = GenericUp(module, grabber, "TryCast", grabber);
+            if (instance == null || !instance.IsStatic || anything == null || equippable == null || cast == null)
+                return null;
+
+            var ofInventory = new GenericInstanceType(module.ImportReference(holder));
+            ofInventory.GenericArguments.Add(module.ImportReference(inventory));
+
+            var method = new MethodDefinition(name,
+                MethodAttributes.Public | MethodAttributes.Static | MethodAttributes.HideBySig | MethodAttributes.SpecialName,
+                asFlag ? module.TypeSystem.Boolean : grabber);
+            method.Body.InitLocals = true;
+            var held = new VariableDefinition(inventory);
+            var worn = new VariableDefinition(module.ImportReference(equippable.ReturnType));
+            method.Body.Variables.Add(held);
+            method.Body.Variables.Add(worn);
+
+            var il = method.Body.GetILProcessor();
+            var none = il.Create(asFlag ? OpCodes.Ldc_I4_0 : OpCodes.Ldnull);
+
+            il.Emit(OpCodes.Call, Against(module, instance, ofInventory));
+            il.Emit(OpCodes.Stloc, held);
+            il.Emit(OpCodes.Ldloc, held);
+            il.Emit(OpCodes.Brfalse, none);
+            il.Emit(OpCodes.Ldloc, held);
+            il.Emit(OpCodes.Callvirt, anything);
+            il.Emit(OpCodes.Brfalse, none);
+            il.Emit(OpCodes.Ldloc, held);
+            il.Emit(OpCodes.Callvirt, equippable);
+            il.Emit(OpCodes.Stloc, worn);
+            il.Emit(OpCodes.Ldloc, worn);
+            il.Emit(OpCodes.Brfalse, none);
+            il.Emit(OpCodes.Ldloc, worn);
+            il.Emit(OpCodes.Callvirt, cast);          // null when the equippable is something else
+            if (asFlag)
+            {
+                il.Emit(OpCodes.Ldnull);
+                il.Emit(OpCodes.Cgt_Un);
+            }
+            il.Emit(OpCodes.Ret);
+            il.Append(none);
+            il.Emit(OpCodes.Ret);
+            return AsProperty(grabber, method);
+        }
+
+        private static MethodDefinition EmitSetPhysicsActive(ModuleDefinition module, TypeDefinition trash)
+        {
+            var body = Getter(trash, "_rigidbody");
+            var rigidbody = body?.ReturnType?.Resolve();
+            var kinematic = Method(rigidbody, "set_isKinematic", 1);
+            var wake = Method(rigidbody, "WakeUp", 0);
+            var sleep = Method(rigidbody, "Sleep", 0);
+            if (body == null || body.IsStatic || kinematic == null || wake == null || sleep == null) return null;
+
+            var method = new MethodDefinition("SetPhysicsActive", MethodAttributes.Public | MethodAttributes.HideBySig,
+                                              module.TypeSystem.Void);
+            method.Parameters.Add(new ParameterDefinition("active", ParameterAttributes.None, module.TypeSystem.Boolean));
+            var il = method.Body.GetILProcessor();
+            var rest = il.Create(OpCodes.Ldarg_0);
+
+            il.Emit(OpCodes.Ldarg_1);
+            il.Emit(OpCodes.Brfalse, rest);
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, body);
+            il.Emit(OpCodes.Ldc_I4_0);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(kinematic));
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, body);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(wake));
+            il.Emit(OpCodes.Ret);
+            il.Append(rest);
+            il.Emit(OpCodes.Call, body);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(sleep));
+            il.Emit(OpCodes.Ret);
+            return method;
+        }
+
+        private static MethodDefinition EmitTrashDraggable(ModuleDefinition module, TypeDefinition trash)
+        {
+            var to = Getter(trash, "_draggable");
+            var draggable = module.GetType("Il2CppScheduleOne.Dragging.Draggable");
+            if (to == null || to.IsStatic || draggable == null) return null;
+
+            bool derives = false;
+            for (var current = to.ReturnType.Resolve(); current != null && !derives; current = current.BaseType?.Resolve())
+                derives = current == draggable;
+            if (!derives) return null;
+
+            var method = new MethodDefinition("get_Draggable",
+                MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName, draggable);
+            var il = method.Body.GetILProcessor();
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, to);
+            il.Emit(OpCodes.Ret);
+            return AsProperty(trash, method);
+        }
+
+        private static MethodDefinition EmitTrashColliders(ModuleDefinition module, TypeDefinition trash)
+        {
+            var collider = TypeIn(module, "UnityEngine.PhysicsModule", "UnityEngine", "Collider");
+            var array = ReferenceArrayOf("UnityEngine.PhysicsModule", "UnityEngine", "Collider")(module);
+            var collect = collider == null ? null : GenericUp(module, trash, "GetComponentsInChildren", collider);
+            if (array == null || collect == null) return null;
+
+            var method = new MethodDefinition("get_colliders",
+                MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName, array);
+            var il = method.Body.GetILProcessor();
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, collect);
+            il.Emit(OpCodes.Castclass, array);        // the interop hands an array of objects back as this type
+            il.Emit(OpCodes.Ret);
+            return AsProperty(trash, method);
+        }
+
+        private static MethodDefinition EmitTrashItemLimit(ModuleDefinition module, TypeDefinition manager)
+        {
+            var to = Getter(manager, "TrashItemLimit");
+            if (to == null || !to.IsStatic) return null;
+            var method = new MethodDefinition("get_TRASH_ITEM_LIMIT",
+                MethodAttributes.Public | MethodAttributes.Static | MethodAttributes.HideBySig | MethodAttributes.SpecialName,
+                module.ImportReference(to.ReturnType));
+            var il = method.Body.GetILProcessor();
+            il.Emit(OpCodes.Call, to);
+            il.Emit(OpCodes.Ret);
+            return AsProperty(manager, method);
+        }
+
+        /// <summary>
+        /// A generic method with no parameters and one type argument, found on the type or anything it derives
+        /// from and closed over <paramref name="argument"/>: <c>TryCast&lt;T&gt;()</c>,
+        /// <c>GetComponentsInChildren&lt;T&gt;()</c>.
+        /// </summary>
+        private static MethodReference GenericUp(ModuleDefinition module, TypeDefinition from, string name,
+                                                 TypeReference argument)
+        {
+            for (var current = from; current != null; )
+            {
+                foreach (var candidate in current.Methods)
+                {
+                    if (candidate.Name != name || candidate.Parameters.Count != 0) continue;
+                    if (candidate.GenericParameters.Count != 1 || candidate.IsStatic) continue;
+                    var closed = new GenericInstanceMethod(module.ImportReference(candidate));
+                    closed.GenericArguments.Add(module.ImportReference(argument));
+                    return closed;
+                }
+                var next = current.BaseType?.Resolve();
+                if (next == current) return null;
+                current = next;
+            }
+            return null;
         }
 
         /// <summary>A getter that answers null: the member exists so callers compile, and they null-check it.</summary>
