@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.6] - 2026-10-13
+
+### Fixed
+- On 0.4.7, the Tweakables 0.6.0 phone app fills the screen again, with the categories on the left and
+  the settings next to them.
+- On 0.4.7, NPCInteract360 1.1.1 lets you talk to an NPC from any side again.
+- On 0.4.7, Ndrangheta Mafia 1.0.7 and TheMob Connector 1.0.7 get back the game functions they call, and
+  the mod's goons wear their outfits again. Needs S1API 3.2.1 or newer.
+
 ## [0.13.5] - 2026-10-13
 
 ### Fixed
