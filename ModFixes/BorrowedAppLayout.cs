@@ -49,15 +49,16 @@ namespace Polyfill.ModFixes
         internal override string ModVersions => "*";
 
         /// <summary>
-        /// Closed on purpose: this is a statement about one build's prefab, not about the game.
+        /// Closed on purpose: this is a statement about a prefab, not about the game.
         /// </summary>
         /// <remarks>
-        /// The shape was read off the 0.4.6f12 export and seen on 0.4.6f13. On 0.4.7 the component may be
-        /// gone or configured differently - and the check below would refuse anyway. Standing down loudly
-        /// is still the better default: a layout fix that silently does nothing is indistinguishable from
-        /// the bug it was written for.
+        /// The shape was read off the 0.4.6f12 export and seen on 0.4.6f13 and on 0.4.7f12, where the
+        /// product manager's Container still carries the same layout group. A build after that may drop
+        /// or reconfigure it - and the check below would refuse anyway. Standing down loudly is still the
+        /// better default: a layout fix that silently does nothing is indistinguishable from the bug it
+        /// was written for.
         /// </remarks>
-        internal override string GameVersions => "0.4.6*";
+        internal override string GameVersions => "0.4.6*,0.4.7*";
 
         internal override bool NeedsAScreen => true;
 
