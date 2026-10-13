@@ -4,30 +4,26 @@
 
 **Your old mods stopped working after a Schedule I update? Polyfill gets a lot of them running again.**
 
-![Version](https://img.shields.io/badge/version-0.1.3-blue)
+![Version](https://img.shields.io/github/v/release/DooDesch-Mods/ScheduleOne-Polyfill?label=version&color=blue)
 ![Game](https://img.shields.io/badge/game-Schedule%20I-purple)
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3+-green)
-![Status](https://img.shields.io/badge/status-early%20beta-orange)
 [![Polyfill](https://polyfill.doomods.com/badge/polyfill.svg)](https://polyfill.doomods.com/mod/polyfill)
 
-> ### ⚠ Early beta
+> ### Do your mods still work?
 >
-> Still got a mod that will not run? Open the console, type `polyfillexport`, and send me the file it
-> creates: [support.doodesch.de/polyfill](https://support.doodesch.de/polyfill)
+> Look them up: **[polyfill.doomods.com](https://polyfill.doomods.com)**
+>
+> Over 1,300 mods. Pick your game version and see if a mod runs, which version to use and what players
+> wrote about it.
+>
+> Still broken? Drop your `Latest.log` on the mod's page there.
 
 The game gets an update. Mods made before it stop working. Polyfill patches the game so they run again.
 
 It patches the game, not your mods. Your own files are never changed, and `polyfillrestore` takes the
 patch back out.
 
-It cannot save every mod. The console tells you which ones.
-
-## Tested on
-
-| | |
-|---|---|
-| T.H.M - The Hitman Mod 5.0.2 | runs |
-| OverTheCounter Dispensary 2.0.10 | runs; 29 of 40 names repaired, and two doors it looks up by name stay missing |
+It cannot save every mod. The index tells you which ones.
 
 ## Requirements
 
@@ -58,6 +54,8 @@ polyfilllist             every mod, with its verdict
 polyfillshow <mod>       everything one mod asks for that is missing
 polyfillunfixed <mod>    only what cannot be pointed at anything
 polyfillexport           write one file with everything, ready to send
+polyfillshare on|off     send anonymous reports to the index, or stop
+polyfillshare show       print exactly what would be sent
 polyfillprobe <type>     ask the runtime whether a name resolves
 polyfillrestore          undo every repair, takes effect on the next launch
 polyfillregen            have MelonLoader build the game's generated assemblies again
@@ -93,12 +91,25 @@ changed sits next to it as `<name>.dll.polyfill-orig`.
 
 Everything in that list shows up as a line in the report rather than as a crash.
 
-## Planned
+## The compatibility index
 
-- **A compatibility index.** Right now finding out that a mod is still broken depends on somebody
-  running `polyfillexport` and sending the file. A small opt-in service would collect the same thing
-  automatically and publish which mods run on which game version, so the gaps are visible without
-  anyone doing anything. Design and the open questions: `Workspace/docs/Polyfill/COMPAT-INDEX.md`.
+[polyfill.doomods.com](https://polyfill.doomods.com) lists which mods run on which game version. It is built
+from reports Polyfill sends, and only if you allow it: Polyfill asks once and sends nothing if you say no.
+
+A report holds your mods with version and author, what was missing and what Polyfill did about it, errors a
+mod threw and where in its code, and how long you played. Never your name, your save, your folders or the
+text of an error. The full list: [How this works](https://polyfill.doomods.com/about).
+
+## For mod authors
+
+Your mod probably has a page on [polyfill.doomods.com](https://polyfill.doomods.com) already:
+
+- what it is missing on each game version, by name
+- errors from players' sessions, with the method they came from
+- a live badge for your README or mod page
+- all of it as JSON, no key: [API](https://polyfill.doomods.com/about/api)
+
+Want your mod off the list? [Ask here](https://polyfill.doomods.com/about#withdraw).
 
 ## Building
 
