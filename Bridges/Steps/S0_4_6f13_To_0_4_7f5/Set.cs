@@ -162,6 +162,43 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                 Emit = EmitDataAvatarSettingsStandIn,
             },
 
+            // THE BODY ALONE, AND THE BODIES THE CARTEL DRAWS FROM. 0.4.6 could load a body and keep the
+            // accessories on (LoadNakedSettings, Avatar.cs:356-385 on 0.4.6f13), and its goon pool held the
+            // bodies as AvatarSettings (GoonPool.cs:21). Both are stand-ins like the three above, answered by
+            // AvatarSettingsBridge.
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = AvatarType,
+                OldName = "LoadNakedSettings",
+                ParameterCount = 3,
+                ParameterTypes = new[] { AvatarSettingsType, "System.Boolean", "System.Int32" },
+                Because = "0.4.6's LoadNakedSettings(settings, keepOldLayers, maxLayerOrder) loaded a body, its hair "
+                        + "and face and the body layers up to an order, and left the accessories on "
+                        + "(Avatar.cs:356-385 on 0.4.6f13); 0.4.7 applies a NakedAppearance through "
+                        + "Avatar.Appearance (AvatarAppearance.cs:96-147 on 0.4.7f6), and Polyfill translates one "
+                        + "into the other",
+                Emit = EmitLoadNakedSettingsStandIn,
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = "Il2CppScheduleOne.Cartel.GoonPool",
+                OldName = "get_MaleBaseAppearances",
+                ParameterCount = 0,
+                Because = "0.4.6's goon pool held the male bodies as AvatarSettings in MaleBaseAppearances "
+                        + "(GoonPool.cs:21, CartelGoon.cs:337 on 0.4.6f13); 0.4.7 holds them as "
+                        + "NakedAppearanceObjects in _maleAppearances (GoonPool.cs:22, :184-199 on 0.4.7f7), and "
+                        + "Polyfill describes each one as the settings it replaced",
+                Emit = EmitMaleBaseAppearancesStandIn,
+            },
+            Forwards.Empty(AvatarType, "set_appliedHair", 1, m => m.TypeSystem.Void,
+                  "0.4.6's avatar kept the hair it had instantiated in appliedHair and destroyed it before the next "
+                + "one (Avatar.cs:96, :449-466 on 0.4.6f13); 0.4.7 keeps hair as one of the appearance's avatar "
+                + "objects and removes it with the body (AvatarAppearance.cs:39, :261-263 on 0.4.7f7), so there is "
+                + "no reference on the avatar to clear and the write does nothing",
+                  m => m.GetType("Il2CppScheduleOne.AvatarFramework.Hair")),
+
             // SLEEP MOVED OFF THE CLOCK. 0.4.6 kept the sleep hooks on TimeManager: two public Action fields
             // and IsSleepInProgress, raised in its StartSleep RPC (TimeManager.cs:65-67, 104, 802-840 on
             // 0.4.6f13). 0.4.7 moved all three to SleepController, raised in the same places - its own
@@ -956,6 +993,44 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                                                           module.ImportReference(settings)));
             method.Body.GetILProcessor().Emit(OpCodes.Ret);
             return method;
+        }
+
+        /// <summary><c>Avatar.LoadNakedSettings(settings, keepOldLayers, maxLayerOrder)</c>, with no body of its own.</summary>
+        private static MethodDefinition EmitLoadNakedSettingsStandIn(ModuleDefinition module, TypeDefinition avatar)
+        {
+            var settings = module.GetType(AvatarSettingsType);
+            if (settings == null) return null;
+
+            var method = new MethodDefinition("LoadNakedSettings",
+                MethodAttributes.Public | MethodAttributes.HideBySig, module.TypeSystem.Void);
+            method.Parameters.Add(new ParameterDefinition("settings", ParameterAttributes.None,
+                                                          module.ImportReference(settings)));
+            method.Parameters.Add(new ParameterDefinition("keepOldLayers", ParameterAttributes.None,
+                                                          module.TypeSystem.Boolean));
+            method.Parameters.Add(new ParameterDefinition("maxLayerOrder", ParameterAttributes.None,
+                                                          module.TypeSystem.Int32));
+            method.Body.GetILProcessor().Emit(OpCodes.Ret);
+            return method;
+        }
+
+        /// <summary><c>GoonPool.MaleBaseAppearances</c>, answering nothing until the Report half answers for it.</summary>
+        private static MethodDefinition EmitMaleBaseAppearancesStandIn(ModuleDefinition module, TypeDefinition pool)
+        {
+            var settings = module.GetType(AvatarSettingsType);
+            var array = Forwards.ReferenceArray(module);
+            if (settings == null || array == null) return null;
+            foreach (var property in pool.Properties)
+                if (property.Name == "MaleBaseAppearances") return null;
+
+            var returns = new GenericInstanceType(array);
+            returns.GenericArguments.Add(module.ImportReference(settings));
+
+            var getter = new MethodDefinition("get_MaleBaseAppearances",
+                MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName, returns);
+            var il = getter.Body.GetILProcessor();
+            il.Emit(OpCodes.Ldnull);
+            il.Emit(OpCodes.Ret);
+            return WithProperty(pool, getter);
         }
 
         private const string PlayerManager = "Il2CppScheduleOne.PlayerScripts.PlayerManager";

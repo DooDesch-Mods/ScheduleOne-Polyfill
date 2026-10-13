@@ -1,6 +1,7 @@
 using System.Reflection;
 using HarmonyLib;
 using Il2CppInterop.Runtime.InteropTypes;
+using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Il2CppScheduleOne.AvatarFramework;
 using MelonLoader;
 using UnityEngine;
@@ -13,8 +14,9 @@ namespace Polyfill.ModFixes
     /// <remarks>
     /// 0.4.6 applied one AvatarSettings and kept it (Avatar.cs:328-354 on 0.4.6f13). 0.4.7 applies a
     /// NakedAppearance and an outfit through Avatar.Appearance (AvatarAppearance.cs:96-147 on 0.4.7f6), and
-    /// keeps no settings object at all. The plugin puts <c>CurrentSettings</c> and <c>LoadAvatarSettings</c>
-    /// back as empty stand-ins; this gives them their behaviour.
+    /// keeps no settings object at all. The plugin puts <c>CurrentSettings</c>, <c>LoadAvatarSettings</c>,
+    /// <c>LoadNakedSettings</c> and the goon pool's <c>MaleBaseAppearances</c> back as empty stand-ins; this
+    /// gives them their behaviour.
     ///
     /// THE TRANSLATION RESTS ON THE LEGACY ASSETS. Every layer, hair and accessory asset 0.4.6 named by
     /// path still loads on 0.4.7, knows its own path (<c>AssetPath</c>) and points at the 0.4.7 object that
@@ -64,6 +66,10 @@ namespace Polyfill.ModFixes
         /// <summary>Set while this fix applies a body, so the game's own applications can be told apart.</summary>
         private static bool _applying;
 
+        /// <summary>The goon pool's male bodies as settings, and the pool they were built for.</summary>
+        private static Il2CppReferenceArray<AvatarSettings> _goonBases;
+        private static int _goonBasesFor;
+
         internal override bool Apply(MelonLogger.Instance log)
         {
             _log = log;
@@ -71,10 +77,12 @@ namespace Polyfill.ModFixes
             var current = Declared(avatar, "get_CurrentSettings", 0);
             var load = Declared(avatar, "LoadAvatarSettings", 1);
             var dataLook = Declared(typeof(Il2CppScheduleOne.NPCs.Framework.Appearance), "set_AvatarSettings", 1);
-            if (current == null && load == null && dataLook == null)
+            var loadNaked = Declared(avatar, "LoadNakedSettings", 3);
+            var goonBases = Declared(typeof(Il2CppScheduleOne.Cartel.GoonPool), "get_MaleBaseAppearances", 0);
+            if (current == null && load == null && dataLook == null && loadNaked == null && goonBases == null)
             {
-                log.Msg($"[fix] {Id}: no mod uses CurrentSettings, LoadAvatarSettings or an NPC's AvatarSettings; "
-                      + "nothing to translate.");
+                log.Msg($"[fix] {Id}: no mod uses CurrentSettings, LoadAvatarSettings, LoadNakedSettings, an NPC's "
+                      + "AvatarSettings or the goon pool's base appearances; nothing to translate.");
                 return false;
             }
 
@@ -122,9 +130,15 @@ namespace Polyfill.ModFixes
                 harmony.Patch(load, prefix: new HarmonyMethod(typeof(AvatarSettingsBridge), nameof(Load)));
             if (dataLook != null)
                 harmony.Patch(dataLook, prefix: new HarmonyMethod(typeof(AvatarSettingsBridge), nameof(SetDataLook)));
+            if (loadNaked != null)
+                harmony.Patch(loadNaked, prefix: new HarmonyMethod(typeof(AvatarSettingsBridge), nameof(LoadNaked)));
+            if (goonBases != null)
+                harmony.Patch(goonBases, prefix: new HarmonyMethod(typeof(AvatarSettingsBridge), nameof(GoonBases)));
 
             var bridged = new[] { current != null ? "CurrentSettings" : null, load != null ? "LoadAvatarSettings" : null,
-                                  dataLook != null ? "an NPC's AvatarSettings" : null }.Where(x => x != null);
+                                  loadNaked != null ? "LoadNakedSettings" : null,
+                                  dataLook != null ? "an NPC's AvatarSettings" : null,
+                                  goonBases != null ? "the goon pool's base appearances" : null }.Where(x => x != null);
             log.Msg($"[fix] {Id}: {string.Join(", ", bridged)} now translate to the 0.4.7 appearance.");
             return true;
         }
@@ -210,6 +224,35 @@ namespace Polyfill.ModFixes
                 return null;
             }
 
+            var settings = DescribeBody(naked);
+            var index = Legacy.Index;
+
+            // Worn objects the 0.4.6 catalogue has no path for cannot become a layer or an accessory; they
+            // ride along in EquivalentOutfit, and a load puts them back on from there.
+            Worn.TryGetValue(Instance(appearance), out var worn);
+            var extras = Activator.CreateInstance(_list);
+            foreach (var entry in worn ?? new List<object>())
+            {
+                if (!index.ById.TryGetValue(ObjectId(entry), out var legacy)) { Call(extras, "Add", entry); continue; }
+                if (legacy.Kind == Kind.Accessory) settings.AccessorySettings.Add(Accessory(legacy.Path, Tint(entry)));
+                else settings.BodyLayerSettings.Add(Layer(legacy.Path, Tint(entry)));
+            }
+
+            var outfit = Cast(ScriptableObject.CreateInstance(Il2CppInterop.Runtime.Il2CppType.From(_outfit)), _outfit);
+            Set(outfit, "AvatarObjects", Call(extras, "ToArray"));
+            Set(settings, "EquivalentOutfit", outfit);
+            return settings;
+        }
+
+        /// <summary>
+        /// An AvatarSettings that says what a 0.4.7 body looks like, with a copy of that body parked in it.
+        /// </summary>
+        /// <remarks>
+        /// Everything the lists cannot name rides along in <c>EquivalentNakedAppearance</c>, the field 0.4.7
+        /// added for this, and a load takes it from there.
+        /// </remarks>
+        private static AvatarSettings DescribeBody(object naked)
+        {
             var settings = ScriptableObject.CreateInstance<AvatarSettings>();
             settings.Height = (float)Get(naked, "Height") / HeightScale;
             settings.Gender = (float)Get(naked, "Gender");
@@ -251,24 +294,10 @@ namespace Polyfill.ModFixes
             settings.FaceLayerSettings.Add(Layer(facialHair, settings.HairColor));
             foreach (var layer in faceRest) settings.FaceLayerSettings.Add(layer);
 
-            Worn.TryGetValue(Instance(appearance), out var worn);
-            var extras = Activator.CreateInstance(_list);
-            foreach (var entry in worn ?? new List<object>())
-            {
-                if (!index.ById.TryGetValue(ObjectId(entry), out var legacy)) { Call(extras, "Add", entry); continue; }
-                if (legacy.Kind == Kind.Accessory) settings.AccessorySettings.Add(Accessory(legacy.Path, Tint(entry)));
-                else settings.BodyLayerSettings.Add(Layer(legacy.Path, Tint(entry)));
-            }
-
-            // Everything the lists cannot name rides along in the two fields 0.4.7 added for this.
             var parked = ScriptableObject.CreateInstance(Il2CppInterop.Runtime.Il2CppType.From(_nakedObject));
             var parkedNaked = Cast(parked, _nakedObject);
             Set(parkedNaked, "Appearance", Call(naked, "Clone"));
             Set(settings, "EquivalentNakedAppearance", parkedNaked);
-
-            var outfit = Cast(ScriptableObject.CreateInstance(Il2CppInterop.Runtime.Il2CppType.From(_outfit)), _outfit);
-            Set(outfit, "AvatarObjects", Call(extras, "ToArray"));
-            Set(settings, "EquivalentOutfit", outfit);
             return settings;
         }
 
@@ -314,15 +343,156 @@ namespace Polyfill.ModFixes
             if (settings.ImpostorTexture != null) Call(avatar, "SetImpostorTexture", settings.ImpostorTexture);
         }
 
-        /// <summary>A body and an outfit in the 0.4.7 form, and whether the outfit replaces the one worn.</summary>
+        // ------------------------------------------------------------------ LoadNakedSettings
+
+        /// <summary>
+        /// <c>Avatar.LoadNakedSettings(settings, keepOldLayers, maxLayerOrder)</c>: a new body under the
+        /// accessories the avatar already wears.
+        /// </summary>
+        /// <remarks>
+        /// 0.4.6 replaced body, hair and face, repainted the body layers from the settings - plus the layers
+        /// already on, when asked to keep them - up to the given order, and did not touch the accessories
+        /// (Avatar.cs:356-385, :600-648 on 0.4.6f13). Its cartel goons used it to put a pool body under the
+        /// clothes loaded a line earlier (CartelGoon.cs:336-337).
+        ///
+        /// On 0.4.7 a clothing layer is a worn object like an accessory, so the worn list is split by what
+        /// each entry was in 0.4.6: accessories stay, clothing layers stay only when the old layers are kept,
+        /// and an object with no 0.4.6 counterpart stays, because nothing says which of the two it is.
+        /// </remarks>
+        private static bool LoadNaked(Il2CppScheduleOne.AvatarFramework.Avatar __instance, AvatarSettings settings,
+                                      bool keepOldLayers, int maxLayerOrder)
+        {
+            if (settings == null)
+            {
+                // 0.4.6 did the same: warned and changed nothing (Avatar.cs:358 on 0.4.6f13).
+                _log?.Warning($"[fix] avatar-settings-bridge: LoadNakedSettings(null) on {Who(__instance)}; ignored.");
+                return false;
+            }
+
+            try { ApplyNaked(__instance, settings, keepOldLayers, maxLayerOrder); }
+            catch (Exception e)
+            {
+                _log?.Warning($"[fix] avatar-settings-bridge: {Who(__instance)} could not take its "
+                            + "naked settings: " + e);
+            }
+            return false;
+        }
+
+        private static void ApplyNaked(Il2CppScheduleOne.AvatarFramework.Avatar avatar, AvatarSettings settings,
+                                       bool keepOldLayers, int maxOrder)
+        {
+            var appearance = Get(avatar, "Appearance");
+            if (appearance == null)
+            {
+                _log?.Warning($"[fix] avatar-settings-bridge: {Who(avatar)} has no Appearance; naked settings not applied.");
+                return;
+            }
+
+            var index = Legacy.Index;
+            var look = Translate(settings, Who(avatar), maxOrder);
+            bool Kept(Legacy layer) => keepOldLayers && Fits(layer.Order, maxOrder);
+
+            // The layers 0.4.6 counted as body (tattoos, underwear) live in the applied body on 0.4.7.
+            var before = Get(appearance, "AppliedNakedAppearance");
+            if (before != null)
+                foreach (var entry in Objects(Get(before, "AvatarObjects")))
+                    if (index.ById.TryGetValue(ObjectId(entry), out var legacy) && legacy.Kind == Kind.Body && Kept(legacy))
+                        Call(look.Naked, "AddAvatarObject", entry);
+
+            Worn.TryGetValue(Instance(appearance), out var wornBefore);
+            var worn = Activator.CreateInstance(_list);
+            int dropped = 0;
+            foreach (var entry in wornBefore ?? new List<object>())
+            {
+                bool layer = index.ById.TryGetValue(ObjectId(entry), out var legacy) && legacy.Kind == Kind.Body;
+                if (layer && !Kept(legacy)) { dropped++; continue; }
+                Call(worn, "Add", entry);
+            }
+            foreach (var layer in look.Clothes) Call(worn, "Add", layer);
+
+            _applying = true;
+            try
+            {
+                Call(appearance, "ApplyNakedAppearance", look.Naked);
+                if (dropped > 0 || look.Clothes.Count > 0) Call(appearance, "ApplyOutfit", worn);
+            }
+            finally { _applying = false; }
+
+            // 0.4.6 kept a copy with the old layers added as CurrentSettings; here it is read back off the avatar.
+            Applied.Remove(avatar.GetInstanceID());
+            _log?.Msg($"[fix] avatar-settings-bridge: {Who(avatar)} took the body '{settings.name}' "
+                    + $"(clothing layers: {dropped} taken off, {look.Clothes.Count} put on).");
+        }
+
+        /// <summary>0.4.6's order test: no limit below zero (Avatar.cs:630 on 0.4.6f13).</summary>
+        private static bool Fits(int order, int maxOrder) => maxOrder <= -1 || order <= maxOrder;
+
+        // ------------------------------------------------------------------ the goon pool
+
+        /// <summary>
+        /// <c>GoonPool.MaleBaseAppearances</c>: the pool's male bodies, each described as the AvatarSettings
+        /// 0.4.6 kept there.
+        /// </summary>
+        /// <remarks>
+        /// Built once per pool and handed out again, as 0.4.6 handed out one array. Each entry carries a copy
+        /// of its 0.4.7 body, so loading it - or a copy of it made with Instantiate - gives the avatar that
+        /// body back in full. The entries are kept across a scene's asset sweep; nothing else holds them.
+        /// </remarks>
+        private static bool GoonBases(Il2CppScheduleOne.Cartel.GoonPool __instance,
+                                      ref Il2CppReferenceArray<AvatarSettings> __result)
+        {
+            try
+            {
+                int pool = __instance.GetInstanceID();
+                if (_goonBases != null && _goonBasesFor == pool && _goonBases.All(entry => entry != null))
+                {
+                    __result = _goonBases;
+                    return false;
+                }
+
+                var bases = new List<AvatarSettings>();
+                foreach (var entry in Objects(Get(__instance, "_maleAppearances")))
+                {
+                    var naked = entry == null ? null : Get(entry, "Appearance");
+                    if (naked == null)
+                    {
+                        _log?.Warning("[fix] avatar-settings-bridge: a male goon appearance holds no body; left out.");
+                        continue;
+                    }
+                    var settings = DescribeBody(naked);
+                    settings.name = ((UnityEngine.Object)entry).name;
+                    settings.hideFlags = HideFlags.DontUnloadUnusedAsset;
+                    bases.Add(settings);
+                }
+
+                _goonBases = new Il2CppReferenceArray<AvatarSettings>(bases.ToArray());
+                _goonBasesFor = pool;
+                __result = _goonBases;
+                _log?.Msg($"[fix] avatar-settings-bridge: the goon pool's {bases.Count} male bodies are described "
+                        + "as base appearances.");
+            }
+            catch (Exception e)
+            {
+                _log?.Warning("[fix] avatar-settings-bridge: the goon pool's base appearances could not be built: " + e);
+                __result = null;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// A body and an outfit in the 0.4.7 form, the clothing layers among the outfit, and whether the
+        /// outfit replaces the one worn.
+        /// </summary>
         private sealed class Look
         {
             internal object Naked;
             internal object Worn;
+            internal List<object> Clothes;
             internal bool ReplacesOutfit;
         }
 
-        private static Look Translate(AvatarSettings settings, string who)
+        /// <param name="maxOrder">Body layers above this order are left out; no limit below zero.</param>
+        private static Look Translate(AvatarSettings settings, string who, int maxOrder = -1)
         {
             var index = Legacy.Index;
 
@@ -368,6 +538,7 @@ namespace Polyfill.ModFixes
             Call(naked, "SetHairAndEyebrowColor", settings.HairColor);
 
             var worn = Activator.CreateInstance(_list);
+            var clothes = new List<object>();
             int fromLists = 0;
             var missing = new List<string>();
 
@@ -397,8 +568,10 @@ namespace Polyfill.ModFixes
                 if (string.IsNullOrEmpty(layer.layerPath)) continue;
                 var equivalent = index.Equivalent(layer.layerPath);
                 if (equivalent == null) { missing.Add(layer.layerPath); continue; }
+                int order = index.Order(layer.layerPath);
+                if (!Fits(order, maxOrder)) continue;
                 var serialized = Call(equivalent, "SerializeWithPrimaryColor", layer.layerTint);
-                if (index.Order(layer.layerPath) > NakedMaxOrder) { Call(worn, "Add", serialized); fromLists++; }
+                if (order > NakedMaxOrder) { Call(worn, "Add", serialized); clothes.Add(serialized); fromLists++; }
                 else Call(naked, "AddAvatarObject", serialized);
             }
 
@@ -428,6 +601,7 @@ namespace Polyfill.ModFixes
             {
                 Naked = naked,
                 Worn = worn,
+                Clothes = clothes,
                 ReplacesOutfit = equivalentOutfit != null || fromLists > 0 || equivalentNaked == null,
             };
         }
