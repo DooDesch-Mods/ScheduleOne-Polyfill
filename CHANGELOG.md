@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.7] - 2026-10-13
+
+### Fixed
+- Tweakables, Media Player and Wages Manager stop reading as blocked once Polyfill has repaired their
+  phone app. The report said blocked while the app filled the screen.
+
+### Changed
+- `polyfillshow <mod>` lists what is still open first and says `repaired:` under what Polyfill put back.
+  It prints 20 entries, and the one that decided a mod's state could be cut off.
+
 ## [0.13.6] - 2026-10-13
 
 ### Fixed
