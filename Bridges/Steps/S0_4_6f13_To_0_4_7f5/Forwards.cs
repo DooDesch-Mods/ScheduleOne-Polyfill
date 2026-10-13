@@ -43,6 +43,7 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             + "found in Awake (PoliceOfficer.cs:128, :161 on 0.4.7f6); the AvatarFramework.PoliceBelt the old field "
             + "held is no longer on an officer";
 
+        private const string PlayerType = "Il2CppScheduleOne.PlayerScripts.Player";
         private const string ParkingSpot = "Il2CppScheduleOne.Map.ParkingSpot";
         private const string TrashItem = "Il2CppScheduleOne.Trash.TrashItem";
 
@@ -324,6 +325,27 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                         + "GenerateRuntimeIcons(productID), with the same return",
                 Emit = (module, icons) => EmitForward1(module, icons, "GenerateIcons", "GenerateRuntimeIcons"),
             },
+
+            // ---- the joining player's saved data (Ndrangheta) ----
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = PlayerType,
+                OldName = "get_playerDataRetrieveReturned", ParameterCount = 0,
+                Because = "renamed: 0.4.6's player raised playerDataRetrieveReturned once its saved data had been "
+                        + "applied (Player.cs:447, :1476, :2746 on 0.4.6f13); 0.4.7 raises PlayerLoaded at the same "
+                        + "point, the end of SetPlayerData_Client (Player.cs:448, :715-717, :2809 on 0.4.7f7)",
+                Emit = (module, player) => EmitGetterRename(module, player, "get_playerDataRetrieveReturned", "PlayerLoaded"),
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = PlayerType,
+                OldName = "RequestPlayerData", ParameterCount = 1, ParameterTypes = new[] { "System.String" },
+                Because = "0.4.6's RequestPlayerData(playerCode) asked the server for the player's saved data "
+                        + "(Player.cs:694, :810 on 0.4.6f13); 0.4.7's RequestPlayerData_Server(playerCode, isHost) "
+                        + "asks the same and is told whether the asker is the host, which the game reads from "
+                        + "InstanceFinder.IsHost (Player.cs:687, :823 on 0.4.7f7)",
+                Emit = EmitRequestPlayerData,
+            },
         };
 
         // ---------------------------------------------------------------- speeds
@@ -496,6 +518,32 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             il.Emit(OpCodes.Ldarg_0);
             il.Emit(OpCodes.Ldarg_1);
             il.Emit(meshes.IsVirtual ? OpCodes.Callvirt : OpCodes.Call, meshes);
+            il.Emit(OpCodes.Ret);
+            return method;
+        }
+
+        /// <summary>
+        /// <c>Player.RequestPlayerData(playerCode)</c>: the 0.4.7 request, with the host flag the game passes.
+        /// </summary>
+        /// <remarks>
+        /// InstanceFinder appears in no signature of this module, so the reference is built against the FishNet
+        /// assembly the module already names.
+        /// </remarks>
+        private static MethodDefinition EmitRequestPlayerData(ModuleDefinition module, TypeDefinition player)
+        {
+            var request = Method(player, "RequestPlayerData_Server", 2);
+            var finder = TypeIn(module, "Il2CppFishNet.Runtime", "Il2CppFishNet", "InstanceFinder");
+            if (request == null || request.IsStatic || finder == null) return null;
+            var isHost = new MethodReference("get_IsHost", module.TypeSystem.Boolean, finder);
+
+            var method = new MethodDefinition("RequestPlayerData", MethodAttributes.Public | MethodAttributes.HideBySig,
+                                              module.TypeSystem.Void);
+            method.Parameters.Add(new ParameterDefinition("playerCode", ParameterAttributes.None, module.TypeSystem.String));
+            var il = method.Body.GetILProcessor();
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Ldarg_1);
+            il.Emit(OpCodes.Call, isHost);
+            il.Emit(request.IsVirtual ? OpCodes.Callvirt : OpCodes.Call, request);
             il.Emit(OpCodes.Ret);
             return method;
         }
@@ -877,7 +925,7 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
         /// loads before that assembly exists. Every interop module that hands back an array of objects returns
         /// this type, so the first such member carries a reference to it that is already resolved in this module.
         /// </remarks>
-        private static TypeReference ReferenceArray(ModuleDefinition module)
+        internal static TypeReference ReferenceArray(ModuleDefinition module)
         {
             foreach (var type in module.GetTypes())
                 foreach (var method in type.Methods)
