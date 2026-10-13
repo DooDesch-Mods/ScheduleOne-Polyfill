@@ -69,6 +69,7 @@ namespace Polyfill.ModFixes
             new MoreFootPatrolsOfficerPool(),
             new GuiDrawTexture(),
             new BorrowedAppLayout(),
+            new NpcInteract360TalkAngle(),
             new EmptyDeadDropSearch(),
             new AmountChangedAfterOverride(),
             new ProduceMoreDryingRack(),
