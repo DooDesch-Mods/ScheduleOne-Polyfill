@@ -106,6 +106,22 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                         + "of the handover namespace; HandoverScreen.PriceSelector is an AmountSelector now",
             },
 
+            // The component that plays a sound when a rigidbody hits something. The old name was already gone
+            // at 0.4.5f2, so the rename is older than any step here and is filed under the oldest one. The
+            // game marks the pair itself: the material field carries [FormerlySerializedAs("Material")], the
+            // name it had on ImpactSoundEntity. As with the amount box, this makes the TYPE resolve; the
+            // field under its old name and the enum that used to be nested in the class are not answered.
+            new TypeRename
+            {
+                Assembly = "Assembly-CSharp",
+                OldFullName = "Il2CppScheduleOne.Audio.ImpactSoundEntity",
+                NewFullName = "Il2CppScheduleOne.Audio.RBImpactSounds",
+                Because = "the impact sound component was renamed in place before 0.4.5f2: same namespace, same "
+                        + "[RequireComponent(typeof(Rigidbody))], same Awake, OnImpacted and OnCollisionEnter, "
+                        + "and its material field still names the old one in FormerlySerializedAs "
+                        + "(RBImpactSounds.cs:9-23 on 0.4.6f13)",
+            },
+
             // The on-screen key hints. 0.4.6f5 replaced one Singleton holding one module with a whole
             // ScheduleOne.UI.Input namespace, where a dictionary of panels can be up at once. The type
             // existing is not optional: a mod that mentions it does not fail at the hint, it fails to
@@ -1102,6 +1118,18 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                 Emit = (module, type) => EmitFromController(module, type, "get_meetingChoice",
                     "Choices", "ChoiceText", (module2, method, il, giveUp) => il.Emit(OpCodes.Ldstr, "Yes")),
             },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = "Il2CppScheduleOne.Dragging.Draggable",
+                OldName = "RegenerateGUID",
+                ParameterCount = 0,
+                Because = "0.4.6 moved the baked id and the button that rewrites it off every draggable and onto "
+                        + "the one kind placed in a scene (WorldDraggable.cs:12-18 on 0.4.6f13, SceneDraggable.cs:"
+                        + "58-62 on 0.4.7f7); a draggable of that kind still gets a new id, any other has none to "
+                        + "rewrite",
+                Emit = EmitRegenerateGuid,
+            },
         };
 
         private const string ExitActionOld = "Il2CppScheduleOne.DevUtilities.ExitAction";
@@ -1120,6 +1148,46 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             "Supplier.cs:186-199 until 0.4.5f2 kept the greeting and the choice in fields; 0.4.6 builds "
           + "the same two objects as locals in Start() and hands them to the DialogueController, so they "
           + "are still there and only the way to them is gone";
+
+        /// <summary>
+        /// <c>Draggable.RegenerateGUID()</c>, handed to the scene-placed draggable that still has it.
+        /// </summary>
+        /// <remarks>
+        /// The method writes a fresh id into <c>BakedGUID</c>, a serialized string the component reads once
+        /// in Awake. Until 0.4.5f2 every draggable had both; since 0.4.6 only the kind placed in a scene
+        /// does. A caller holding any other draggable - a trash item's, for one - has no baked id to
+        /// rewrite, so the call does nothing for it.
+        /// </remarks>
+        private static MethodDefinition EmitRegenerateGuid(ModuleDefinition module, TypeDefinition draggable)
+        {
+            // The scene-placed kind is WorldDraggable on 0.4.6 and SceneDraggable from 0.4.7 on.
+            var placed = module.GetType("Il2CppScheduleOne.Dragging.SceneDraggable")
+                      ?? module.GetType("Il2CppScheduleOne.Dragging.WorldDraggable");
+            var regenerate = Method(placed, "RegenerateGUID", 0);
+            if (regenerate == null || regenerate.IsStatic) return null;
+
+            var cast = GenericUp(module, draggable, "TryCast", placed);
+            if (cast == null) return null;
+
+            var method = new MethodDefinition("RegenerateGUID",
+                MethodAttributes.Public | MethodAttributes.HideBySig, module.TypeSystem.Void);
+            method.Body.InitLocals = true;
+            var scene = new VariableDefinition(placed);
+            method.Body.Variables.Add(scene);
+
+            var il = method.Body.GetILProcessor();
+            var done = il.Create(OpCodes.Ret);
+
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Callvirt, cast);          // null when the draggable is of another kind
+            il.Emit(OpCodes.Stloc, scene);
+            il.Emit(OpCodes.Ldloc, scene);
+            il.Emit(OpCodes.Brfalse, done);
+            il.Emit(OpCodes.Ldloc, scene);
+            il.Emit(OpCodes.Callvirt, regenerate);
+            il.Append(done);
+            return method;
+        }
 
         /// <summary>
         /// <c>NPCMovement.MovementSpeedScale</c> - the normalized walk-to-run position, 0.4.5f2 and earlier.

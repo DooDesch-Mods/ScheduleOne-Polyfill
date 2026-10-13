@@ -51,6 +51,17 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             + "_canGoInTrashContainer, serialized under the old name, and reads it where the bag, the bin and "
             + "the grabber read the field (TrashItem.cs:52, :164, :185 on 0.4.6f13; :33-34, :71-73 on 0.4.7f6)";
 
+        private const string DraggableType = "Il2CppScheduleOne.Dragging.Draggable";
+
+        private const string Interactable = "renamed: 0.4.6's draggable held its InteractableObject in IntObj "
+            + "(Draggable.cs:34, :84-87 on 0.4.6f13); 0.4.7 keeps it in _interactable and fills it itself in Awake "
+            + "when it is empty (Draggable.cs:30, :88-102 on 0.4.7f7)";
+
+        private const string CentreOfMass = "0.4.6's draggable read CreateCoM once, in Awake, to add a CenterOfMass "
+            + "child it was then dragged by (Draggable.cs:39, :89-96 on 0.4.6f13); 0.4.7's draggable adds no such "
+            + "child and is dragged by its own position or its serialized DragOrigin (Draggable.cs:34, :88-108, "
+            + ":159-163 on 0.4.7f7), so the flag reads false and a value written to it has no reader";
+
         private const string Grabber = "Il2CppScheduleOne.Equipping.Equippable_TrashGrabber";
 
         private const string EquippedGrabber = "0.4.6's grabber kept the equipped one in a static Instance, set in "
@@ -297,6 +308,61 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                         + "0.4.7f6), so the getter collects them when asked",
                 Emit = EmitTrashColliders,
             },
+            Empty(TrashItem, "set_colliders", 1, m => m.TypeSystem.Void,
+                  "0.4.6's trash item kept its colliders in a field a mod could fill (TrashItem.cs:54 on 0.4.6f13); "
+                  + "0.4.7 keeps no list (TrashItem.cs on 0.4.7f7) and the getter put back for it collects them "
+                  + "each time, so a list written here has no reader",
+                  ReferenceArrayOf("UnityEngine.PhysicsModule", "UnityEngine", "Collider")),
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = TrashItem, OldName = "SetCollidersEnabled", ParameterCount = 1,
+                Because = "0.4.6's SetCollidersEnabled(enabled) set enabled on each collider in the item's list "
+                        + "(TrashItem.cs:294-304 on 0.4.6f13); 0.4.7 keeps no list, so the switch is the body's "
+                        + "detectCollisions: off takes all of the body's colliders out of the simulation, on puts "
+                        + "back those that are enabled and leaves one a mod disabled itself disabled",
+                Emit = EmitSetCollidersEnabled,
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = TrashItem,
+                OldName = "SetContinuousCollisionDetection", ParameterCount = 0,
+                Because = "0.4.6's SetContinuousCollisionDetection() made the body continuous and active and went "
+                        + "back to discrete a minute later (TrashItem.cs:266-281 on 0.4.6f13); 0.4.7 makes a body "
+                        + "continuous while it is dragged and gives it its own mode back on release "
+                        + "(Draggable.cs:224-242, :266-275 on 0.4.7f7), so the body goes continuous, non-kinematic "
+                        + "and awake here and the next drag puts its mode back",
+                Emit = EmitSetContinuousCollisionDetection,
+            },
+            Empty(TrashItem, "InitializeSaveable", 0, m => m.TypeSystem.Void,
+                  "0.4.6's trash item was a saveable of its own and InitializeSaveable() registered it with the "
+                  + "SaveManager, from Start (TrashItem.cs:110-121 on 0.4.6f13); 0.4.7's trash is no saveable and "
+                  + "the TrashManager writes every item on its list (TrashItem.cs:13, :105-108, "
+                  + "TrashManager.cs:301-306 on 0.4.7f7), so there is nothing to register"),
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = TrashItem, OldName = "set_Draggable", ParameterCount = 1,
+                Because = "0.4.6's trash item held its Draggable in a public field a mod could write (TrashItem.cs:41 "
+                        + "on 0.4.6f13); 0.4.7 holds a TrashItemDraggable in _draggable, finds it itself in Awake and "
+                        + "only asks it whether it is being dragged (TrashItem.cs:38, :51, :80-83 on 0.4.7f7), so a "
+                        + "draggable of that kind is stored and any other value leaves the one Awake found",
+                Emit = EmitSetTrashDraggable,
+            },
+
+            // ---- the draggable a trash item is picked up by ----
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = DraggableType, OldName = "get_IntObj", ParameterCount = 0,
+                Because = Interactable,
+                Emit = (module, draggable) => EmitGetterRename(module, draggable, "get_IntObj", "_interactable"),
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = DraggableType, OldName = "set_IntObj", ParameterCount = 1,
+                Because = Interactable,
+                Emit = (module, draggable) => EmitSetterRename(module, draggable, "set_IntObj", "_interactable"),
+            },
+            Empty(DraggableType, "get_CreateCoM", 0, m => m.TypeSystem.Boolean, CentreOfMass),
+            Empty(DraggableType, "set_CreateCoM", 1, m => m.TypeSystem.Void, CentreOfMass, m => m.TypeSystem.Boolean),
             new Bridge
             {
                 Assembly = "Assembly-CSharp", DeclaringType = "Il2CppScheduleOne.Trash.TrashManager",
@@ -703,6 +769,97 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             return AsProperty(trash, method);
         }
 
+        private static MethodDefinition EmitSetCollidersEnabled(ModuleDefinition module, TypeDefinition trash)
+        {
+            var body = Getter(trash, "_rigidbody");
+            var detect = Method(body?.ReturnType?.Resolve(), "set_detectCollisions", 1);
+            if (body == null || body.IsStatic || detect == null) return null;
+
+            var method = new MethodDefinition("SetCollidersEnabled", MethodAttributes.Public | MethodAttributes.HideBySig,
+                                              module.TypeSystem.Void);
+            method.Parameters.Add(new ParameterDefinition("enabled", ParameterAttributes.None, module.TypeSystem.Boolean));
+            method.Body.InitLocals = true;
+            var held = new VariableDefinition(module.ImportReference(body.ReturnType));
+            method.Body.Variables.Add(held);
+
+            var il = method.Body.GetILProcessor();
+            var done = il.Create(OpCodes.Ret);
+
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, body);
+            il.Emit(OpCodes.Stloc, held);
+            il.Emit(OpCodes.Ldloc, held);
+            il.Emit(OpCodes.Brfalse, done);           // 0.4.6's list did not need the body, so its absence is no error
+            il.Emit(OpCodes.Ldloc, held);
+            il.Emit(OpCodes.Ldarg_1);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(detect));
+            il.Append(done);
+            return method;
+        }
+
+        private static MethodDefinition EmitSetContinuousCollisionDetection(ModuleDefinition module, TypeDefinition trash)
+        {
+            var body = Getter(trash, "_rigidbody");
+            var rigidbody = body?.ReturnType?.Resolve();
+            var kinematic = Method(rigidbody, "set_isKinematic", 1);
+            var mode = Method(rigidbody, "set_collisionDetectionMode", 1);
+            var wake = Method(rigidbody, "WakeUp", 0);
+            if (body == null || body.IsStatic || kinematic == null || mode == null || wake == null) return null;
+
+            var method = new MethodDefinition("SetContinuousCollisionDetection",
+                MethodAttributes.Public | MethodAttributes.HideBySig, module.TypeSystem.Void);
+            var il = method.Body.GetILProcessor();
+
+            // Non-kinematic first: a kinematic body refuses the continuous mode.
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, body);
+            il.Emit(OpCodes.Ldc_I4_0);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(kinematic));
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, body);
+            il.Emit(OpCodes.Ldc_I4_1);                // CollisionDetectionMode.Continuous
+            il.Emit(OpCodes.Callvirt, module.ImportReference(mode));
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, body);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(wake));
+            il.Emit(OpCodes.Ret);
+            return method;
+        }
+
+        private static MethodDefinition EmitSetTrashDraggable(ModuleDefinition module, TypeDefinition trash)
+        {
+            var to = Method(trash, "set__draggable", 1);
+            var draggable = module.GetType(DraggableType);
+            if (to == null || to.IsStatic || draggable == null) return null;
+
+            var own = to.Parameters[0].ParameterType;
+            var cast = GenericUp(module, draggable, "TryCast", own);
+            if (cast == null) return null;
+
+            var method = new MethodDefinition("set_Draggable",
+                MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName, module.TypeSystem.Void);
+            method.Parameters.Add(new ParameterDefinition("value", ParameterAttributes.None, draggable));
+            method.Body.InitLocals = true;
+            var fitting = new VariableDefinition(module.ImportReference(own));
+            method.Body.Variables.Add(fitting);
+
+            var il = method.Body.GetILProcessor();
+            var done = il.Create(OpCodes.Ret);
+
+            il.Emit(OpCodes.Ldarg_1);
+            il.Emit(OpCodes.Brfalse, done);
+            il.Emit(OpCodes.Ldarg_1);
+            il.Emit(OpCodes.Callvirt, cast);          // null when the draggable is of another kind
+            il.Emit(OpCodes.Stloc, fitting);
+            il.Emit(OpCodes.Ldloc, fitting);
+            il.Emit(OpCodes.Brfalse, done);
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Ldloc, fitting);
+            il.Emit(OpCodes.Call, to);
+            il.Append(done);
+            return AsProperty(trash, method);
+        }
+
         private static MethodDefinition EmitTrashItemLimit(ModuleDefinition module, TypeDefinition manager)
         {
             var to = Getter(manager, "TrashItemLimit");
@@ -714,31 +871,6 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             il.Emit(OpCodes.Call, to);
             il.Emit(OpCodes.Ret);
             return AsProperty(manager, method);
-        }
-
-        /// <summary>
-        /// A generic method with no parameters and one type argument, found on the type or anything it derives
-        /// from and closed over <paramref name="argument"/>: <c>TryCast&lt;T&gt;()</c>,
-        /// <c>GetComponentsInChildren&lt;T&gt;()</c>.
-        /// </summary>
-        private static MethodReference GenericUp(ModuleDefinition module, TypeDefinition from, string name,
-                                                 TypeReference argument)
-        {
-            for (var current = from; current != null; )
-            {
-                foreach (var candidate in current.Methods)
-                {
-                    if (candidate.Name != name || candidate.Parameters.Count != 0) continue;
-                    if (candidate.GenericParameters.Count != 1 || candidate.IsStatic) continue;
-                    var closed = new GenericInstanceMethod(module.ImportReference(candidate));
-                    closed.GenericArguments.Add(module.ImportReference(argument));
-                    return closed;
-                }
-                var next = current.BaseType?.Resolve();
-                if (next == current) return null;
-                current = next;
-            }
-            return null;
         }
 
         /// <summary>A getter that answers null: the member exists so callers compile, and they null-check it.</summary>

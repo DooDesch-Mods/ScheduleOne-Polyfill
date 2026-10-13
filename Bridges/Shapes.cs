@@ -137,6 +137,31 @@ namespace Polyfill.Bridges
         }
 
         /// <summary>
+        /// A generic method with no parameters and one type argument, found on the type or anything it derives
+        /// from and closed over <paramref name="argument"/>: <c>TryCast&lt;T&gt;()</c>,
+        /// <c>GetComponentsInChildren&lt;T&gt;()</c>.
+        /// </summary>
+        internal static MethodReference GenericUp(ModuleDefinition module, TypeDefinition from, string name,
+                                                  TypeReference argument)
+        {
+            for (var current = from; current != null; )
+            {
+                foreach (var candidate in current.Methods)
+                {
+                    if (candidate.Name != name || candidate.Parameters.Count != 0) continue;
+                    if (candidate.GenericParameters.Count != 1 || candidate.IsStatic) continue;
+                    var closed = new GenericInstanceMethod(module.ImportReference(candidate));
+                    closed.GenericArguments.Add(module.ImportReference(argument));
+                    return closed;
+                }
+                var next = current.BaseType?.Resolve();
+                if (next == current) return null;
+                current = next;
+            }
+            return null;
+        }
+
+        /// <summary>
         /// The same method, named against a generic instantiation instead of the open type.
         /// </summary>
         /// <remarks>
