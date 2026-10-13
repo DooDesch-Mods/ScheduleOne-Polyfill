@@ -132,6 +132,21 @@ namespace Polyfill.Contract
                         + "0.4.7f6). A postfix sees the same finished item; a prefix runs before the GUID is "
                         + "set, where on 0.4.6 it ran after",
             },
+
+            // An avatar had two per-frame methods up to 0.4.3 and has had one since 0.4.4f10. A patch on the one that
+            // went is a patch on "once a frame, for every avatar", which is what Update still is.
+            // NPCInteract360 1.1.1 hangs its whole setup on it: the first frame it sees an NPC's avatar, it
+            // moves the body capsule to its own layer and lifts the angle limit on the interaction.
+            new Entry
+            {
+                Type = "Il2CppScheduleOne.AvatarFramework.Avatar",
+                OldName = "LateUpdate",
+                NewName = "Update",
+                Because = "Avatar declared Update() and LateUpdate() up to 0.4.3f3 and only Update() from "
+                        + "0.4.4f10 on (s1-codearchiver 9581d62, AvatarFramework/Avatar.cs); Update is the one "
+                        + "method Unity still calls on it every frame (Avatar.cs:147 on 0.4.6f13, :133 on "
+                        + "0.4.7f7)",
+            },
         };
 
         /// <summary>What this name became on the type, or null when nothing is on record.</summary>
