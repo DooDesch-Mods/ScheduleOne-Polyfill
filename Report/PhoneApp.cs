@@ -41,6 +41,19 @@ namespace Polyfill.Report
             ("journal",   "Il2CppScheduleOne.UI.Phone.Journal.JournalApp"),
         };
 
+        /// <summary>
+        /// Apps a mod draws itself, opened through the mod's own static door.
+        /// </summary>
+        /// <remarks>
+        /// These are not PlayerSingletons with a SetOpen: each mod keeps its app in a static class and
+        /// opens it from the click handler of its home screen icon. Calling that same method is what the
+        /// icon does, so a repair hooked on the mod's build or open path sees the real sequence.
+        /// </remarks>
+        private static readonly (string Word, string Type, string Open, string Close)[] ModApps =
+        {
+            ("tweakables", "Tweakables.TweakablesApp", "OpenApp", "CloseApp"),
+        };
+
         internal static void Open(string argument)
         {
             string wanted = (argument ?? "").Trim().ToLowerInvariant();
@@ -65,11 +78,21 @@ namespace Polyfill.Report
                 return;
             }
 
+            foreach (var (word, typeName, door, _) in ModApps)
+            {
+                if (word != wanted) continue;
+
+                Phone(true);
+                Knock(word, typeName, door, open: true);
+                return;
+            }
+
             Core.Log.Warning($"there is no app called '{wanted}'. Try one of: " + string.Join(", ", Names()));
         }
 
         private static void Close()
         {
+            foreach (var (word, typeName, _, door) in ModApps) Knock(word, typeName, door, open: false, quiet: true);
             foreach (var (word, typeName) in Known) Set(word, typeName, open: false, quiet: true);
             Phone(false);
             Core.Log.Msg("[app] the phone and every vanilla app were asked to close.");
@@ -78,6 +101,38 @@ namespace Polyfill.Report
         private static IEnumerable<string> Names()
         {
             foreach (var (word, _) in Known) yield return word;
+            foreach (var (word, typeName, _, _) in ModApps)
+                if (AccessTools.TypeByName(typeName) != null) yield return word;
+        }
+
+        /// <summary>Call a mod's own static open or close method.</summary>
+        private static void Knock(string word, string typeName, string methodName, bool open, bool quiet = false)
+        {
+            try
+            {
+                var type = AccessTools.TypeByName(typeName);
+                if (type == null)
+                {
+                    if (!quiet) Core.Log.Warning($"{typeName} is not loaded, so '{word}' cannot open.");
+                    return;
+                }
+
+                var door = AccessTools.Method(type, methodName, Type.EmptyTypes);
+                if (door == null || !door.IsStatic)
+                {
+                    if (!quiet) Core.Log.Warning($"{typeName} has no static {methodName}() in this version of the mod.");
+                    return;
+                }
+
+                door.Invoke(null, null);
+                if (!quiet) Core.Log.Msg($"[app] {word} was asked to {(open ? "open" : "close")} through {typeName}.{methodName}().");
+            }
+            catch (Exception e)
+            {
+                if (!quiet)
+                    Core.Log.Warning($"'{word}' threw on {(open ? "open" : "close")}: "
+                                   + (e.InnerException ?? e).Message);
+            }
         }
 
 
