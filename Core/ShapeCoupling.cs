@@ -24,6 +24,11 @@ namespace Polyfill.Core
     /// stop the report being confidently wrong: a note rather than a missing name, so the verdict stays
     /// what it honestly is while the reader learns there is a second way this mod can fail.
     ///
+    /// A FEW CLONES ARE REPAIRED, BY A FIX AND NOT FROM HERE. The fix borrowed-app-layout answers for
+    /// the clones listed in <see cref="Contract.BorrowedAppClones"/>. For one of those, on a game build
+    /// the fix runs on, the note names the fix instead of saying nothing can be done. That is still a
+    /// hint: whether the fix did it is written into the finding later, by the fix.
+    ///
     /// Deliberately narrow. One method body has to NAME a piece of the game's interface and
     /// INSTANTIATE something. Mentioning the phone is not enough. It will miss obfuscated names,
     /// reflection, and a clone split across helper methods - and missing a case costs nothing, while a
@@ -56,7 +61,7 @@ namespace Polyfill.Core
             "OrganisationApp", "OrganizationApp", "SettingsApp", "MapApp",
         };
 
-        internal static void Check(ModuleDefinition module, Contract.ModReport report)
+        internal static void Check(ModuleDefinition module, Contract.ModReport report, Contract.ILog log)
         {
             try
             {
@@ -64,7 +69,14 @@ namespace Polyfill.Core
                     foreach (var method in Methods(type))
                         Inspect(method, report);
             }
-            catch { }        // a note is a nicety; it must never be the reason a mod fails to be analysed
+            catch (Exception e)
+            {
+                // A note is a nicety; it must never be the reason a mod fails to be analysed. It is
+                // still said out loud, because a mod with no note and a mod whose notes could not be
+                // looked for read the same in the report.
+                log?.Warning($"[triage] {report.Display}: could not look for cloned game interface ("
+                           + e.GetType().Name + ": " + e.Message + "). Its other findings stand.");
+            }
         }
 
         private static IEnumerable<MethodDefinition> Methods(TypeDefinition type)
@@ -127,16 +139,30 @@ namespace Polyfill.Core
 
             if (mark == null || !instantiates) return;
 
+            string site = method.DeclaringType?.FullName + "/" + method.Name;
+            string reason = "this mod clones a piece of the game's own interface (" + Shorten(mark)
+                          + ") and rebuilds what is inside it, so how it looks depends on the shape of "
+                          + "something the game is free to change. Every name it asks for is here";
+
+            // A FIX ANSWERS FOR THIS ONE. Said as a hint and nothing more: the fix can be switched off,
+            // and it stands back when the container no longer has the layout group. The outcome is
+            // written by the fix when it has acted.
+            bool covered = Contract.BorrowedAppClones.At(site) != null
+                        && Contract.BorrowedAppClones.RunsOn(Contract.GameVersionSource.Current);
+
             report.Findings.Add(new Contract.Finding
             {
                 Kind = "shape-coupled",
                 Note = true,
                 Symbol = app ?? Shorten(mark),
-                Reason = "this mod clones a piece of the game's own interface (" + Shorten(mark)
-                       + ") and rebuilds what is inside it, so how it looks depends on the shape of "
-                       + "something the game is free to change. Every name it asks for is here - if it "
-                       + "looks wrong in game, that is why, and Polyfill cannot repair it",
-                Site = method.DeclaringType?.FullName + "/" + method.Name,
+                Reason = covered
+                    ? reason
+                    : reason + " - if it looks wrong in game, that is why, and Polyfill cannot repair it",
+                Hint = covered
+                    ? "covered by the fix " + Contract.BorrowedAppClones.FixId + ": "
+                      + Contract.BorrowedAppClones.Because
+                    : null,
+                Site = site,
             });
         }
     }

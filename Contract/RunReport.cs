@@ -291,6 +291,61 @@ namespace Polyfill.Contract
             return report;
         }
 
+        /// <summary>
+        /// Write one finding's outcome into lines read from the file, and its mod's verdict above them.
+        /// Returns how many finding lines changed.
+        /// </summary>
+        /// <remarks>
+        /// IN PLACE, two columns on the lines that changed, because a repair that happens after the plugin
+        /// wrote the file has no writer to go back to: the plugin is long done, and the companion mod does
+        /// not hold what the plugin held. The finding is matched on everything that identifies it - whose
+        /// it is, its kind, what it asks for and where - so one mod's repair never marks another's row.
+        ///
+        /// THE VERDICT GOES WITH IT. Findings and verdict are two columns on two lines, and correcting
+        /// only the finding left the file saying "blocked" over a row that reads "applied".
+        ///
+        /// A line that does not have the outcome columns is left alone: it is from a format that never
+        /// knew outcomes, and widening it here would be guessing at somebody else's file.
+        /// </remarks>
+        internal static int Correct(string[] lines, ModReport mod, Finding finding)
+        {
+            if (lines == null || mod == null || finding == null) return 0;
+
+            string path = Escape(mod.Path);
+            string kind = Escape(finding.Kind), symbol = Escape(finding.Symbol), site = Escape(finding.Site);
+            int touched = 0, owner = -1;
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = (lines[i] ?? "").TrimEnd(CarriageReturn);
+
+                if (line.StartsWith("M|", StringComparison.Ordinal))
+                {
+                    var m = line.Split('|');
+                    if (m.Length > 6 && m[1] == path) owner = i;
+                    continue;
+                }
+                if (!line.StartsWith("F|", StringComparison.Ordinal)) continue;
+
+                var p = line.Split('|');
+                if (p.Length < 10 || p[1] != path) continue;
+                if (p[2] != kind || p[4] != symbol || p[7] != site) continue;
+
+                p[8] = Escape(finding.Outcome);
+                p[9] = Escape(finding.OutcomeDetail);
+                lines[i] = string.Join("|", p);
+                touched++;
+            }
+
+            if (touched > 0 && owner >= 0)
+            {
+                var m = lines[owner].TrimEnd(CarriageReturn).Split('|');
+                m[6] = mod.Verdict;
+                lines[owner] = string.Join("|", m);
+            }
+            return touched;
+        }
+
         private static int Int(string s) => int.TryParse(s, out int value) ? value : 0;
 
         /// <summary>The separator and the line break are the format; anything carrying them is replaced

@@ -24,17 +24,28 @@ namespace Polyfill.Report
     /// to read and send by hand; correcting one and not the other would leave the two disagreeing about the
     /// same session. The file is edited in place, one column on the lines that changed, because rewriting it
     /// would need the plugin's writer and a second copy of the format to keep in step.
+    ///
+    /// TWO KINDS OF REPAIR, TWO KEYS. A patch a fix moved is found by the method it sits on, the
+    /// finding's symbol. A cloned piece of the game's interface a fix repaired is found by where the mod
+    /// makes it, the finding's site.
+    ///
+    /// MORE THAN ONCE. The first pass follows the fixes on the first frame of the world. A fix that acts
+    /// later - borrowed-app-layout waits for the mod to build its phone app - asks again when it has
+    /// acted. A finding that already reads applied is skipped, so asking again costs a loop.
     /// </remarks>
     internal static class Reconcile
     {
+        /// <summary>The sentence a finding gets when a fix moved its patch.</summary>
+        private const string Moved = "moved onto the method the game calls";
+
         /// <summary>Match what a fix repaired against what the report says, and correct the difference.</summary>
         internal static void After(MelonLogger.Instance log)
         {
             var repaired = ModFixes.Fixes.Repaired;
-            if (repaired.Count == 0) return;
+            var repairedAt = ModFixes.Fixes.RepairedAt;
+            if (repaired.Count == 0 && repairedAt.Count == 0) return;
 
-            var corrected = new List<string>();
-            var verdicts = new Dictionary<string, ModReport>(StringComparer.Ordinal);
+            var corrected = new List<(ModReport Mod, Finding Finding)>();
 
             foreach (var mod in ReportReader.Mods)
             {
@@ -43,72 +54,64 @@ namespace Polyfill.Report
 
                 foreach (var finding in mod.Findings)
                 {
-                    if (finding.Kind != "harmony-target") continue;
                     if (finding.Outcome == Outcome.Applied) continue;
-                    if (!repaired.Contains(Key(assembly, finding.Symbol))) continue;
+
+                    string detail = null;
+                    if (finding.Kind == "harmony-target")
+                    {
+                        if (repaired.Contains(Key(assembly, finding.Symbol))) detail = Moved;
+                    }
+                    else if (finding.Kind == "shape-coupled")
+                    {
+                        repairedAt.TryGetValue(Key(assembly, finding.Site), out detail);
+                    }
+                    if (detail == null) continue;
 
                     finding.Outcome = Outcome.Applied;
-                    finding.OutcomeDetail = "moved onto the method the game calls";
-                    corrected.Add(assembly + "|" + finding.Symbol);
-                    verdicts[assembly] = mod;
+                    finding.OutcomeDetail = detail;
+                    corrected.Add((mod, finding));
                 }
             }
 
             if (corrected.Count == 0) return;
 
+            var names = new List<string>();
+            foreach (var (mod, finding) in corrected) names.Add(mod.AssemblyName + "|" + finding.Symbol);
             log.Msg($"[report] {corrected.Count} finding(s) were repaired after the report was written, and "
-                  + "say so now: " + string.Join(", ", corrected));
+                  + "say so now: " + string.Join(", ", names));
 
-            InFile(corrected, verdicts, log);
+            InFile(corrected, log);
         }
 
-        /// <summary>The one key both halves can agree on: whose patch, and what it now sits on.</summary>
-        internal static string Key(string assembly, string symbol)
-            => (assembly ?? "") + "|" + (symbol ?? "");
+        /// <summary>
+        /// The one key both halves can agree on: whose finding, and the symbol or the site that names it.
+        /// </summary>
+        internal static string Key(string assembly, string name)
+            => (assembly ?? "") + "|" + (name ?? "");
 
         /// <summary>
-        /// Set the outcome column on the lines that changed, leaving the rest of the file alone.
+        /// Set the outcome columns on the lines that changed, leaving the rest of the file alone.
         /// </summary>
         /// <remarks>
-        /// Column nine is the outcome and ten is its sentence, matching what the plugin writes. Anything
-        /// unexpected is left untouched and said out loud rather than guessed at: a report edited into a
-        /// shape nothing can read is worse than one that is out of date.
+        /// The columns and how a line is matched are the format's business, so that part is
+        /// RunReport.Correct. Anything unexpected is left untouched and said out loud rather than guessed
+        /// at: a report edited into a shape nothing can read is worse than one that is out of date.
         /// </remarks>
-        private static void InFile(List<string> corrected,
-                                   Dictionary<string, ModReport> verdicts,
-                                   MelonLogger.Instance log)
+        private static void InFile(List<(ModReport Mod, Finding Finding)> corrected, MelonLogger.Instance log)
         {
             string path = ReportReader.Path;
             try
             {
-                if (!File.Exists(path)) return;
+                if (!File.Exists(path))
+                {
+                    log.Warning("[report] the in-memory report was corrected and there is no "
+                              + "UserData/Polyfill/last-run.txt to correct. What gets sent is right.");
+                    return;
+                }
 
-                var wanted = new HashSet<string>(corrected, StringComparer.Ordinal);
                 var lines = File.ReadAllLines(path);
                 int touched = 0;
-
-                for (int i = 0; i < lines.Length; i++)
-                {
-                    string line = lines[i];
-                    if (!line.StartsWith("F|", StringComparison.Ordinal)) continue;
-
-                    var parts = line.Split('|');
-                    if (parts.Length < 10 || parts[2] != "harmony-target") continue;
-
-                    string assembly = AssemblyOf(lines, i);
-                    if (assembly == null || !wanted.Contains(assembly + "|" + parts[4])) continue;
-
-                    parts[8] = Outcome.Applied;
-                    parts[9] = "moved onto the method the game calls";
-                    lines[i] = string.Join("|", parts);
-                    touched++;
-
-                    // AND THE VERDICT ABOVE IT. Findings and verdict are two columns on two lines, and
-                    // correcting only the finding left the file saying "blocked" over a row that now reads
-                    // "applied" - two halves of one sentence disagreeing. The verdict is computed from the
-                    // findings, so the in-memory mod already knows the new answer.
-                    if (verdicts.TryGetValue(assembly, out var mod)) Verdict(lines, i, mod.Verdict);
-                }
+                foreach (var (mod, finding) in corrected) touched += RunReport.Correct(lines, mod, finding);
 
                 if (touched == 0)
                 {
@@ -128,32 +131,6 @@ namespace Polyfill.Report
                           + e.GetType().Name + ": " + e.Message + "), so the file still shows them as "
                           + "unrepaired. What gets sent is right.");
             }
-        }
-
-
-        /// <summary>Set the verdict on the <c>M|</c> line that owns the finding at <paramref name="index"/>.</summary>
-        private static void Verdict(string[] lines, int index, string verdict)
-        {
-            if (string.IsNullOrEmpty(verdict)) return;
-            for (int i = index - 1; i >= 0; i--)
-            {
-                if (!lines[i].StartsWith("M|", StringComparison.Ordinal)) continue;
-                var parts = lines[i].Split('|');
-                if (parts.Length > 6) { parts[6] = verdict; lines[i] = string.Join("|", parts); }
-                return;
-            }
-        }
-
-        /// <summary>Which mod a finding line belongs to: the nearest <c>M|</c> line above it.</summary>
-        private static string AssemblyOf(string[] lines, int index)
-        {
-            for (int i = index - 1; i >= 0; i--)
-            {
-                if (!lines[i].StartsWith("M|", StringComparison.Ordinal)) continue;
-                var parts = lines[i].Split('|');
-                return parts.Length > 2 ? parts[2] : null;
-            }
-            return null;
         }
     }
 }
