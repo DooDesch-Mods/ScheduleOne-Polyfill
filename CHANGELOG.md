@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.8] - 2026-10-13
+
+### Fixed
+- On 0.4.7, Mrs. Ming's Authentic Pets 2.0.2 stops dragging a loaded save down to 1-2 fps, and the dog
+  toys are back on the shop's shelves.
+
 ## [0.13.7] - 2026-10-13
 
 ### Fixed
