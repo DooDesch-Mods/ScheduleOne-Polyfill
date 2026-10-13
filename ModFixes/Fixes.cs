@@ -29,6 +29,21 @@ namespace Polyfill.ModFixes
         /// </remarks>
         internal static readonly HashSet<string> Repaired = new(StringComparer.Ordinal);
 
+        /// <summary>
+        /// Clones a fix repaired after the report was written: "&lt;mod assembly&gt;|&lt;site&gt;", and
+        /// the sentence the finding gets.
+        /// </summary>
+        /// <remarks>
+        /// A second list because the key is a different thing. A patch is identified by the method it
+        /// sits on, which is the finding's symbol. A cloned piece of interface is identified by where in
+        /// the mod it is made, which is the finding's site - its symbol is the game app it borrowed, and
+        /// two mods borrow the same one.
+        ///
+        /// The sentence comes with it because it names the fix, and the report has no other way to learn
+        /// which one acted.
+        /// </remarks>
+        internal static readonly Dictionary<string, string> RepairedAt = new(StringComparer.Ordinal);
+
         internal sealed class Outcome
         {
             internal Fix Fix;

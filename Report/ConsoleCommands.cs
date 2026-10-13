@@ -138,6 +138,25 @@ namespace Polyfill.Report
             Core.Log.Msg("`polyfillshow <mod>` for the detail. Full file: " + ReportReader.Path);
         }
 
+        /// <summary>
+        /// The findings in the order a reader needs them, because only the first twenty are printed.
+        /// </summary>
+        /// <remarks>
+        /// What is still open goes first: it is what decides "blocked", and in file order it sat behind
+        /// every repaired name - Tweakables has twenty-two of those on 0.4.7, so the one finding that
+        /// blocked it was cut off. A repaired clone of the game's interface goes next, since it is the
+        /// finding about what the player sees. The repaired names follow in the order the file has them.
+        /// </remarks>
+        private static IEnumerable<Finding> InReadingOrder(List<Finding> findings)
+        {
+            foreach (var finding in findings)
+                if (finding.Outcome != Outcome.Applied) yield return finding;
+            foreach (var finding in findings)
+                if (finding.Outcome == Outcome.Applied && finding.Kind == "shape-coupled") yield return finding;
+            foreach (var finding in findings)
+                if (finding.Outcome == Outcome.Applied && finding.Kind != "shape-coupled") yield return finding;
+        }
+
         private static void Show(string term, bool onlyUnfixable)
         {
             if (string.IsNullOrWhiteSpace(term))
@@ -155,7 +174,7 @@ namespace Polyfill.Report
                            + $"{mod.HarmonyTargetsChecked} Harmony targets checked)");
 
                 int shown = 0, skipped = 0;
-                foreach (var finding in mod.Findings)
+                foreach (var finding in InReadingOrder(mod.Findings))
                 {
                     if (onlyUnfixable && finding.Fixable) continue;
                     // A console window is about forty lines; the file has all of it.
@@ -164,7 +183,11 @@ namespace Polyfill.Report
 
                     Core.Log.Msg($"  {finding.Kind}  {finding.Symbol}");
                     Core.Log.Msg($"      {finding.Reason}");
-                    if (finding.Fixable) Core.Log.Msg($"      -> {finding.Hint}");
+                    // What was done replaces what could be done: a hint under a finding that reads
+                    // repaired is the same statement twice, and the weaker one second.
+                    if (finding.Outcome == Outcome.Applied)
+                        Core.Log.Msg($"      repaired: {Detail(finding)}");
+                    else if (finding.Fixable) Core.Log.Msg($"      -> {finding.Hint}");
                     if (!string.IsNullOrEmpty(finding.Site)) Core.Log.Msg($"      at {finding.Site}");
                 }
 

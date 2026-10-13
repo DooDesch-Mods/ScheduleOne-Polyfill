@@ -281,7 +281,7 @@ namespace Polyfill.Core
 
                 // Last, and it repairs nothing: a mod can pass every check above and still be
                 // broken by the shape of a prefab it clones. See Core/ShapeCoupling.
-                ShapeCoupling.Check(module, report);
+                ShapeCoupling.Check(module, report, log);
             }
             catch (Exception e)
             {

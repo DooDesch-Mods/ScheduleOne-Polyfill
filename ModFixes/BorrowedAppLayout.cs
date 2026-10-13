@@ -57,8 +57,11 @@ namespace Polyfill.ModFixes
         /// or reconfigure it - and the check below would refuse anyway. Standing down loudly is still the
         /// better default: a layout fix that silently does nothing is indistinguishable from the bug it
         /// was written for.
+        ///
+        /// The range itself lives beside the list of clones, because the plugin reads both to decide
+        /// whether a clone's finding may name this fix.
         /// </remarks>
-        internal override string GameVersions => "0.4.6*,0.4.7*";
+        internal override string GameVersions => Contract.BorrowedAppClones.GameVersions;
 
         internal override bool NeedsAScreen => true;
 
@@ -70,20 +73,8 @@ namespace Polyfill.ModFixes
             => "0.4.6 put a vertical layout group on the app container these mods clone, which overrules "
              + "where they put their own panels.";
 
-        /// <summary>
-        /// Where each mod builds, and where it keeps what it built.
-        /// </summary>
-        /// <remarks>
-        /// <c>Field</c> null means the hooked method is handed the container itself, as Media Player's
-        /// ClearContainer is. Otherwise it is a static field on the same type holding the cloned app, and
-        /// the container is its child of that name.
-        /// </remarks>
-        private static readonly (string Type, string Method, string Field)[] Hooks =
-        {
-            ("MediaPlayer.PhoneIntegration", "ClearContainer", null),
-            ("Tweakables.TweakablesApp", "ClonePanel", "_appPanel"),
-            ("ElDiablo59WagesManager.WagesApp", "BuildAppRoot", "_appRoot"),
-        };
+        // Where each mod builds, and where it keeps what it built, is Contract.BorrowedAppClones: the
+        // plugin reads the same list to say which clone's finding this fix answers for.
 
         private static MelonLogger.Instance _log;
         private static readonly HashSet<int> Done = new();
@@ -94,8 +85,10 @@ namespace Polyfill.ModFixes
             int wired = 0;
             var harmony = new HarmonyLib.Harmony("doodesch.polyfill.fixes");
 
-            foreach (var (typeName, methodName, fieldName) in Hooks)
+            foreach (var clone in Contract.BorrowedAppClones.All)
             {
+                string typeName = clone.Type, methodName = clone.HookMethod, fieldName = clone.Field;
+
                 var type = AccessTools.TypeByName(typeName);
                 if (type == null) continue;               // that mod is not installed; not our business
 
@@ -119,7 +112,7 @@ namespace Polyfill.ModFixes
 
                 try
                 {
-                    Owners[target] = field;
+                    Owners[target] = (field, clone);
                     harmony.Patch(target,
                         postfix: new HarmonyMethod(typeof(BorrowedAppLayout), nameof(Loosen)));
                     wired++;
@@ -134,9 +127,12 @@ namespace Polyfill.ModFixes
             return wired > 0;
         }
 
-        /// <summary>The field each hooked method's clone lives in, or null when it is handed one.</summary>
-        private static readonly Dictionary<System.Reflection.MethodBase, System.Reflection.FieldInfo> Owners
-            = new();
+        /// <summary>
+        /// Per hooked method: the field its clone lives in, or null when it is handed one, and the entry
+        /// that says which finding the repair answers.
+        /// </summary>
+        private static readonly Dictionary<System.Reflection.MethodBase,
+            (System.Reflection.FieldInfo Field, Contract.BorrowedAppClones.Entry Clone)> Owners = new();
 
 
         /// <summary>Where in the scene an object sits, as a slash-separated path from its root.</summary>
@@ -161,7 +157,8 @@ namespace Polyfill.ModFixes
         {
             try
             {
-                Owners.TryGetValue(__originalMethod, out var field);
+                Owners.TryGetValue(__originalMethod, out var owner);
+                var field = owner.Field;
 
                 GameObject app = null;
                 if (field != null) app = field.GetValue(null) as GameObject;
@@ -206,10 +203,49 @@ namespace Polyfill.ModFixes
                 _log?.Msg($"[fix] borrowed-app-layout: switched off the vertical layout group on "
                         + $"{Path(container)}, inherited from the game's product manager, so the app's own "
                         + "panels decide where they go again.");
+
+                TellTheReport(__originalMethod, owner.Clone);
             }
             catch (Exception e)
             {
                 Complain("could not read the cloned app: " + e.GetType().Name + ": " + e.Message);
+            }
+        }
+
+        /// <summary>
+        /// Tell the report that this mod's clone is repaired.
+        /// </summary>
+        /// <remarks>
+        /// ONLY FROM THE LINE ABOVE. The plugin wrote a hint for this clone before the game existed, and
+        /// a hint clears nothing. This is called when the layout group has been switched off and from
+        /// nowhere else, so every way this fix can do nothing - switched off, another game build, a
+        /// container without the layout group - leaves the finding as the plugin wrote it.
+        ///
+        /// The reconcile is asked again from here because it already ran: it follows the fixes on the
+        /// first frame of the world, and a mod builds its phone app after that.
+        /// </remarks>
+        private static void TellTheReport(System.Reflection.MethodBase hooked,
+                                          Contract.BorrowedAppClones.Entry clone)
+        {
+            try
+            {
+                string assembly = hooked?.DeclaringType?.Assembly.GetName().Name;
+                if (clone == null || string.IsNullOrEmpty(assembly))
+                {
+                    _log?.Warning("[fix] borrowed-app-layout: the mod that owns this clone could not be "
+                                + "named, so the report still lists the clone as not repaired.");
+                    return;
+                }
+
+                Fixes.RepairedAt[Report.Reconcile.Key(assembly, clone.Site)]
+                    = Contract.BorrowedAppClones.Repaired;
+                Report.Reconcile.After(_log);
+            }
+            catch (Exception e)
+            {
+                _log?.Warning("[fix] borrowed-app-layout: the clone is repaired and the report could not "
+                            + "be told (" + e.GetType().Name + ": " + e.Message + "), so it still lists "
+                            + "the clone as not repaired.");
             }
         }
 
