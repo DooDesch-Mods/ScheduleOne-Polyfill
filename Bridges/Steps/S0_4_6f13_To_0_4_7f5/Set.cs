@@ -211,6 +211,29 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             OnSleepController("set_onSleepEnd", 1, "set_OnSleepEnd"),
             OnSleepController("get_IsSleepInProgress", 0, "get_IsSleepInProgress"),
 
+            // The two members a mod drove the sleep with moved the same way. StartSleep was the clock's own
+            // RunLocally RPC; HostSleepDone was the host's word that its sleep events were over, which every
+            // peer waited for before the clock skipped. 0.4.7 keeps that word as the synced
+            // IsHostReadyToProceed, set at the same point.
+            //
+            // SetHostSleepDone is NOT put back. In 0.4.6 SleepCanvas raised it when the host's events ended
+            // (SleepCanvas.cs:186 on 0.4.6f13); 0.4.7 raises the flag itself at that point
+            // (SleepController.cs:251-254 on 0.4.7f12), and its setter is private. A write from a mod would
+            // either do nothing or release the clients before the host is done.
+            OnSleepController("get_HostSleepDone", 0,
+                "sync___get_value__IsHostReadyToProceed_k__BackingField", HostSleepDoneMoved),
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = "Il2CppScheduleOne.GameTime.TimeManager",
+                OldName = "StartSleep",
+                ParameterCount = 0,
+                Because = "0.4.6's StartSleep was TimeManager's RunLocally ObserversRpc (TimeManager.cs:411-415, "
+                        + "802-841 on 0.4.6f13); 0.4.7 moved it unchanged in kind to SleepController "
+                        + "(SleepController.cs:121-126, 217-298 on 0.4.7f12)",
+                Emit = (module, clock) => EmitSleepControllerCall(module, "StartSleep"),
+            },
+
             new Bridge
             {
                 Assembly = "Assembly-CSharp",
@@ -764,15 +787,57 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             + "104, 802-840 on 0.4.6f13); 0.4.7 raises them on SleepController at the same points "
             + "(SleepController.cs:60, 95-97, 217-280 on 0.4.7f6)";
 
-        private static Bridge OnSleepController(string oldName, int arity, string target) => new Bridge
+        private const string HostSleepDoneMoved = "0.4.6's HostSleepDone was the host's synced word that its "
+            + "sleep events were over, waited for by every peer before the clock skipped (TimeManager.cs:108, "
+            + "418-421, 822-827 on 0.4.6f13); 0.4.7 keeps it as SleepController's synced IsHostReadyToProceed, "
+            + "set false on start and true when the host's events end (SleepController.cs:44, 229, 251-262 on "
+            + "0.4.7f12)";
+
+        private static Bridge OnSleepController(string oldName, int arity, string target,
+                                                string because = SleepMoved) => new Bridge
         {
             Assembly = "Assembly-CSharp",
             DeclaringType = "Il2CppScheduleOne.GameTime.TimeManager",
             OldName = oldName,
             ParameterCount = arity,
-            Because = SleepMoved,
+            Because = because,
             Emit = (module, clock) => EmitOnSleepController(module, clock, oldName, arity, target),
         };
+
+        /// <summary>
+        /// A TimeManager method that calls the same method on the SleepController instance.
+        /// </summary>
+        /// <remarks>
+        /// With no SleepController (the menu) the call does nothing, which is what the old RPC did there
+        /// too: there was no clock to run it on.
+        /// </remarks>
+        private static MethodDefinition EmitSleepControllerCall(ModuleDefinition module, string name)
+        {
+            var sleep = module.GetType(SleepControllerType);
+            var target = Method(sleep, name, 0);
+            var open = module.GetType("Il2CppScheduleOne.DevUtilities.NetworkSingleton`1");
+            var getInstance = Method(open, "get_Instance", 0);
+            if (target == null || target.IsStatic || target.ReturnType.MetadataType != MetadataType.Void
+                || getInstance == null || !getInstance.IsStatic) return null;
+
+            var owner = new GenericInstanceType(module.ImportReference(open));
+            owner.GenericArguments.Add(module.ImportReference(sleep));
+
+            var method = new MethodDefinition(name, MethodAttributes.Public | MethodAttributes.HideBySig,
+                                              module.TypeSystem.Void);
+            var il = method.Body.GetILProcessor();
+            var have = il.Create(OpCodes.Callvirt, module.ImportReference(target));
+
+            // var s = NetworkSingleton<SleepController>.Instance; if (s != null) s.StartSleep();
+            il.Emit(OpCodes.Call, module.ImportReference(Against(module, getInstance, owner)));
+            il.Emit(OpCodes.Dup);
+            il.Emit(OpCodes.Brtrue_S, have);
+            il.Emit(OpCodes.Pop);
+            il.Emit(OpCodes.Ret);
+            il.Append(have);
+            il.Emit(OpCodes.Ret);
+            return method;
+        }
 
         /// <summary>
         /// A TimeManager accessor that reads or writes the same member on the SleepController instance.
@@ -1191,7 +1256,84 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                 Because = "the dialogue graph asset was renamed in place: 0.4.6f13 DialogueContainer and 0.4.7f6 "
                         + "Conversation are the same ScriptableObject with the same members in the same order",
             },
+            new TypeRename
+            {
+                Assembly = "Assembly-CSharp",
+                OldFullName = "Il2CppScheduleOne.UI.SleepCanvas",
+                NewFullName = "Il2CppScheduleOne.UI.SleepMenu",
+                ByNativeClass = true,
+                Because = "0.4.6's SleepCanvas was both the bed menu and the sleep sequence (SleepCanvas.cs on "
+                        + "0.4.6f13); 0.4.7 kept the bed menu as SleepMenu, with the same MenuContainer and "
+                        + "MenuState (SleepMenu.cs:11, 20, 36 on 0.4.7f12), and moved the sequence to "
+                        + "SleepController and BlackOverlay. The sequence members are not put back, so a patch "
+                        + "on SleepStart or AddPostSleepEvent finds no target",
+                Answers = new[]
+                {
+                    new Answer { Name = "get_MenuContainer", Returns = "UnityEngine.RectTransform",
+                                 Emit = (module, facade, menu) => EmitOnMenu(module, menu, "get_MenuContainer") },
+                    new Answer { Name = "get_MenuState", Returns = "Il2CppScheduleOne.State.MonoState",
+                                 Emit = (module, facade, menu) => EmitOnMenu(module, menu, "get_MenuState") },
+                    // The sleep message moved to SleepMessageInterface, which shows it at once instead of
+                    // queueing it (SleepController.cs:258 on 0.4.7f12). Nothing is queued any more, so the
+                    // queue reads empty - the value it started at (SleepCanvas.cs:67 on 0.4.6f13).
+                    new Answer { Name = "get_QueuedSleepMessage", Returns = "System.String",
+                                 Emit = (module, facade, menu) => EmitEmptyString(module, "get_QueuedSleepMessage") },
+                    new Answer { Name = "QueueSleepMessage", Takes = new[] { "System.String", "System.Single" } },
+                    // Fired around the fade the sequence ran (SleepCanvas.cs:59-61 on 0.4.6f13); 0.4.7 has
+                    // no such events, and a caller checks them for null before invoking.
+                    new Answer { Name = "get_onSleepFullyFaded", Returns = "UnityEngine.Events.UnityEvent",
+                                 Emit = (module, facade, menu) => EmitNullEvent(module, "get_onSleepFullyFaded") },
+                    new Answer { Name = "get_onSleepEndFade", Returns = "UnityEngine.Events.UnityEvent",
+                                 Emit = (module, facade, menu) => EmitNullEvent(module, "get_onSleepEndFade") },
+                },
+            },
         };
+
+        /// <summary>A SleepCanvas getter answered by the live SleepMenu the stand-in points at.</summary>
+        private static MethodDefinition EmitOnMenu(ModuleDefinition module, TypeDefinition menu, string getter)
+        {
+            var to = Method(menu, getter, 0);
+            var pointer = Core.ShadowTypes.PointerGetter(menu);
+            var make = Core.ShadowTypes.PointerConstructorOf(menu);
+            if (to == null || to.IsStatic || pointer == null || make == null) return null;
+
+            var method = new MethodDefinition(getter,
+                MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName,
+                module.ImportReference(to.ReturnType));
+
+            // return new SleepMenu(this.Pointer).X;
+            var il = method.Body.GetILProcessor();
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, module.ImportReference(pointer));
+            il.Emit(OpCodes.Newobj, module.ImportReference(make));
+            il.Emit(OpCodes.Callvirt, module.ImportReference(to));
+            il.Emit(OpCodes.Ret);
+            return method;
+        }
+
+        private static MethodDefinition EmitEmptyString(ModuleDefinition module, string getter)
+        {
+            var method = new MethodDefinition(getter,
+                MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName,
+                module.TypeSystem.String);
+            var il = method.Body.GetILProcessor();
+            il.Emit(OpCodes.Ldstr, "");
+            il.Emit(OpCodes.Ret);
+            return method;
+        }
+
+        private static MethodDefinition EmitNullEvent(ModuleDefinition module, string getter)
+        {
+            var unityEvent = Forwards.TypeIn(module, "UnityEngine.CoreModule", "UnityEngine.Events", "UnityEvent");
+            if (unityEvent == null) return null;
+            var method = new MethodDefinition(getter,
+                MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName,
+                module.ImportReference(unityEvent));
+            var il = method.Body.GetILProcessor();
+            il.Emit(OpCodes.Ldnull);
+            il.Emit(OpCodes.Ret);
+            return method;
+        }
 
         private const string Customer = "Il2CppScheduleOne.Economy.Customer";
         private const string HandoverScreen = "Il2CppScheduleOne.UI.Handover.HandoverScreen";
