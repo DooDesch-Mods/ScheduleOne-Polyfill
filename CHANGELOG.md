@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.9] - 2026-10-14
+
+### Fixed
+- On 0.4.7, Time Never Stops 1.5.0 works again: time runs past 4 AM, and the 6:59 sleep ends the day and
+  saves without counting an extra day.
+  - Its silent sleep is not back yet, so the screen goes black for a few seconds during that sleep.
+
 ## [0.13.8] - 2026-10-13
 
 ### Fixed
