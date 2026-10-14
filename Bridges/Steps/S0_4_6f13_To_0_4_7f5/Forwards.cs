@@ -198,6 +198,34 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                 Emit = (module, item) => EmitGetterRename(module, item, "get_StoredItem", "StoredItemPrefab"),
             },
 
+            // ---- the screens after a night's sleep ----
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = "Il2CppScheduleOne.UI.DailySummary",
+                OldName = "get_IsOpen", ParameterCount = 0,
+                Because = "renamed in place: 0.4.6's DailySummary.IsOpen was set in Open and cleared in Close "
+                        + "(DailySummary.cs:55, 72 on 0.4.6f13); 0.4.7 calls it IsInProgress, set when the summary "
+                        + "starts and cleared in Close (DailySummary.cs:54, 73-77, 117-127 on 0.4.7f12)",
+                Emit = (module, summary) => EmitGetterRename(module, summary, "get_IsOpen", "IsInProgress"),
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = "Il2CppScheduleOne.UI.RankUpCanvas",
+                OldName = "get_IsRunning", ParameterCount = 0,
+                Because = "renamed in place: RankUpCanvas.IsRunning on 0.4.6f13 (RankUpCanvas.cs:52) is "
+                        + "IsInProgress on 0.4.7f12 (RankUpCanvas.cs:52, set in StartEvent :70, cleared in EndEvent :145)",
+                Emit = (module, canvas) => EmitGetterRename(module, canvas, "get_IsRunning", "IsInProgress"),
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = "Il2CppScheduleOne.UI.RegionUnlockedCanvas",
+                OldName = "get_IsRunning", ParameterCount = 0,
+                Because = "renamed in place: RegionUnlockedCanvas.IsRunning on 0.4.6f13 (RegionUnlockedCanvas.cs:27) "
+                        + "is IsInProgress on 0.4.7f12 (RegionUnlockedCanvas.cs:28, set in StartEvent :38, cleared "
+                        + "in EndEvent :76)",
+                Emit = (module, canvas) => EmitGetterRename(module, canvas, "get_IsRunning", "IsInProgress"),
+            },
+
             // ---- properties a mod builds itself (ChemicalPlant) ----
             Empty("Il2CppScheduleOne.Property.Property", "set_EmployeeContainer", 1, m => m.TypeSystem.Void,
                   "0.4.6's Property declared a public Transform EmployeeContainer and no game code read or wrote it "
