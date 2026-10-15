@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.11] - 2026-10-15
+
+### Fixed
+- ModsApp and other mods built for both game branches no longer show "parts missing" over code they only
+  run on Mono.
+
 ## [0.13.10] - 2026-10-15
 
 ### Fixed
