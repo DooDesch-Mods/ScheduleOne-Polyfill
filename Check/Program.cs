@@ -105,11 +105,15 @@ namespace Polyfill.Check
                 return 2;
             }
 
-            int typeCount = 0, missingTypes = 0, memberCount = 0, missingMembers = 0, unprovable = 0;
+            int typeCount = 0, missingTypes = 0, memberCount = 0, missingMembers = 0, unprovable = 0, monoBranch = 0;
             var missing = new List<string>();
 
             using (module)
             {
+                // The plugin's own rule: a reference made only from methods the mod calls on Mono is never
+                // compiled on IL2CPP. See Core/MonoOnlyCode.
+                var monoOnly = MonoOnlyCode.References(module);
+
                 foreach (var reference in module.GetTypeReferences())
                 {
                     string assembly = AssemblyOf(reference);
@@ -133,6 +137,8 @@ namespace Polyfill.Check
                     var declaring = reference.DeclaringType;
                     string assembly = AssemblyOf(declaring);
                     if (assembly == null || !game.TryGetValue(assembly, out var dump)) continue;
+
+                    if (monoOnly.Contains(reference.FullName)) { monoBranch++; continue; }
 
                     memberCount++;
                     var type = Find(dump.Assembly.MainModule, declaring?.FullName);
@@ -158,6 +164,9 @@ namespace Polyfill.Check
             if (unprovable > 0)
                 Console.WriteLine($"  {unprovable} generic type(s) skipped - a dump lists what exists, and an "
                                 + "open generic only appears where something derives from it.");
+            if (monoBranch > 0)
+                Console.WriteLine($"  {monoBranch} member reference(s) skipped - only methods your mod calls when "
+                                + "MelonUtils.IsGameIl2Cpp() is false use them.");
 
             if (missing.Count == 0)
             {

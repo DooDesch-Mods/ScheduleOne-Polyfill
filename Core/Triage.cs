@@ -276,7 +276,24 @@ namespace Polyfill.Core
                 var repaired = new Dictionary<string, TypeDefinition>(StringComparer.Ordinal);
                 var standIns = new Dictionary<string, InteropAugmentor.TypeForward>(StringComparer.Ordinal);
                 var missingTypes = CheckTypes(module, index, report, repaired, standIns);
-                CheckMembers(module, index, report, missingTypes, repaired, standIns);
+
+                // A mod built for both branches names Mono members in code it never runs here. See
+                // Core/MonoOnlyCode for why only whole methods count.
+                HashSet<string> monoOnly;
+                try { monoOnly = MonoOnlyCode.References(module); }
+                catch (Exception e)
+                {
+                    // Every reference is checked as before; this only costs the mod its exemptions.
+                    log.Warning($"[triage] {candidate.Display}: which code runs only on Mono could not be "
+                              + $"worked out ({e.GetType().Name}: {e.Message}); checking every reference");
+                    monoOnly = new HashSet<string>(StringComparer.Ordinal);
+                }
+                var skipped = new List<string>();
+                CheckMembers(module, index, report, missingTypes, repaired, standIns, monoOnly, skipped);
+                if (skipped.Count > 0)
+                    log.Msg($"[triage] {candidate.Display}: {skipped.Count} game reference(s) only in code it "
+                          + "runs on Mono, not checked: " + string.Join(", ", skipped.Take(5))
+                          + (skipped.Count > 5 ? ", ..." : ""));
                 HarmonyTargets.Check(module, index, report);
 
                 // Last, and it repairs nothing: a mod can pass every check above and still be
@@ -442,7 +459,8 @@ namespace Polyfill.Core
         private static void CheckMembers(ModuleDefinition module, InteropIndex index, ModReport report,
                                          HashSet<string> missingTypes,
                                          Dictionary<string, TypeDefinition> repaired,
-                                         Dictionary<string, InteropAugmentor.TypeForward> standIns)
+                                         Dictionary<string, InteropAugmentor.TypeForward> standIns,
+                                         HashSet<string> monoOnly, List<string> skipped)
         {
             foreach (var reference in module.GetMemberReferences())
             {
@@ -450,6 +468,9 @@ namespace Polyfill.Core
                 string scope = declaringReference?.Scope?.Name;
                 if (!index.IsTracked(scope)) continue;
                 report.MemberRefs++;
+
+                // Never compiled on this branch, so never missing on it - and never worth a repair.
+                if (monoOnly.Contains(reference.FullName)) { skipped.Add(reference.FullName); continue; }
 
                 var declaring = Resolve(declaringReference, index);
 
