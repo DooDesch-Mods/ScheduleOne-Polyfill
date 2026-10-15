@@ -600,6 +600,26 @@ namespace Polyfill.Core
             return null;
         }
 
+        /// <summary>
+        /// A method named the way code written inside its own type names it: through the type closed over
+        /// its OWN parameters when the type is generic - <c>StationInterface`1&lt;!T&gt;::get__canvas</c>.
+        /// </summary>
+        /// <remarks>
+        /// A call to the bare definition of a generic type is legal IL to write and refused when it runs:
+        /// "Could not execute the method because either the method itself or the containing type is not
+        /// fully instantiated". A method Polyfill adds to a generic type and that calls a sibling has to go
+        /// through here.
+        /// </remarks>
+        internal static MethodReference Itself(ModuleDefinition module, MethodDefinition target)
+        {
+            var owner = target.DeclaringType;
+            if (!owner.HasGenericParameters) return module.ImportReference(target);
+
+            var self = new GenericInstanceType(module.ImportReference(owner));
+            foreach (var parameter in owner.GenericParameters) self.GenericArguments.Add(parameter);
+            return module.ImportReference(On(self, target));
+        }
+
         /// <summary>A method of a generic type, named through one instantiation of it.</summary>
         internal static MethodReference On(GenericInstanceType instance, MethodDefinition definition)
         {
