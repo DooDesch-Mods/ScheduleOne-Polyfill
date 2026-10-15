@@ -98,6 +98,9 @@ namespace Polyfill.Boot
         /// A prefix is the wrong tool here and would be worse than the crash: skipping
         /// <c>PreRegisterAllNpcPrefabsInternal</c> means S1API never registers a single custom NPC, and
         /// every mod that ships one breaks quietly instead of loudly.
+        ///
+        /// Every entry shares one filter (<see cref="_anchor"/>), so a second entry must name the same
+        /// anchor or it is refused at install.
         /// </remarks>
         private static readonly Sweep[] KnownSelfSweeps =
         {
@@ -105,6 +108,16 @@ namespace Polyfill.Boot
             {
                 Type = "S1API.Entities.NPC",
                 Method = "PreRegisterAllNpcPrefabsInternal",
+                Mod = "S1API",
+                Anchor = "S1API",
+            },
+            // Runs on the first save load of every session, from a prefix on LoadManager.QueueLoadRequest.
+            // Its name filter skips "Il2Cpp*" but not Assembly-CSharp or Assembly-CSharp-firstpass, so
+            // every IL2CPP game walks both, and some mod sets die there on most loads.
+            new Sweep
+            {
+                Type = "S1API.Saveables.SaveableAutoRegistry",
+                Method = "DiscoverSaveableTypes",
                 Mod = "S1API",
                 Anchor = "S1API",
             },
@@ -263,6 +276,16 @@ namespace Polyfill.Boot
                     // error - which reads exactly like a guard that is in place. A second call site is
                     // not better news than none: it means the method was rewritten upstream, and what
                     // this rewrote is no longer the thing it was read against.
+                    if (_replaced == 0 && CallsDerivedClassFilter(target))
+                    {
+                        // The mod moved this walk onto its own reference filter, which leaves the
+                        // interop assemblies out already. Nothing is left to guard, and saying so
+                        // as a warning would cry wolf on every boot.
+                        log.Msg($"[sweep] {sweep.Mod}.{sweep.Method}() no longer walks every assembly "
+                              + "itself; it filters them by reference, so it needs no guard.");
+                        continue;
+                    }
+
                     if (_replaced != 1)
                     {
                         log.Warning($"[sweep] {sweep.Mod}.{sweep.Method}() calls AppDomain.GetAssemblies "
@@ -701,21 +724,41 @@ namespace Polyfill.Boot
                 if (self != null && wanted.Contains(self)) kept.Add(assembly);
             }
 
-            // Once, and in Release too. "The guard is installed" and "the guard narrowed anything" are
-            // different claims, and only the second one is worth trusting - the numbers say which
-            // happened, and how much of the walk never had to load a thing.
-            if (!_said)
-            {
-                _said = true;
+            // In Release too, once per distinct result rather than once per process: two guarded walks
+            // run at different times (boot, first save load), and a line for only the first would leave
+            // the second indistinguishable from "never ran". "The guard is installed" and "the guard
+            // narrowed anything" are different claims, and only the second one is worth trusting.
+            if (Said.Add((kept.Count, all.Length)))
                 _log?.Msg($"[sweep] {_anchor}'s walk sees {kept.Count} of {all.Length} loaded "
                         + $"assemblies - the rest cannot name {_anchor}, so none of their types are "
                         + "loaded to find out.");
-            }
 
             return kept.ToArray();
         }
 
-        private static bool _said;
+        private static readonly HashSet<(int, int)> Said = new();
+
+        /// <summary>Does this method hand its walk to the mod's own derived-class filter?</summary>
+        /// <remarks>
+        /// By name, because the filter is generic and internal to the mod: S1API's
+        /// <c>ReflectionUtils.GetDerivedClasses&lt;T&gt;()</c> checks assembly references before it
+        /// enumerates anything, which is the same cut <see cref="Mortals"/> makes.
+        /// </remarks>
+        private static bool CallsDerivedClassFilter(MethodBase method)
+        {
+            try
+            {
+                foreach (var instruction in PatchProcessor.GetOriginalInstructions(method))
+                    if (instruction.operand is MethodInfo called && called.Name == "GetDerivedClasses")
+                        return true;
+            }
+            catch (Exception e)
+            {
+                _log?.Warning($"[sweep] could not read {method.Name}() to check for a reference filter: "
+                            + e.Message);
+            }
+            return false;
+        }
 
         private static readonly HashSet<string> Complained = new(StringComparer.Ordinal);
 
