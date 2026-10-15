@@ -63,6 +63,29 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         }
 
         /// <summary>
+        /// The old name a module the GAME loaded is reported under, set by Polyfill's own relay and null
+        /// the rest of the time.
+        /// </summary>
+        /// <remarks>
+        /// The game loads its hints through the manager under 0.4.6 ids, so a mod patch on this
+        /// stand-in's <c>LoadModule</c> would never run. The relay in the mod
+        /// (<c>PatchesOnInputPrompts</c>) runs it at the moment the game loads one, and for the length of
+        /// that call <c>currentModuleLabel</c> has to answer with the key the mod was written against -
+        /// "pourable" rather than "PourTask". The field is how the relay says so without the stand-in
+        /// knowing any of the names.
+        /// </remarks>
+        private static FieldDefinition Label(ModuleDefinition module, TypeDefinition facade)
+        {
+            foreach (var field in facade.Fields)
+                if (field.Name == "polyfillModuleLabel") return field;
+
+            var label = new FieldDefinition("polyfillModuleLabel",
+                FieldAttributes.Private | FieldAttributes.Static, module.TypeSystem.String);
+            facade.Fields.Add(label);
+            return label;
+        }
+
+        /// <summary>
         /// The one method of that name taking one string, or null when there is none or several.
         /// </summary>
         /// <remarks>
@@ -180,12 +203,14 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                 || pointer == null || make == null) return null;
 
             var slot = Slot(module, facade);
+            var label = Label(module, facade);
             var method = new MethodDefinition("get_currentModuleLabel",
                 MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName,
                 module.TypeSystem.String);
 
             var il = method.Body.GetILProcessor();
             var none = il.Create(OpCodes.Ldstr, "");
+            var done = il.Create(OpCodes.Ret);
 
             il.Emit(OpCodes.Ldsfld, slot);
             il.Emit(OpCodes.Brfalse, none);
@@ -193,8 +218,13 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             il.Emit(OpCodes.Ldsfld, slot);
             il.Emit(OpCodes.Callvirt, module.ImportReference(active));
             il.Emit(OpCodes.Brfalse, none);
+            // The old key while the relay runs a mod's patch for a module the game loaded, else the id.
+            il.Emit(OpCodes.Ldsfld, label);
+            il.Emit(OpCodes.Dup);
+            il.Emit(OpCodes.Brtrue, done);
+            il.Emit(OpCodes.Pop);
             il.Emit(OpCodes.Ldsfld, slot);
-            il.Emit(OpCodes.Ret);
+            il.Append(done);
             il.Append(none);
             il.Emit(OpCodes.Ret);
 

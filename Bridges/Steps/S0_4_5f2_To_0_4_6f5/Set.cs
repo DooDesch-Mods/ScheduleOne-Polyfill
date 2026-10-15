@@ -2769,15 +2769,8 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         /// Nothing here noticed for two weeks because the bridge diff cannot read a generic type name out
         /// of the archive, and reported this one as unreadable rather than as unchecked.
         /// </remarks>
-        private static MethodReference Itself(ModuleDefinition module, TypeDefinition owner,
-                                              MethodDefinition target)
-        {
-            if (!owner.HasGenericParameters) return module.ImportReference(target);
-
-            var self = new GenericInstanceType(module.ImportReference(owner));
-            foreach (var parameter in owner.GenericParameters) self.GenericArguments.Add(parameter);
-            return module.ImportReference(Core.ShadowTypes.On(self, target));
-        }
+        private static MethodReference Itself(ModuleDefinition module, MethodDefinition target)
+            => Core.ShadowTypes.Itself(module, target);
 
         private static MethodDefinition EmitAppExit(ModuleDefinition module, TypeDefinition app)
         {
@@ -2794,7 +2787,7 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             var il = method.Body.GetILProcessor();
             il.Emit(OpCodes.Ldarg_0);
             il.Emit(OpCodes.Ldarg_1);
-            il.Emit(OpCodes.Call, Itself(module, app, real));
+            il.Emit(OpCodes.Call, Itself(module, real));
             il.Emit(OpCodes.Ret);
             return method;
         }

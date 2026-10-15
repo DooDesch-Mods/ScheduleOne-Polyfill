@@ -644,8 +644,9 @@ namespace Polyfill.Core
             for (int i = 0; i < target.Parameters.Count; i++)
                 il.Emit(OpCodes.Ldarg, forward.Parameters[i]);
             // Call, not callvirt: the target is a concrete method on a concrete type and the null check has
-            // already happened on the caller's side.
-            il.Emit(OpCodes.Call, target);
+            // already happened on the caller's side. On a generic type it is named through the type over its
+            // own parameters, or the call throws the first time it runs.
+            il.Emit(OpCodes.Call, ShadowTypes.Itself(module, target));
 
             if (shadow != null && !ShadowTypes.EmitRewrap(module, il, shadow, out string cannot))
             { Refuse(result, member, label, "its answer cannot be handed back under the old name: " + cannot); return false; }

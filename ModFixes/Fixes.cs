@@ -100,6 +100,7 @@ namespace Polyfill.ModFixes
             new PatchesOnResultTurnedArgument(),
             new SplitScreenPatches(),
             new PatchesOnReplacedMethods(),
+            new PatchesOnInputPrompts(),
             new PlayerLoadRelay(),
             new AvatarSettingsBridge(),
             new PatchesOnDroppedArguments(),
