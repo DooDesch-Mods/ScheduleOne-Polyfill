@@ -32,6 +32,7 @@
   <ItemGroup>
     <Compile Include="../Contract/ILog.cs" Link="Contract/ILog.cs" />
     <Compile Include="../Core/DumpIndex.cs" Link="Core/DumpIndex.cs" />
+    <Compile Include="../Core/MonoOnlyCode.cs" Link="Core/MonoOnlyCode.cs" />
   </ItemGroup>
 
 </Project>
