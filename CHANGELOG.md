@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.10] - 2026-10-15
+
+### Fixed
+- On 0.4.7, AutomatedTasks 1.3.0 finishes the cauldron again instead of stopping after the gasoline.
+- AutomatedTasks pours soil, sows, waters, fertilizes and harvests your pots again. On 0.4.7 none of it started.
+
 ## [0.13.9] - 2026-10-14
 
 ### Fixed
