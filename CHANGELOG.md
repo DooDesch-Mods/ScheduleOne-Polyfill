@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.12] - 2026-10-15
+
+### Fixed
+- With S1API 3.2.1, the game no longer crashes on the first save you load each session. Only the default
+  game branch was affected, not Mono.
+
 ## [0.13.11] - 2026-10-15
 
 ### Fixed
