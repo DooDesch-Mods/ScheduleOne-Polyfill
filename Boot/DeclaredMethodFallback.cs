@@ -60,6 +60,17 @@ namespace Polyfill.Boot
                     prefix: new HarmonyMethod(typeof(DeclaredMethodFallback), nameof(Unambiguous)),
                     postfix: new HarmonyMethod(typeof(DeclaredMethodFallback), nameof(Fallback)));
 
+                // A mod that patches by hand looks the method up with AccessTools.Method, which throws on a
+                // doubled name the same way. Only the name-only answer is added there: Method already walks
+                // the base chain, so the stand-in fallback has nothing to add.
+                var method = AccessTools.Method(typeof(AccessTools), nameof(AccessTools.Method),
+                    new[] { typeof(Type), typeof(string), typeof(Type[]), typeof(Type[]) });
+                if (method != null)
+                    harmony.Patch(method, prefix: new HarmonyMethod(typeof(DeclaredMethodFallback), nameof(Unambiguous)));
+                else
+                    log.Warning("[harmony] AccessTools.Method is not where it was, so a hand-written patch naming a "
+                              + "doubled method without parameters still meets two methods.");
+
                 var property = AccessTools.Method(typeof(AccessTools), nameof(AccessTools.DeclaredProperty),
                     new[] { typeof(Type), typeof(string) });
                 if (property != null)
