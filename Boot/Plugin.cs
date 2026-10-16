@@ -142,6 +142,9 @@ namespace Polyfill.Boot
         public override void OnInitializeMelon()
         {
             if (!Enabled || DryRun) return;
+            // Here and not in OnPreModsLoaded: it reads the game's method pointers, which needs the runtime up,
+            // and it has to be in place before the first mod patches.
+            FoldedTargetsShareOneDetour.Install(LoggerInstance);
             try { InteropTypeSweep.Install(LoggerInstance, Core.InteropIndex.LocateDirectory()); }
             catch (Exception e) { LoggerInstance.Warning("[sweep] " + e.Message); }
         }
