@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.14] - 2026-10-17
+
+### Fixed
+- AutoRestock works again: on 0.4.7 it stopped while a save loaded and never restocked anything.
+
 ## [0.13.13] - 2026-10-16
 
 ### Fixed
