@@ -80,6 +80,11 @@ namespace Polyfill.ModFixes
             public bool Warned;
             /// <summary>The patch takes nothing from the call that could be an object, so a foreign one cannot be misread by it.</summary>
             public bool Blind;
+            /// <summary>
+            /// The classes the patch was written for when the plugin moved it here from a folded twin's method
+            /// (FoldedTargetsShareOneDetour); null for a patch that sits where its mod put it.
+            /// </summary>
+            public IntPtr[] Aimed;
         }
 
         private static readonly Dictionary<MethodBase, PatchStats> Stats = new();
@@ -92,6 +97,7 @@ namespace Polyfill.ModFixes
         private static readonly Dictionary<IntPtr, (string name, int classes)> ForeignCallers = new();
         private static readonly HashSet<string> Reported = new();
         [ThreadStatic] private static Dictionary<(IntPtr, IntPtr), bool> _verdicts;
+        [ThreadStatic] private static Dictionary<(IntPtr, IntPtr), bool> _aimVerdicts;
         [ThreadStatic] private static Type _lastType;
         [ThreadStatic] private static IntPtr _lastWanted;
 
@@ -209,11 +215,15 @@ namespace Polyfill.ModFixes
                 // The same patch method on another folded target (TargetMethods()): one guard serves both, as what
                 // it accepts depends on its own __instance. The target is added to what it is named by in warnings.
                 lock (Stats)
-                    if (Stats.TryGetValue(patch.PatchMethod, out var known) && !known.Label.Split(", ").Contains(label))
-                        known.Label += ", " + label;
+                    if (Stats.TryGetValue(patch.PatchMethod, out var known))
+                    {
+                        if (!known.Label.Split(", ").Contains(label)) known.Label += ", " + label;
+                        known.Aimed = AimedClasses(patch.PatchMethod, say: false) ?? known.Aimed;
+                    }
                 return false;
             }
             var stats = new PatchStats { Owner = patch.owner, Label = label, Accepts = Accepted(patch.PatchMethod) };
+            stats.Aimed = AimedClasses(patch.PatchMethod, say: true);
             stats.Blind = TakesNoObject(patch.PatchMethod);
             if (stats.Blind)
                 _log.Msg($"[fix] patches-on-folded-code: {patch.owner}'s {patch.PatchMethod.DeclaringType?.Name}.{patch.PatchMethod.Name} "
@@ -233,6 +243,31 @@ namespace Polyfill.ModFixes
                        + $"takes any {(stats.Accepts == AnyObject ? "object" : ClassName(stats.Accepts))} as __instance, so it "
                        + "still runs for every class of that kind sharing the code.");
             return true;
+        }
+
+        /// <summary>The native classes a moved patch was written for, or null when the plugin did not move it.</summary>
+        private static IntPtr[] AimedClasses(MethodInfo patch, bool say)
+        {
+            var types = Polyfill.Contract.FoldedAims.For(patch);
+            if (types == null) return null;
+            var classes = new List<IntPtr>();
+            foreach (var type in types)
+            {
+                try
+                {
+                    var store = typeof(Il2CppClassPointerStore<>).MakeGenericType(type);
+                    var pointer = (IntPtr)store.GetField("NativeClassPtr").GetValue(null);
+                    if (pointer != IntPtr.Zero) classes.Add(pointer);
+                }
+                catch (Exception e)
+                {
+                    ReportOnce("aimed:" + patch + type, $"could not read the class of {type.Name} that {patch.DeclaringType?.Name}.{patch.Name} "
+                             + $"was written for ({e.GetType().Name}: {e.Message}); it does not run for that class.");
+                }
+            }
+            if (say) _log?.Msg($"[fix] patches-on-folded-code: {patch.DeclaringType?.Name}.{patch.Name} was moved onto shared code and runs "
+                    + $"for {string.Join(", ", types.Select(t => t.Name))}.");
+            return classes.ToArray();
         }
 
         /// <summary>Says once per <paramref name="key"/>, so a check that fails on every call is one line.</summary>
@@ -355,11 +390,9 @@ namespace Polyfill.ModFixes
             }
             if (_depth < 64)
             {
-                if (foreign)
-                {
-                    _foreignMask |= 1UL << _depth;
-                    (_actual ??= new IntPtr[64])[_depth] = actualClass;
-                }
+                // Kept for every call: a moved patch is judged by the class whether or not the call is foreign.
+                (_actual ??= new IntPtr[64])[_depth] = actualClass;
+                if (foreign) _foreignMask |= 1UL << _depth;
                 else _foreignMask &= ~(1UL << _depth);
             }
             _depth++;
@@ -418,6 +451,7 @@ namespace Polyfill.ModFixes
         {
             PatchStats stats;
             lock (Stats) Stats.TryGetValue(patch, out stats);
+            if (stats?.Aimed != null) return StandsDownMoved(stats);
             if (!InForeignCall)
             {
                 if (stats != null) Interlocked.Increment(ref stats.Own);
@@ -435,6 +469,37 @@ namespace Polyfill.ModFixes
             }
             if (down) NoteStoodDown(stats);
             return down;
+        }
+
+        /// <summary>
+        /// A patch the plugin moved here from a folded twin: its own calls are those on an object of a class it was
+        /// written for, not those of the class whose method it now sits on. Otherwise as <see cref="StandsDown"/>.
+        /// </summary>
+        private static bool StandsDownMoved(PatchStats stats)
+        {
+            var actual = _depth > 0 && _depth <= 64 ? _actual?[_depth - 1] ?? IntPtr.Zero : IntPtr.Zero;
+            if (actual == IntPtr.Zero || IsA(actual, stats.Aimed))
+            {
+                Interlocked.Increment(ref stats.Own);
+                return false;
+            }
+            if (stats.Accepts == AnyObject) return false;
+            if (stats.Blind && Volatile.Read(ref stats.Own) == 0) return false;
+            bool down = stats.Accepts == IntPtr.Zero || !IL2CPP.il2cpp_class_is_assignable_from(stats.Accepts, actual);
+            if (down) NoteStoodDown(stats);
+            return down;
+        }
+
+        private static bool IsA(IntPtr actual, IntPtr[] classes)
+        {
+            var verdicts = _aimVerdicts ??= new Dictionary<(IntPtr, IntPtr), bool>();
+            foreach (var klass in classes)
+            {
+                if (!verdicts.TryGetValue((klass, actual), out bool yes))
+                    verdicts[(klass, actual)] = yes = IL2CPP.il2cpp_class_is_assignable_from(klass, actual);
+                if (yes) return true;
+            }
+            return false;
         }
 
         /// <summary>
