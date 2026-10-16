@@ -94,7 +94,14 @@ namespace Polyfill.Report
             }
         }
 
-        internal static IEnumerable<Trouble> Troubles => Seen.Values;
+        internal static IEnumerable<Trouble> Troubles
+        {
+            get
+            {
+                Flush();
+                return Seen.Values;
+            }
+        }
 
         /// <summary>
         /// Start watching, once, using the namespace map from the plugin's report.
@@ -128,6 +135,10 @@ namespace Polyfill.Report
                 // from a namespace.
                 MelonLogger.ErrorCallbackHandler += OnMelonError;
 
+                // A mod that catches its own exception and prints it as a warning is just as broken
+                // and is invisible to both other sources. See OnMelonWarning.
+                MelonLogger.WarningCallbackHandler += OnMelonWarning;
+
                 // Kept as well, for what MelonLoader does not catch: a throw from a coroutine or from an
                 // event the game itself invokes never passes through a melon callback.
                 _handler = new Action<string, string, UnityEngine.LogType>(OnLog);
@@ -152,6 +163,8 @@ namespace Polyfill.Report
             _stopped = DateTime.UtcNow;
 
             try { MelonLogger.ErrorCallbackHandler -= OnMelonError; } catch { }
+            try { MelonLogger.WarningCallbackHandler -= OnMelonWarning; } catch { }
+            Flush();
             try
             {
                 if (_handler != null) UnityEngine.Application.remove_logMessageReceived(_handler);
@@ -167,7 +180,8 @@ namespace Polyfill.Report
         /// <remarks>
         /// Only exceptions count. A mod that deliberately logs "could not reach the server" has not
         /// crashed, and counting that as a failed session would mark the mods that handle their own
-        /// errors properly as the broken ones.
+        /// errors properly as the broken ones. An exception a mod catches and prints as a warning is
+        /// booked by <see cref="OnMelonWarning"/>.
         /// </remarks>
         private static void OnMelonError(string melon, string text)
         {
@@ -182,6 +196,144 @@ namespace Polyfill.Report
                 Remember(owner, Kind(text), First(path), TopFrame(text), path);
             }
             catch { }
+        }
+
+        /// <summary>
+        /// A warning that carries a stack trace: an exception the mod caught and printed itself.
+        /// </summary>
+        /// <remarks>
+        /// WHY WARNINGS AT ALL. AutoRestock 1.1.5 threw from NPC.ID on every 0.4.7 save load, caught it,
+        /// and printed it through LoggerInstance.Warning. Its manager never started and the mod did
+        /// nothing for the whole session - and the index called it "mostly clean", because neither the
+        /// error callback nor Unity's log ever saw a thing.
+        ///
+        /// ONLY A STACK MAKES IT AN EXCEPTION. "Could not reach the server" is a warning a mod writes on
+        /// purpose, and counting it would mark the careful mods as the broken ones. A warning is booked
+        /// only when it carries at least one `at` frame; a warning that only names an exception type is
+        /// prose and is left alone.
+        ///
+        /// ONE EXCEPTION, SEVERAL WARNINGS. AutoRestock prints the type and message, then the source,
+        /// then the stack, as three separate warnings - and the stack is the only one with the mod's own
+        /// frame in it. So the warnings of one melon that arrive within <see cref="BurstWindow"/> of each
+        /// other are read as one text, and a new burst starts when another melon logs, when the window
+        /// has passed, or when a warning names an exception type after the burst already has a stack.
+        /// </remarks>
+        private static void OnMelonWarning(string melon, string text)
+        {
+            if (string.IsNullOrEmpty(melon) || string.IsNullOrEmpty(text)) return;
+
+            try
+            {
+                lock (Gate)
+                {
+                    var now = DateTime.UtcNow;
+                    string owner = melon.Trim();
+                    bool same = _burstMelon != null
+                             && string.Equals(_burstMelon, owner, StringComparison.Ordinal)
+                             && now - _burstLast <= BurstWindow;
+                    if (same && _burstHasStack && KindIn(text) != null) same = false;
+                    if (!same) FlushLocked();
+
+                    if (_burstMelon == null)
+                    {
+                        if (Seen.Count >= DistinctCap) return;
+                        _burstMelon = owner;
+                        _burst.Clear();
+                        _burstHasStack = false;
+                    }
+                    _burst.Append(text).Append('\n');
+                    _burstHasStack |= HasStack(text);
+                    _burstLast = now;
+                }
+            }
+            catch { }                                    // a log handler that throws would spiral
+        }
+
+        /// <summary>Book the warning burst that is still open, if it carried a stack.</summary>
+        private static void Flush()
+        {
+            try { lock (Gate) FlushLocked(); }
+            catch { }                                    // called from a log handler; see OnMelonWarning
+        }
+
+        private static void FlushLocked()
+        {
+            if (_burstMelon == null) return;
+
+            string owner = _burstMelon, text = _burst.ToString();
+            bool stack = _burstHasStack;
+            _burstMelon = null;
+            _burst.Clear();
+            _burstHasStack = false;
+
+            if (!stack || Seen.Count >= DistinctCap) return;
+            string path = OwnFrames(text, owner);
+            Remember(owner, KindIn(text) ?? "Exception", First(path), TopFrame(text), path);
+        }
+
+        /// <summary>How far apart two warnings of one exception can be. They are printed back to back.</summary>
+        private static readonly TimeSpan BurstWindow = TimeSpan.FromMilliseconds(250);
+
+        private static readonly object Gate = new object();
+        private static readonly StringBuilder _burst = new StringBuilder();
+        private static string _burstMelon;
+        private static DateTime _burstLast;
+        private static bool _burstHasStack;
+
+        /// <summary>Does the text hold a stack frame, as .NET, Il2CppInterop or IL2CPP print one.</summary>
+        private static bool HasStack(string text)
+        {
+            foreach (string line in text.Split('\n'))
+            {
+                string candidate = line.Trim();
+                if (candidate.StartsWith("at ", StringComparison.Ordinal) && candidate.IndexOf('(') > 3)
+                    return true;
+            }
+            return false;
+        }
+
+        /// <summary>A dotted identifier that ends in Exception: `System.NullReferenceException`.</summary>
+        private static readonly System.Text.RegularExpressions.Regex Thrown =
+            new System.Text.RegularExpressions.Regex(
+                @"\b((?:[A-Za-z_][A-Za-z0-9_]*\.)*(?:[A-Za-z_][A-Za-z0-9_]*)?Exception)\b",
+                System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+        /// <summary>
+        /// Exceptions that only carry another one. The one inside says what went wrong.
+        /// </summary>
+        private static readonly HashSet<string> Wrappers = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "Exception", "System.Exception",
+            "Il2CppException", "Il2CppInterop.Runtime.Il2CppException",
+            "TargetInvocationException", "System.Reflection.TargetInvocationException",
+            "AggregateException", "System.AggregateException",
+        };
+
+        /// <summary>
+        /// The exception type a warning names, the wrapped one first; null when it names none.
+        /// </summary>
+        /// <remarks>
+        /// Only an identifier is taken out of the text, never the words around it, so the message stays
+        /// on the machine just as it does for <see cref="Kind"/>.
+        /// </remarks>
+        private static string KindIn(string text)
+        {
+            string wrapper = null;
+            foreach (string line in text.Split('\n'))
+            {
+                // A frame names the types it passed through - Il2CppException.RaiseExceptionIfNecessary
+                // is on nearly every interop stack - and none of them is what was thrown.
+                if (line.TrimStart().StartsWith("at ", StringComparison.Ordinal)) continue;
+
+                foreach (System.Text.RegularExpressions.Match match in Thrown.Matches(line))
+                {
+                    string name = match.Groups[1].Value;
+                    if (name.Length > 80) continue;
+                    if (!Wrappers.Contains(name)) return name;
+                    wrapper ??= name;
+                }
+            }
+            return wrapper;
         }
 
         /// <summary>The first stack line of a logged exception, which is where it was thrown.</summary>
@@ -355,6 +507,11 @@ namespace Polyfill.Report
             int paren = frame.IndexOf(" (", StringComparison.Ordinal);
             if (paren > 0) frame = frame.Substring(0, paren);
 
+            // A .NET frame ends in the file it was compiled from: "Foo.Bar(Int32 x) in C:\Users\...:line 9".
+            // That path can carry the author's user name, and nothing about it is a code identifier.
+            int file = frame.IndexOf(") in ", StringComparison.Ordinal);
+            if (file > 0) frame = frame.Substring(0, file + 1);
+
             frame = frame.Trim();
             return frame.Length > FrameLength ? frame.Substring(0, FrameLength) : frame;
         }
@@ -362,6 +519,7 @@ namespace Polyfill.Report
         /// <summary>What to print for a player who types the console command.</summary>
         internal static string Describe()
         {
+            Flush();
             if (!_watching && Seen.Count == 0 && _started == default)
                 return "Not watching this session.";
             if (Seen.Count == 0) return $"No errors in {Minutes} minute(s) of play.";
