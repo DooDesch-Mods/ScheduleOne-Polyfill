@@ -88,6 +88,7 @@ namespace Polyfill.ModFixes
             new EmptyDeadDropSearch(),
             new AmountChangedAfterOverride(),
             new ProduceMoreDryingRack(),
+            new AutoRestockOscarLookup(),
             new InstantDeliverySupplierSearch(),
             new TimeNeverStopsSleep(),
 
