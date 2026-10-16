@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.13] - 2026-10-16
+
+### Fixed
+- Ultimate Mod Menu 3.0 no longer crashes the game while a save loads.
+- Mods no longer fail with "Ambiguous match" on game functions Polyfill gave their old form back.
+
 ## [0.13.12] - 2026-10-15
 
 ### Fixed
