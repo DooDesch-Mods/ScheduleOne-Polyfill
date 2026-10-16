@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.15] - 2026-10-17
+
+### Changed
+- The compatibility index now spots mods that catch their own errors and only print a warning, so a mod that
+  quietly stopped working no longer shows as clean.
+
 ## [0.13.14] - 2026-10-17
 
 ### Fixed
