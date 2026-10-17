@@ -1273,6 +1273,10 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                                  Emit = (module, facade, menu) => EmitOnMenu(module, menu, "get_MenuContainer") },
                     new Answer { Name = "get_MenuState", Returns = "Il2CppScheduleOne.State.MonoState",
                                  Emit = (module, facade, menu) => EmitOnMenu(module, menu, "get_MenuState") },
+                    // 0.4.6's SetIsOpen opened the bed menu or popped its state; SleepMenu opens with OpenMenu
+                    // and closes when MenuState leaves the stack (SleepMenu.cs:52-78 on 0.4.7f12).
+                    new Answer { Name = "SetIsOpen", Takes = new[] { "System.Boolean" },
+                                 Emit = (module, facade, menu) => EmitSleepSetIsOpen(module, menu) },
                     // The sleep message moved to SleepMessageInterface, which shows it at once instead of
                     // queueing it (SleepController.cs:258 on 0.4.7f12). Nothing is queued any more, so the
                     // queue reads empty - the value it started at (SleepCanvas.cs:67 on 0.4.6f13).
@@ -1308,6 +1312,58 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             il.Emit(OpCodes.Newobj, module.ImportReference(make));
             il.Emit(OpCodes.Callvirt, module.ImportReference(to));
             il.Emit(OpCodes.Ret);
+            return method;
+        }
+
+        /// <summary>
+        /// SleepCanvas.SetIsOpen on the live SleepMenu: open calls OpenMenu, close pops MenuState, and each
+        /// only when the menu is not already in that state, as SleepMenu's own Exit checks IsMenuOpen.
+        /// </summary>
+        private static MethodDefinition EmitSleepSetIsOpen(ModuleDefinition module, TypeDefinition menu)
+        {
+            var open = Method(menu, "OpenMenu", 0);
+            var isOpen = Method(menu, "get_IsMenuOpen", 0);
+            var state = Method(menu, "get_MenuState", 0);
+            var pointer = Core.ShadowTypes.PointerGetter(menu);
+            var make = Core.ShadowTypes.PointerConstructorOf(menu);
+            var stateType = state?.ReturnType?.Resolve();   // a throw here is logged by the facade builder
+            var pop = stateType == null ? null : MethodUp(stateType, "PopFromDefaultParent", 0);
+            if (open == null || isOpen == null || pop == null || pointer == null || make == null) return null;
+
+            var method = new MethodDefinition("SetIsOpen", MethodAttributes.Public | MethodAttributes.HideBySig,
+                                              module.TypeSystem.Void);
+            method.Parameters.Add(new ParameterDefinition("open", ParameterAttributes.None, module.TypeSystem.Boolean));
+            var m = new VariableDefinition(module.ImportReference(menu));
+            method.Body.Variables.Add(m);
+            method.Body.InitLocals = true;
+            var il = method.Body.GetILProcessor();
+            var close = il.Create(OpCodes.Ldloc, m);
+            var done = il.Create(OpCodes.Ret);
+
+            // var m = new SleepMenu(this.Pointer);
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, module.ImportReference(pointer));
+            il.Emit(OpCodes.Newobj, module.ImportReference(make));
+            il.Emit(OpCodes.Stloc, m);
+
+            // if (open) { if (!m.IsMenuOpen) m.OpenMenu(); return; }
+            il.Emit(OpCodes.Ldarg_1);
+            il.Emit(OpCodes.Brfalse, close);
+            il.Emit(OpCodes.Ldloc, m);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(isOpen));
+            il.Emit(OpCodes.Brtrue, done);
+            il.Emit(OpCodes.Ldloc, m);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(open));
+            il.Emit(OpCodes.Ret);
+
+            // if (m.IsMenuOpen) m.MenuState.PopFromDefaultParent();
+            il.Append(close);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(isOpen));
+            il.Emit(OpCodes.Brfalse, done);
+            il.Emit(OpCodes.Ldloc, m);
+            il.Emit(OpCodes.Callvirt, module.ImportReference(state));
+            il.Emit(OpCodes.Callvirt, module.ImportReference(pop));
+            il.Append(done);
             return method;
         }
 

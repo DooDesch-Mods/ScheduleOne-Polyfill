@@ -19,6 +19,7 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
         internal override string VerifiedTo => "0.4.7f6";
 
         internal const string Movement = "Il2CppScheduleOne.NPCs.NPCMovement";
+        private const string Health = "Il2CppScheduleOne.NPCs.NPCHealth";
         internal const string AvatarType = "Il2CppScheduleOne.AvatarFramework.Avatar";
         internal const string Animation = "Il2CppScheduleOne.AvatarFramework.Animation.AvatarAnimation";
         private const string Impostor = "Il2CppScheduleOne.Avatar.Impostors.AvatarImpostor";
@@ -105,6 +106,48 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                 Because = SpeedStack + "; the top speed is the controller's _maxSpeed (NPCData.Movement.MaxSpeed, "
                         + "7 by default beside a 1.8 walk), which a normalized control of 1 runs at",
                 Emit = EmitRunSpeed,
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = Movement, OldName = "set_RunSpeed", ParameterCount = 1,
+                Because = SpeedStack + "; the top speed is the controller's _maxSpeed, set with SetMaxSpeed "
+                        + "(NPCSpeedController.cs:35 on 0.4.7f12), which the getter above reads back. The 0.4.5 step's "
+                        + "bridge goes through npc.NPCData, and 0.4.7's NPCMovement keeps its NPC in _npc",
+                Emit = EmitSetRunSpeed,
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = Movement, OldName = "get_MovementSpeedScale", ParameterCount = 0,
+                Because = SpeedStack + "; 0.4.5's MovementSpeedScale was the walk-to-run position the agent speed was "
+                        + "lerped with. 0.4.7 has the resulting speed as MoveSpeed between DefaultSpeed and _maxSpeed "
+                        + "(NPCSpeedController.cs:17-19, :109-121 on 0.4.7f12), so the position is read back from those. "
+                        + "The 0.4.5 step's bridge needs ActiveSpeedControl, which 0.4.7 does not have",
+                Emit = EmitGetSpeedScale,
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = Movement, OldName = "set_MovementSpeedScale", ParameterCount = 1,
+                Because = SpeedStack + "; writing the scale wrote the base speed, and 0.4.7's base speed is the "
+                        + "priority-0 \"default\" control SetDefaultSpeed writes (NPCSpeedController.cs:29-33 on 0.4.7f12). "
+                        + "Every behaviour's control has priority 1 or more and still outranks it. The 0.4.5 step's "
+                        + "bridge needs ActiveSpeedControl, which 0.4.7 does not have",
+                Emit = EmitSetSpeedScale,
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = Health, OldName = "get_Invincible", ParameterCount = 0,
+                Because = "0.4.7 copies NPCData.Health.Invincible into NPCHealth._invincible once and reads only the "
+                        + "copy (NPCHealth.cs:35, :118, :232, :251, :270 on 0.4.7f12). The 0.4.5 step's bridge goes "
+                        + "through npc.NPCData, and 0.4.7's NPCHealth keeps its NPC in _npc",
+                Emit = (module, health) => EmitGetterRename(module, health, "get_Invincible", "_invincible"),
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = Health, OldName = "set_Invincible", ParameterCount = 1,
+                Because = "0.4.7 decides on NPCHealth._invincible alone (NPCHealth.cs:232, :251, :270 on 0.4.7f12), "
+                        + "so the old setter writes that; writing NPCData.Health.Invincible after the NPC is up "
+                        + "changes nothing",
+                Emit = (module, health) => EmitSetterRename(module, health, "set_Invincible", "_invincible"),
             },
             new Bridge
             {
@@ -534,6 +577,166 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             il.Emit(OpCodes.Ret);
             il.Append(have);
             il.Emit(OpCodes.Ret);
+            return AsProperty(movement, method);
+        }
+
+        private static MethodDefinition EmitSetRunSpeed(ModuleDefinition module, TypeDefinition movement)
+        {
+            var getController = Controller(movement, out var controller);
+            var set = Method(controller, "SetMaxSpeed", 1);
+            if (getController == null || set == null) return null;
+            var method = new MethodDefinition("set_RunSpeed",
+                MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName, module.TypeSystem.Void);
+            method.Parameters.Add(new ParameterDefinition("value", ParameterAttributes.None, module.TypeSystem.Single));
+            var il = method.Body.GetILProcessor();
+            var none = il.Create(OpCodes.Pop);
+            // var c = SpeedController; if (c != null) c.SetMaxSpeed(value);
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, getController);
+            il.Emit(OpCodes.Dup);
+            il.Emit(OpCodes.Brfalse_S, none);
+            il.Emit(OpCodes.Ldarg_1);
+            il.Emit(OpCodes.Call, set);
+            il.Emit(OpCodes.Ret);
+            il.Append(none);
+            il.Emit(OpCodes.Ret);
+            return AsProperty(movement, method);
+        }
+
+        /// <summary>The walk-to-run position of the current speed, 0 at DefaultSpeed and 1 at _maxSpeed.</summary>
+        private static MethodDefinition EmitGetSpeedScale(ModuleDefinition module, TypeDefinition movement)
+        {
+            var getController = Controller(movement, out var controller);
+            var getWalk = Getter(controller, "DefaultSpeed");
+            var getMax = Getter(controller, "_maxSpeed");
+            var getSpeed = Getter(controller, "MoveSpeed");
+            if (getController == null || getWalk == null || getMax == null || getSpeed == null) return null;
+            var method = new MethodDefinition("get_MovementSpeedScale",
+                MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName, module.TypeSystem.Single);
+            var c = new VariableDefinition(module.ImportReference(controller));
+            var walk = new VariableDefinition(module.TypeSystem.Single);
+            var span = new VariableDefinition(module.TypeSystem.Single);
+            var r = new VariableDefinition(module.TypeSystem.Single);
+            method.Body.Variables.Add(c);
+            method.Body.Variables.Add(walk);
+            method.Body.Variables.Add(span);
+            method.Body.Variables.Add(r);
+            method.Body.InitLocals = true;
+            var il = method.Body.GetILProcessor();
+            var zero = il.Create(OpCodes.Ldc_R4, 0f);
+            var notBelow = il.Create(OpCodes.Ldloc, r);
+            var done = il.Create(OpCodes.Ldloc, r);
+
+            // var c = SpeedController; if (c == null) return 0;
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, getController);
+            il.Emit(OpCodes.Stloc, c);
+            il.Emit(OpCodes.Ldloc, c);
+            il.Emit(OpCodes.Brfalse, zero);
+
+            // var walk = c.DefaultSpeed; var span = c._maxSpeed - walk; if (span <= 0) return 0;
+            il.Emit(OpCodes.Ldloc, c);
+            il.Emit(OpCodes.Call, getWalk);
+            il.Emit(OpCodes.Stloc, walk);
+            il.Emit(OpCodes.Ldloc, c);
+            il.Emit(OpCodes.Call, getMax);
+            il.Emit(OpCodes.Ldloc, walk);
+            il.Emit(OpCodes.Sub);
+            il.Emit(OpCodes.Stloc, span);
+            il.Emit(OpCodes.Ldloc, span);
+            il.Emit(OpCodes.Ldc_R4, 0f);
+            il.Emit(OpCodes.Ble_Un, zero);
+
+            // var r = (c.MoveSpeed - walk) / span; return Mathf.Clamp01(r);
+            il.Emit(OpCodes.Ldloc, c);
+            il.Emit(OpCodes.Call, getSpeed);
+            il.Emit(OpCodes.Ldloc, walk);
+            il.Emit(OpCodes.Sub);
+            il.Emit(OpCodes.Ldloc, span);
+            il.Emit(OpCodes.Div);
+            il.Emit(OpCodes.Stloc, r);
+            il.Emit(OpCodes.Ldloc, r);
+            il.Emit(OpCodes.Ldc_R4, 0f);
+            il.Emit(OpCodes.Bge_Un, notBelow);
+            il.Emit(OpCodes.Br, zero);
+            il.Append(notBelow);
+            il.Emit(OpCodes.Ldc_R4, 1f);
+            il.Emit(OpCodes.Ble_Un, done);
+            il.Emit(OpCodes.Ldc_R4, 1f);
+            il.Emit(OpCodes.Ret);
+            il.Append(done);
+            il.Emit(OpCodes.Ret);
+            il.Append(zero);
+            il.Emit(OpCodes.Ret);
+            return AsProperty(movement, method);
+        }
+
+        /// <summary>
+        /// Writes the base speed at the old walk-to-run position into the "default" control, the slot
+        /// SetDefaultSpeed fills, so a behaviour's own control still wins over it.
+        /// </summary>
+        private static MethodDefinition EmitSetSpeedScale(ModuleDefinition module, TypeDefinition movement)
+        {
+            var getController = Controller(movement, out var controller);
+            var getWalk = Getter(controller, "DefaultSpeed");
+            var getMax = Getter(controller, "_maxSpeed");
+            var add = Method(controller, "AddSpeedControl", 4);
+            if (getController == null || getWalk == null || getMax == null || add == null) return null;
+            var method = new MethodDefinition("set_MovementSpeedScale",
+                MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName, module.TypeSystem.Void);
+            method.Parameters.Add(new ParameterDefinition("value", ParameterAttributes.None, module.TypeSystem.Single));
+            var c = new VariableDefinition(module.ImportReference(controller));
+            var v = new VariableDefinition(module.TypeSystem.Single);
+            var walk = new VariableDefinition(module.TypeSystem.Single);
+            method.Body.Variables.Add(c);
+            method.Body.Variables.Add(v);
+            method.Body.Variables.Add(walk);
+            method.Body.InitLocals = true;
+            var il = method.Body.GetILProcessor();
+            var none = il.Create(OpCodes.Ret);
+            var notBelow = il.Create(OpCodes.Ldloc, v);
+            var notAbove = il.Create(OpCodes.Ldloc, c);
+
+            // var c = SpeedController; if (c == null) return;
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, getController);
+            il.Emit(OpCodes.Stloc, c);
+            il.Emit(OpCodes.Ldloc, c);
+            il.Emit(OpCodes.Brfalse, none);
+
+            // var v = Mathf.Clamp01(value);   (0.4.5 lerped with it, and Lerp clamps)
+            il.Emit(OpCodes.Ldarg_1);
+            il.Emit(OpCodes.Stloc, v);
+            il.Emit(OpCodes.Ldloc, v);
+            il.Emit(OpCodes.Ldc_R4, 0f);
+            il.Emit(OpCodes.Bge_Un, notBelow);
+            il.Emit(OpCodes.Ldc_R4, 0f);
+            il.Emit(OpCodes.Stloc, v);
+            il.Append(notBelow);
+            il.Emit(OpCodes.Ldc_R4, 1f);
+            il.Emit(OpCodes.Ble_Un, notAbove);
+            il.Emit(OpCodes.Ldc_R4, 1f);
+            il.Emit(OpCodes.Stloc, v);
+
+            // var walk = c.DefaultSpeed;
+            // c.AddSpeedControl("default", walk + (c._maxSpeed - walk) * v, 0, SpeedControl.EType.Absolute);
+            il.Append(notAbove);
+            il.Emit(OpCodes.Call, getWalk);
+            il.Emit(OpCodes.Stloc, walk);
+            il.Emit(OpCodes.Ldloc, c);
+            il.Emit(OpCodes.Ldstr, "default");
+            il.Emit(OpCodes.Ldloc, walk);
+            il.Emit(OpCodes.Ldloc, c);
+            il.Emit(OpCodes.Call, getMax);
+            il.Emit(OpCodes.Ldloc, walk);
+            il.Emit(OpCodes.Sub);
+            il.Emit(OpCodes.Ldloc, v);
+            il.Emit(OpCodes.Mul);
+            il.Emit(OpCodes.Add);
+            il.Emit(OpCodes.Ldc_I4_0);
+            il.Emit(OpCodes.Ldc_I4_1);   // SpeedControl.EType.Absolute
+            il.Emit(OpCodes.Call, add);
+            il.Append(none);
             return AsProperty(movement, method);
         }
 
