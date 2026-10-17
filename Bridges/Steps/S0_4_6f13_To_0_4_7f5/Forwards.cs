@@ -91,6 +91,16 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             },
             new Bridge
             {
+                Assembly = "Assembly-CSharp", DeclaringType = Movement, OldName = "set_WalkSpeed", ParameterCount = 1,
+                Because = SpeedStack + "; 0.4.5's WalkSpeed was a field on NPCMovement the agent speed was lerped "
+                        + "from (NPCMovement.cs:99, :424 on 0.4.5f2). 0.4.7 sets the walk speed with "
+                        + "SpeedController.SetDefaultSpeed, the call NPC.cs:553 makes with NPCData.Movement.WalkSpeed, "
+                        + "and the getter above reads it back. The 0.4.5 step's bridge goes through npc.NPCData, "
+                        + "and 0.4.7's NPCMovement keeps its NPC in _npc",
+                Emit = EmitSetWalkSpeed,
+            },
+            new Bridge
+            {
                 Assembly = "Assembly-CSharp", DeclaringType = Movement, OldName = "get_RunSpeed", ParameterCount = 0,
                 Because = SpeedStack + "; the top speed is the controller's _maxSpeed (NPCData.Movement.MaxSpeed, "
                         + "7 by default beside a 1.8 walk), which a normalized control of 1 runs at",
@@ -478,6 +488,29 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             var il = method.Body.GetILProcessor();
             il.Emit(OpCodes.Ldarg_0);
             il.Emit(OpCodes.Call, walk);
+            il.Emit(OpCodes.Ret);
+            return AsProperty(movement, method);
+        }
+
+        private static MethodDefinition EmitSetWalkSpeed(ModuleDefinition module, TypeDefinition movement)
+        {
+            var getController = Controller(movement, out var controller);
+            var set = Method(controller, "SetDefaultSpeed", 1);
+            if (getController == null || set == null) return null;
+            var method = new MethodDefinition("set_WalkSpeed",
+                MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName, module.TypeSystem.Void);
+            method.Parameters.Add(new ParameterDefinition("value", ParameterAttributes.None, module.TypeSystem.Single));
+            var il = method.Body.GetILProcessor();
+            var none = il.Create(OpCodes.Pop);
+            // var c = SpeedController; if (c != null) c.SetDefaultSpeed(value);
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, getController);
+            il.Emit(OpCodes.Dup);
+            il.Emit(OpCodes.Brfalse_S, none);
+            il.Emit(OpCodes.Ldarg_1);
+            il.Emit(OpCodes.Call, set);
+            il.Emit(OpCodes.Ret);
+            il.Append(none);
             il.Emit(OpCodes.Ret);
             return AsProperty(movement, method);
         }
