@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.17] - 2026-10-17
+
+### Fixed
+- SimpleCall 1.2.1 can call dealers on 0.4.7 again. Every call failed with an error before.
+
 ## [0.13.16] - 2026-10-17
 
 ### Fixed
