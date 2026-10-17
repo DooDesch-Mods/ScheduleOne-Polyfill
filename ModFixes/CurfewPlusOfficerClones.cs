@@ -2,6 +2,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using HarmonyLib;
+using Il2CppFishNet.Managing.Server;
+using Il2CppFishNet.Object;
 using Il2CppScheduleOne.NPCs;
 using MelonLoader;
 using UnityEngine;
@@ -32,6 +34,13 @@ namespace Polyfill.ModFixes
     /// GUID matters because NPC.Start registers <c>BakedGUID</c> when the NPC has none yet (NPC.cs:425-433),
     /// and GUIDManager replaces whatever held that GUID before (GUIDManager.cs:14-21) - every copy would
     /// otherwise take the original officer's place in the lookup.
+    ///
+    /// In the morning DespawnClone calls <c>ServerManager.Despawn(go, null)</c>. In IL2CPP the second
+    /// parameter is an <c>Il2CppSystem.Nullable&lt;DespawnType&gt;</c> object, and the interop wrapper unboxes
+    /// it without a null check, so every despawn throws before it reaches the game and Curfew+ falls back to
+    /// a local Destroy with a warning per officer. That call is replaced by one that passes an empty
+    /// Nullable - the same "no despawn type" the null meant - and then destroys the copy, because FishNet
+    /// keeps a despawned scene object, and the copy is one by the SceneId it inherited.
     /// </remarks>
     internal sealed class CurfewPlusOfficerClones : Fix
     {
@@ -39,11 +48,13 @@ namespace Polyfill.ModFixes
         internal override string Mod => "Curfew+";
         internal override string ModVersions => "*";
         internal override string GameVersions => ">=0.4.7";
-        internal override string What => "Curfew+'s night officers walk their routes";
+        internal override string What => "Curfew+'s night officers walk their routes and go off duty in the morning";
 
         private static MelonLogger.Instance _log;
         private static int _replaced;
+        private static int _despawnsReplaced;
         private static int _cloned;
+        private static int _despawned;
 
         internal override bool Apply(MelonLogger.Instance log)
         {
@@ -63,14 +74,60 @@ namespace Polyfill.ModFixes
                 return false;
             }
 
-            new HarmonyLib.Harmony("doodesch.polyfill.fixes")
-                .Patch(create, transpiler: new HarmonyMethod(typeof(CurfewPlusOfficerClones), nameof(UseWholeCopy)));
+            var harmony = new HarmonyLib.Harmony("doodesch.polyfill.fixes");
+            harmony.Patch(create, transpiler: new HarmonyMethod(typeof(CurfewPlusOfficerClones), nameof(UseWholeCopy)));
             if (_replaced != 1)
             {
                 log.Warning($"[fix] curfewplus-officer-clones: expected one Instantiate in CreateOfficerClone, replaced {_replaced}; officers are copied as before.");
                 return false;
             }
+
+            var despawn = AccessTools.Method(manager, "DespawnClone");
+            if (despawn == null)
+                log.Warning("[fix] curfewplus-officer-clones: Curfew+ has no DespawnClone; officers leave in the morning as before.");
+            else
+            {
+                harmony.Patch(despawn, transpiler: new HarmonyMethod(typeof(CurfewPlusOfficerClones), nameof(UseEmptyDespawnType)));
+                if (_despawnsReplaced != 1)
+                    log.Warning($"[fix] curfewplus-officer-clones: expected one ServerManager.Despawn in DespawnClone, replaced {_despawnsReplaced}; officers leave in the morning as before.");
+            }
             return true;
+        }
+
+        private static IEnumerable<CodeInstruction> UseEmptyDespawnType(IEnumerable<CodeInstruction> instructions)
+        {
+            var replacement = AccessTools.Method(typeof(CurfewPlusOfficerClones), nameof(Despawn));
+            var list = instructions.ToList();
+            var found = list.Where(i => (i.opcode == System.Reflection.Emit.OpCodes.Callvirt || i.opcode == System.Reflection.Emit.OpCodes.Call)
+                                     && i.operand is MethodInfo m
+                                     && m.Name == nameof(ServerManager.Despawn)
+                                     && m.DeclaringType == typeof(ServerManager)
+                                     && m.GetParameters().Select(p => p.ParameterType)
+                                         .SequenceEqual(new[] { typeof(GameObject), typeof(Il2CppSystem.Nullable<DespawnType>) })).ToList();
+            _despawnsReplaced = found.Count;
+            if (found.Count == 1)
+            {
+                found[0].opcode = System.Reflection.Emit.OpCodes.Call;
+                found[0].operand = replacement;
+            }
+            return list;
+        }
+
+        /// <summary>
+        /// <c>ServerManager.Despawn(go, despawnType)</c>, with a null despawn type passed as an empty Nullable
+        /// so the interop wrapper has an object to unbox, followed by a local Destroy. The copy carries the
+        /// original officer's SceneId, so FishNet treats it as a scene object and keeps the GameObject after
+        /// the despawn; Curfew+ expects the officer to be gone. Exceptions reach Curfew+'s own catch unchanged.
+        /// </summary>
+        private static void Despawn(ServerManager server, GameObject go, Il2CppSystem.Nullable<DespawnType> despawnType)
+        {
+            server.Despawn(go, despawnType ?? new Il2CppSystem.Nullable<DespawnType>());
+            if (go != null)
+                UnityEngine.Object.Destroy(go);
+            _despawned++;
+            if (_despawned == 1)
+                _log.Msg("[fix] curfewplus-officer-clones: despawned the first night officer over the network.");
+            Fixes.Record("curfewplus-officer-clones", "despawned a night officer over the network");
         }
 
         private static IEnumerable<CodeInstruction> UseWholeCopy(IEnumerable<CodeInstruction> instructions)
