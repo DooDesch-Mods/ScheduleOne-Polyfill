@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.18] - 2026-10-18
+
+### Fixed
+- Mods that change NPC walk or run speed no longer fail on 0.4.7, e.g. Better Dealers, HardcorePolice, DealerRoutes.
+- Sleep mods open the bed menu on 0.4.7 again: MoreRealisticSleeping, Sleep Mod, SidewalkEconomy.
+- Mods built on S1API 1.6.2 can make NPCs invincible on 0.4.7 again.
+
 ## [0.13.17] - 2026-10-17
 
 ### Fixed
