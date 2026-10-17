@@ -73,6 +73,12 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             + "filled by the same Awake and Init that used ParentLot (ParkingSpot.cs:8, :20-38 on 0.4.6f13; "
             + ":12, :21-39 on 0.4.7f6)";
 
+        private const string CrimeData = "Il2CppScheduleOne.PlayerScripts.PlayerCrimeData";
+
+        private const string NearestOfficer = "renamed: 0.4.7's PlayerCrimeData keeps the closest aware officer in "
+            + "NearestActivePoliceOfficer, the field 0.4.6f13 called NearestOfficer, and CheckNearestOfficer still "
+            + "writes it every 0.2 s (PlayerCrimeData.cs:71, :541-547, :763 on 0.4.7f12)";
+
         internal override IEnumerable<Bridge> Declare() => new[]
         {
             // ---- NPC movement speeds ----
@@ -244,6 +250,18 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                 Assembly = "Assembly-CSharp", DeclaringType = ParkingSpot, OldName = "get_ParentLot", ParameterCount = 0,
                 Because = ParentLot,
                 Emit = (module, spot) => EmitGetterRename(module, spot, "get_ParentLot", "_parentParentLot"),
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = CrimeData, OldName = "get_NearestOfficer", ParameterCount = 0,
+                Because = NearestOfficer,
+                Emit = (module, data) => EmitGetterRename(module, data, "get_NearestOfficer", "NearestActivePoliceOfficer"),
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = CrimeData, OldName = "set_NearestOfficer", ParameterCount = 1,
+                Because = NearestOfficer,
+                Emit = (module, data) => EmitSetterRename(module, data, "set_NearestOfficer", "NearestActivePoliceOfficer"),
             },
             Empty(TrashItem, "set_CurrentProperty", 1, m => m.TypeSystem.Void,
                   "0.4.6's trash kept the owned property it lies in as a cache that only its own RecheckProperty "
