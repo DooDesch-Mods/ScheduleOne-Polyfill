@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.16] - 2026-10-17
+
+### Fixed
+- Curfew+ 1.4.0 works on 0.4.7 again, and its night officers patrol instead of standing still.
+- Curfew+'s night officers go off duty in the morning without a log warning for each one.
+
 ## [0.13.15] - 2026-10-17
 
 ### Changed
