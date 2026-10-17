@@ -89,6 +89,7 @@ namespace Polyfill.ModFixes
             new AmountChangedAfterOverride(),
             new ProduceMoreDryingRack(),
             new AutoRestockOscarLookup(),
+            new CurfewPlusOfficerClones(),
             new InstantDeliverySupplierSearch(),
             new TimeNeverStopsSleep(),
 
