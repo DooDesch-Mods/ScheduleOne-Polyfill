@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.19] - 2026-10-18
+
+### Fixed
+- Section 97 robberies, muggings and smash-and-grabs work on 0.4.7 again. Aiming at a cashier failed with
+  "Method not found: SetPanicked" before.
+
 ## [0.13.18] - 2026-10-18
 
 ### Fixed
