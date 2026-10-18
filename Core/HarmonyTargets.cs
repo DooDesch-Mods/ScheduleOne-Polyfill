@@ -1,5 +1,6 @@
 using Mono.Cecil;
 using Polyfill.Contract;
+using static Polyfill.Core.PatchSites;
 
 namespace Polyfill.Core
 {
@@ -20,7 +21,6 @@ namespace Polyfill.Core
     /// </remarks>
     internal static class HarmonyTargets
     {
-        private const string PatchAttribute = "HarmonyLib.HarmonyPatch";
 
         /// <summary>Harmony's MethodType enum, by value. Getter and Setter name a property, not a method.</summary>
         private static string Decorate(string name, int? methodType) => methodType switch
@@ -32,32 +32,12 @@ namespace Polyfill.Core
             _ => name,
         };
 
-        internal static void Check(ModuleDefinition module, InteropIndex index, ModReport report)
+        internal static void Check(ModuleDefinition module, InteropIndex index, ModReport report,
+                                   List<string> notChecked)
         {
             foreach (var type in module.GetTypes())
-            {
-                var onClass = Read(type.CustomAttributes);
-                bool classHasPatch = onClass != null;
-
-                // A class-level target with a name is a patch site in its own right.
-                if (classHasPatch && onClass.MethodName != null)
-                    Verify(onClass, type.FullName, index, report, PatchMethods(type));
-
-                if (!type.HasMethods) continue;
-                foreach (var method in type.Methods)
-                {
-                    var onMethod = Read(method.CustomAttributes);
-                    if (onMethod == null) continue;
-
-                    var merged = Merge(onClass, onMethod);
-                    if (merged.MethodName == null) continue;
-                    // Already reported at class level, with the same target.
-                    if (classHasPatch && onMethod.DeclaringType == null && onMethod.MethodName == null) continue;
-
-                    Verify(merged, type.FullName + "." + method.Name, index, report,
-                           new List<MethodDefinition> { method });
-                }
-            }
+                foreach (var site in PatchSites.Sites(type, notChecked))
+                    Verify(site.Spec, site.Name, index, report, site.Patches);
         }
 
         private static void Verify(Spec spec, string site, InteropIndex index, ModReport report,
@@ -126,35 +106,6 @@ namespace Polyfill.Core
             Verify(spec, site, index, report, declaring, null, patches);
         }
 
-        /// <summary>
-        /// The methods of a patch class that Harmony will actually bind, when the target is on the class.
-        /// </summary>
-        /// <remarks>
-        /// <c>[HarmonyPatch(typeof(X), "Y")]</c> on the class and <c>[HarmonyPostfix]</c> on the method is
-        /// the common shape, and it is the shape that hid the parameter-rename break: the attribute the
-        /// target comes from is on the class, so the method carrying the argument names was never looked
-        /// at. Harmony also accepts the bare names, so those count too.
-        /// </remarks>
-        private static List<MethodDefinition> PatchMethods(TypeDefinition type)
-        {
-            var found = new List<MethodDefinition>();
-            if (!type.HasMethods) return found;
-
-            foreach (var method in type.Methods)
-            {
-                bool marked = method.Name is "Prefix" or "Postfix" or "Finalizer";
-                if (!marked && method.HasCustomAttributes)
-                    foreach (var attribute in method.CustomAttributes)
-                    {
-                        string name = attribute.AttributeType?.FullName;
-                        if (name is "HarmonyLib.HarmonyPrefix" or "HarmonyLib.HarmonyPostfix"
-                                 or "HarmonyLib.HarmonyFinalizer")
-                        { marked = true; break; }
-                    }
-                if (marked) found.Add(method);
-            }
-            return found;
-        }
 
         /// <summary>Could the two be lined up at all, and if so do they agree?</summary>
         private enum Match { Yes, No, Unknown }
@@ -575,141 +526,6 @@ namespace Polyfill.Core
             if (slash >= 0) return fullName.Substring(slash + 1);
             int dot = fullName.LastIndexOf('.');
             return dot >= 0 ? fullName.Substring(dot + 1) : fullName;
-        }
-
-        private sealed class Spec
-        {
-            internal TypeReference DeclaringType;
-            internal string TypeName;
-            internal string MethodName;
-            internal List<TypeReference> ArgumentTypes;
-            internal List<int> ArgumentVariations;
-            internal int? MethodType;
-        }
-
-        private static Spec Merge(Spec outer, Spec inner)
-        {
-            if (outer == null) return inner;
-            return new Spec
-            {
-                DeclaringType = inner.DeclaringType ?? outer.DeclaringType,
-                TypeName = inner.TypeName ?? outer.TypeName,
-                MethodName = inner.MethodName ?? outer.MethodName,
-                ArgumentTypes = inner.ArgumentTypes ?? outer.ArgumentTypes,
-                ArgumentVariations = inner.ArgumentVariations ?? outer.ArgumentVariations,
-                MethodType = inner.MethodType ?? outer.MethodType,
-            };
-        }
-
-        /// <summary>
-        /// Pull the target out of every [HarmonyPatch] on one member.
-        /// </summary>
-        /// <remarks>
-        /// Harmony has a dozen constructor overloads and they are distinguished by argument TYPE, not by
-        /// position, so that is how they are read here. The one genuine ambiguity is a bare string: with a
-        /// Type argument present it is the method name, and without one, two strings mean type-then-method
-        /// while a single string means the method name. That is the whole overload set.
-        /// </remarks>
-        private static Spec Read(Mono.Collections.Generic.Collection<CustomAttribute> attributes)
-        {
-            Spec spec = null;
-            foreach (var attribute in attributes)
-            {
-                if (attribute.AttributeType?.FullName != PatchAttribute) continue;
-                spec ??= new Spec();
-
-                var strings = new List<string>();
-                foreach (var argument in attribute.ConstructorArguments)
-                {
-                    switch (argument.Value)
-                    {
-                        case TypeReference type:
-                            spec.DeclaringType ??= type;
-                            break;
-                        case string text:
-                            strings.Add(text);
-                            break;
-                        case CustomAttributeArgument[] array when IsTypeArray(argument.Type):
-                            spec.ArgumentTypes ??= TypesIn(array);
-                            break;
-                        case CustomAttributeArgument[] array when IsVariationArray(argument.Type):
-                            spec.ArgumentVariations ??= VariationsIn(array);
-                            break;
-                        case int enumValue when argument.Type?.Name == "MethodType":
-                            spec.MethodType ??= enumValue;
-                            break;
-                    }
-                }
-
-                // One string is always the method name - both [HarmonyPatch(typeof(X), "Foo")] and the
-                // bare [HarmonyPatch("Foo")] mean the method. Two strings are type then method.
-                if (strings.Count == 1) spec.MethodName ??= strings[0];
-                else if (strings.Count >= 2)
-                {
-                    spec.TypeName ??= strings[0];
-                    spec.MethodName ??= strings[1];
-                }
-
-                foreach (var named in attribute.Properties) Apply(spec, named);
-                foreach (var named in attribute.Fields) Apply(spec, named);
-            }
-            return spec;
-        }
-
-        private static void Apply(Spec spec, CustomAttributeNamedArgument named)
-        {
-            switch (named.Name)
-            {
-                case "declaringType" when named.Argument.Value is TypeReference type:
-                    spec.DeclaringType ??= type; break;
-                case "methodName" when named.Argument.Value is string name:
-                    spec.MethodName ??= name; break;
-                case "methodType" when named.Argument.Value is int value:
-                    spec.MethodType ??= value; break;
-                case "argumentTypes" when named.Argument.Value is CustomAttributeArgument[] array:
-                    spec.ArgumentTypes ??= TypesIn(array);
-                    break;
-                case "argumentVariations" when named.Argument.Value is CustomAttributeArgument[] array:
-                    spec.ArgumentVariations ??= VariationsIn(array);
-                    break;
-            }
-        }
-
-        /// <summary>
-        /// An EMPTY argument list is an answer, and reading it as silence cost two mods a release.
-        /// </summary>
-        /// <remarks>
-        /// <c>[HarmonyPatch(typeof(SaveManager), "Save", new Type[] { })]</c> names the parameterless
-        /// overload as precisely as any other list names its own. The old reading kept the list only when
-        /// it had entries, so an empty one left the spec saying "no types given" - and this class then
-        /// reported the two <c>Save</c> overloads as an ambiguity the mod had in fact resolved. Absorbent
-        /// Soil and NACops were both published as blocked on that basis, and neither was.
-        ///
-        /// The array has to be a <c>Type[]</c> to count: a <c>HarmonyPatch</c> constructor also takes
-        /// <c>ArgumentType[]</c> for by-ref and out variations, and an empty one of those says nothing
-        /// about arity at all.
-        /// </remarks>
-        private static bool IsTypeArray(TypeReference arrayType)
-            => (arrayType as ArrayType)?.ElementType?.FullName == "System.Type";
-
-        /// <summary>The by-ref markers that travel beside the types; see <see cref="Decorated"/>.</summary>
-        private static bool IsVariationArray(TypeReference arrayType)
-            => (arrayType as ArrayType)?.ElementType?.FullName == "HarmonyLib.ArgumentType";
-
-        private static List<TypeReference> TypesIn(CustomAttributeArgument[] array)
-        {
-            var types = new List<TypeReference>();
-            foreach (var element in array)
-                if (element.Value is TypeReference elementType) types.Add(elementType);
-            return types;
-        }
-
-        private static List<int> VariationsIn(CustomAttributeArgument[] array)
-        {
-            var variations = new List<int>();
-            foreach (var element in array)
-                variations.Add(element.Value is int value ? value : 0);
-            return variations;
         }
 
     }
