@@ -294,7 +294,12 @@ namespace Polyfill.Core
                     log.Msg($"[triage] {candidate.Display}: {skipped.Count} game reference(s) only in code it "
                           + "runs on Mono, not checked: " + string.Join(", ", skipped.Take(5))
                           + (skipped.Count > 5 ? ", ..." : ""));
-                HarmonyTargets.Check(module, index, report);
+                var notChecked = new List<string>();
+                HarmonyTargets.Check(module, index, report, notChecked);
+                if (notChecked.Count > 0)
+                    log.Msg($"[triage] {candidate.Display}: {notChecked.Count} [HarmonyPatch] target(s) "
+                          + "not checked: " + string.Join(", ", notChecked.Take(5))
+                          + (notChecked.Count > 5 ? ", ..." : ""));
 
                 // Last, and it repairs nothing: a mod can pass every check above and still be
                 // broken by the shape of a prefab it clones. See Core/ShapeCoupling.
