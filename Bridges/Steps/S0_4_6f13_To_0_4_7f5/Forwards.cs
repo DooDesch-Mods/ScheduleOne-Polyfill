@@ -176,6 +176,21 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                 Emit = EmitSetContactName,
             },
 
+            // ---- panic and relationship (Section 97, built against interop older than 0.4.4) ----
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = "Il2CppScheduleOne.NPCs.NPC",
+                OldName = "SetPanicked", ParameterCount = 0,
+                Because = "renamed in 0.4.4: SetPanicked became the server RPC SetPanicked_Server, callable by a "
+                        + "client, which panics the NPC on every peer (NPC.cs:1178-1190, :2925-2942 on 0.4.7f12); "
+                        + "vanilla's own panic response calls exactly that (NPCResponses_Civilian.cs:208)",
+                Emit = (module, npc) => EmitForward(module, npc, "SetPanicked", "SetPanicked_Server"),
+            },
+            Defaulted("Il2CppScheduleOne.NPCs.Relation.NPCRelationData", "SetRelationship", new[] { "System.Single" },
+                      new object[] { true },
+                      "SetRelationship took a network flag in 0.4.3, and the one-argument form sent the new value "
+                    + "to every peer, which network = true does (NPCRelationData.cs:80-95 on 0.4.7f12)"),
+
             // ---- avatar culling and impostors (NetEye's security cameras) ----
             new Bridge
             {
