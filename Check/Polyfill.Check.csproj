@@ -35,4 +35,18 @@
     <Compile Include="../Core/MonoOnlyCode.cs" Link="Core/MonoOnlyCode.cs" />
   </ItemGroup>
 
+  <!--
+    What the plugin repairs, so the checker can split "missing" into "Polyfill handles it" and "somebody
+    has to write something". The bridge list, the Contract tables, the spelling rules and the version
+    history are the plugin's own; Repairs.cs asks them in Triage's order.
+  -->
+  <ItemGroup>
+    <Compile Include="../Contract/**/*.cs" Exclude="../Contract/ILog.cs" LinkBase="Contract" />
+    <Compile Include="../Bridges/**/*.cs" LinkBase="Bridges" />
+    <Compile Include="../Core/ShadowTypes.cs" Link="Core/ShadowTypes.cs" />
+    <Compile Include="../Core/NameHeuristics.cs" Link="Core/NameHeuristics.cs" />
+    <EmbeddedResource Include="../Core/versiondb/steps/*.txt" />
+    <EmbeddedResource Include="../Core/versiondb/overrides/*.txt" />
+  </ItemGroup>
+
 </Project>

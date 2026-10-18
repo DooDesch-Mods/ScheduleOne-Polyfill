@@ -271,7 +271,7 @@ namespace Polyfill.Core
         /// carrying the prefix in the dump - the generator emits some - are left alone, and so is
         /// anything from the BCL, which interop does not rename.
         /// </remarks>
-        private static string Interop(string gameName)
+        internal static string Interop(string gameName)
         {
             if (gameName.StartsWith(Prefix, StringComparison.Ordinal)) return gameName;
             if (gameName.StartsWith("System.", StringComparison.Ordinal)) return gameName;

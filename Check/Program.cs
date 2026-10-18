@@ -25,13 +25,16 @@ namespace Polyfill.Check
                 return args.Length == 0 ? 2 : 0;
             }
 
-            string mod = null, dumps = null, version = null;
+            string mod = null, dumps = null, version = null, backend = null;
+            var refs = new List<string>();
             for (int i = 0; i < args.Length; i++)
             {
                 switch (args[i])
                 {
                     case "--game" when i + 1 < args.Length: version = args[++i]; break;
                     case "--dumps" when i + 1 < args.Length: dumps = args[++i]; break;
+                    case "--backend" when i + 1 < args.Length: backend = args[++i]; break;
+                    case "--refs" when i + 1 < args.Length: refs.Add(args[++i]); break;
                     default:
                         if (mod == null && !args[i].StartsWith("-", StringComparison.Ordinal)) mod = args[i];
                         break;
@@ -61,10 +64,17 @@ namespace Polyfill.Check
                 return 2;
             }
 
+            backend ??= Backend(mod, refs);
+            if (backend is not ("il2cpp" or "mono"))
+            {
+                Console.Error.WriteLine($"--backend is il2cpp or mono, not {backend}");
+                return 2;
+            }
+
             // The dumps sit under <version>/api/<backend>/, because a snapshot also carries bin/ and
             // the mono branch. Accepting the version folder itself as well keeps a hand-made folder
             // working - the checker should not care how the author arranged them.
-            string folder = Path.Combine(dumps, version, "api", "il2cpp");
+            string folder = Path.Combine(dumps, version, "api", backend);
             if (!Directory.Exists(folder)) folder = Path.Combine(dumps, version);
             if (!Directory.Exists(folder))
             {
@@ -72,11 +82,42 @@ namespace Polyfill.Check
                 return 2;
             }
 
-            return Report(mod, folder, version);
+            return Report(mod, folder, version, backend, refs);
+        }
+
+        /// <summary>
+        /// Which build of the game a mod was written for, read off the names it uses.
+        /// </summary>
+        /// <remarks>
+        /// An IL2CPP mod names the game through interop, so its types start with `Il2Cpp`; a Mono mod names
+        /// `ScheduleOne.*` directly. A library that names the game not at all is checked against IL2CPP,
+        /// where the repairs live.
+        /// </remarks>
+        private static string Backend(string modPath, List<string> refs)
+        {
+            try
+            {
+                using var module = ModuleDefinition.ReadModule(modPath, Reading(modPath, refs));
+                bool game = false;
+                foreach (var reference in module.GetTypeReferences())
+                {
+                    if (AssemblyOf(reference) != "Assembly-CSharp") continue;
+                    if (reference.FullName.StartsWith("Il2Cpp", StringComparison.Ordinal)) return "il2cpp";
+                    game = true;
+                }
+                return game ? "mono" : "il2cpp";
+            }
+            catch (Exception e)
+            {
+                Console.Error.WriteLine($"could not read {Path.GetFileName(modPath)} to pick a backend ({e.Message}); "
+                                      + "checking against il2cpp");
+                return "il2cpp";
+            }
         }
 
         /// <summary>Read the mod, read the game, and say what the mod names that the game does not have.</summary>
-        private static int Report(string modPath, string dumpFolder, string version)
+        private static int Report(string modPath, string dumpFolder, string version, string backend,
+                                  List<string> refs)
         {
             var game = new Dictionary<string, DumpIndex.Result>(StringComparer.OrdinalIgnoreCase);
             foreach (string file in Directory.GetFiles(dumpFolder, "*.api.txt"))
@@ -97,7 +138,7 @@ namespace Polyfill.Check
             }
 
             ModuleDefinition module;
-            try { module = ModuleDefinition.ReadModule(modPath); }
+            try { module = ModuleDefinition.ReadModule(modPath, Reading(modPath, refs)); }
             catch (Exception e)
             {
                 Console.Error.WriteLine($"{Path.GetFileName(modPath)} could not be read as a .NET assembly: "
@@ -105,11 +146,26 @@ namespace Polyfill.Check
                 return 2;
             }
 
-            int typeCount = 0, missingTypes = 0, memberCount = 0, missingMembers = 0, unprovable = 0, monoBranch = 0;
-            var missing = new List<string>();
+            var types = new Hierarchy(game.Values.Select(r => r.Assembly), Directory.GetFiles(dumpFolder, "*.api.txt"));
+
+            // Polyfill writes its repairs into the IL2CPP interop assemblies. A Mono game has none, so on
+            // Mono the list is what the mod needs and nothing answers for it.
+            var repairs = backend == "il2cpp" ? new Repairs(types, version) : null;
+            _mono = backend == "mono";
+
+            int typeCount = 0, memberCount = 0, patchCount = 0, unprovable = 0, unprovablePatches = 0, monoBranch = 0;
+            var missing = new List<(string Line, string Repair)>();
+            // A lookup in code that finds nothing hands back null instead of throwing, and what follows is
+            // the mod's own decision: Polyfill's ModFixes and SideHustle both look up names that exist on
+            // one game version only and skip the patch when they are absent. These are listed apart and do
+            // not move the verdict; the plugin does not read them at all.
+            var lookups = new List<(string Line, string Repair)>();
+            string melon = null;
 
             using (module)
             {
+                melon = MelonInfo(module);
+
                 // The plugin's own rule: a reference made only from methods the mod calls on Mono is never
                 // compiled on IL2CPP. See Core/MonoOnlyCode.
                 var monoOnly = MonoOnlyCode.References(module);
@@ -120,7 +176,7 @@ namespace Polyfill.Check
                     if (assembly == null || !game.TryGetValue(assembly, out var dump)) continue;
 
                     typeCount++;
-                    if (Find(dump.Assembly.MainModule, reference.FullName) != null) continue;
+                    if (Lookup(types, dump, reference.FullName) != null) continue;
 
                     // A generic type reaches us as `Singleton`1` and appears in the dump only where
                     // something derives from it, spelled `Singleton<T>`. The dump lists what exists, not
@@ -128,8 +184,7 @@ namespace Polyfill.Check
                     // and reporting it as missing would be a claim the author cannot check.
                     if (reference.FullName.Contains('`')) { unprovable++; continue; }
 
-                    missingTypes++;
-                    missing.Add($"  type    {reference.FullName}");
+                    missing.Add(($"type    {reference.FullName}", repairs?.ForType(assembly, reference)));
                 }
 
                 foreach (var reference in module.GetMemberReferences())
@@ -141,7 +196,25 @@ namespace Polyfill.Check
                     if (monoOnly.Contains(reference.FullName)) { monoBranch++; continue; }
 
                     memberCount++;
-                    var type = Find(dump.Assembly.MainModule, declaring?.FullName);
+                    var type = Lookup(types, dump, declaring?.FullName);
+                    string movedFrom = "";
+
+                    if (type == null && repairs?.StandIn(assembly, declaring) is { } standIn)
+                    {
+                        if (Repairs.Answers(standIn, reference)) continue;
+                        missing.Add(($"member  {declaring.FullName}::{reference.Name} (the stand-in around "
+                                   + $"{standIn.NewFullName} does not carry it)", null));
+                        continue;
+                    }
+
+                    // A type the plugin forwards takes its members along, and each one has to be on the
+                    // target. SaveGameModChecker calls MainMenuScreen.Close(bool); the forward to MenuScreen
+                    // binds, and the call then fails because MenuScreen.Close changed its parameters.
+                    if (type == null && repairs?.ForwardTarget(assembly, declaring) is { } target)
+                    {
+                        type = target;
+                        movedFrom = $" (on {target.FullName}, where the type was forwarded)";
+                    }
                     if (type == null) continue;        // already reported as a missing type
 
                     // A generic method is the same case as an open generic type: the dump records the
@@ -151,40 +224,167 @@ namespace Polyfill.Check
                         || (reference is MethodReference generic && generic.HasGenericParameters))
                     { unprovable++; memberCount--; continue; }
 
-                    if (Has(type, reference)) continue;
-                    missingMembers++;
-                    missing.Add($"  member  {declaring.FullName}::{reference.Name}");
+                    // Up the hierarchy, as the runtime resolves it: a member the game moved onto a base
+                    // class was never missing.
+                    if (types.Chain(type).Any(t => Has(t, reference) && !types.LacksAccessor(t, reference.Name)))
+                        continue;
+
+                    string repair = reference switch
+                    {
+                        MethodReference method => repairs?.ForMethod(assembly, type, method),
+                        FieldReference field => repairs?.ForField(type, field),
+                        _ => null,
+                    };
+                    missing.Add(($"member  {declaring.FullName}::{reference.Name}{movedFrom}", repair));
+                }
+
+                foreach (var target in PatchTargets.Read(module, out unprovablePatches))
+                {
+                    string assembly = AssemblyOf(target.Type);
+                    if (assembly == null || !game.TryGetValue(assembly, out var dump)) continue;
+
+                    // The dump leaves out the constructors the generator always emits; see Has.
+                    if (target.Name is ".ctor" or ".cctor") continue;
+
+                    patchCount++;
+                    var type = Lookup(types, dump, target.Type.FullName);
+                    if (type == null) continue;        // already reported as a missing type
+
+                    var overloads = Overloads(types, type, target.Name);
+                    int fitting = target.ParameterCount < 0
+                        ? overloads.Count
+                        : overloads.Count(m => m.Parameters.Count == target.ParameterCount);
+                    // Arity is enough to tell "gone" from "there". It cannot choose between overloads of the
+                    // same arity - Console.SubmitCommand(string) and (List<string>) - so a patch that names
+                    // its types is taken to mean one of them, and only a patch that names none is ambiguous.
+                    if (fitting == 1 || (fitting > 1 && target.ParameterCount >= 0)) continue;
+
+                    bool ambiguous = fitting > 1;
+                    string what = ambiguous ? $"{overloads.Count} overloads, the patch names no parameters" : "not found";
+                    (target.InCode ? lookups : missing).Add(
+                        ($"patch   {type.FullName}::{target.Name} ({what}; {target.From})",
+                         repairs?.ForPatch(assembly, type, target.Name, target.ParameterCount, ambiguous)));
                 }
             }
 
             string name = Path.GetFileName(modPath);
-            Console.WriteLine($"{name} against Schedule I {version}");
-            Console.WriteLine($"  {typeCount} type reference(s), {memberCount} member reference(s) checked "
-                            + "against the game's own surface");
+            Console.WriteLine($"{name} against Schedule I {version} ({backend})");
+            if (melon != null) Console.WriteLine($"  mod: {melon}");
+            Console.WriteLine($"  {typeCount} type reference(s), {memberCount} member reference(s) and {patchCount} "
+                            + "patch target(s) checked against the game's own surface");
             if (unprovable > 0)
-                Console.WriteLine($"  {unprovable} generic type(s) skipped - a dump lists what exists, and an "
+                Console.WriteLine($"  {unprovable} generic reference(s) skipped - a dump lists what exists, and an "
                                 + "open generic only appears where something derives from it.");
+            if (unprovablePatches > 0)
+                Console.WriteLine($"  {unprovablePatches} patch class(es) skipped - their target is computed in code "
+                                + "(TargetMethod) or incomplete in the attributes.");
             if (monoBranch > 0)
                 Console.WriteLine($"  {monoBranch} member reference(s) skipped - only methods your mod calls when "
                                 + "MelonUtils.IsGameIl2Cpp() is false use them.");
+            if (repairs == null)
+                Console.WriteLine("  Polyfill repairs only the IL2CPP build, so nothing below has a repair.");
+
+            if (lookups.Count > 0)
+            {
+                Console.WriteLine();
+                Console.WriteLine($"LOOKUPS - {lookups.Count} name(s) the mod looks up in code that come back null; "
+                                + "read the call site to see whether the mod skips or fails");
+                foreach (var (line, repair) in lookups)
+                    Console.WriteLine($"  {line}\n      -> {repair ?? "nothing in Polyfill answers for this"}");
+            }
 
             if (missing.Count == 0)
             {
-                Console.WriteLine("  everything it names is still there.");
                 Console.WriteLine();
+                Console.WriteLine("VERDICT clean: everything it names is still there.");
                 Console.WriteLine("This does not promise the mod WORKS: a method that kept its name and changed "
                                 + "what it does looks identical here. It promises nothing it names is gone.");
                 return 0;
             }
 
+            int open = missing.Count(m => m.Repair == null);
             Console.WriteLine();
-            Console.WriteLine($"MISSING - {missingTypes} type(s), {missingMembers} member(s)");
-            foreach (string line in missing) Console.WriteLine(line);
+            Console.WriteLine($"MISSING - {missing.Count} name(s), {missing.Count - open} with a repair in Polyfill, {open} open");
+            foreach (var (line, repair) in missing)
+                Console.WriteLine($"  {line}\n      -> {repair ?? "OPEN: nothing in Polyfill answers for this"}");
             Console.WriteLine();
-            Console.WriteLine("Each of these compiles today and throws when it is reached. Polyfill may bridge "
-                            + "some of them at runtime; this list is what your mod asks for, not what a player "
-                            + "will see.");
+
+            if (open == 0)
+            {
+                Console.WriteLine("VERDICT polyfill: every missing name has a repair in this Polyfill build. The plugin "
+                                + "still confirms each one against the player's files at startup.");
+                return 3;
+            }
+
+            Console.WriteLine($"VERDICT open: {open} name(s) throw when they are reached, and nothing in this Polyfill "
+                            + "build repairs them.");
             return 1;
+        }
+
+        /// <summary>
+        /// Where Cecil looks for the assemblies a mod references.
+        /// </summary>
+        /// <remarks>
+        /// Reading an attribute argument of an enum type - <c>MethodType.Getter</c> - needs the enum's
+        /// definition, which lives in 0Harmony. Without a resolver that finds it the read throws, and a
+        /// checker that dies on the first Harmony mod is no checker. The mod's own folder is searched first,
+        /// then each <c>--refs</c> folder (MelonLoader/net6 holds 0Harmony and MelonLoader).
+        /// </remarks>
+        private static ReaderParameters Reading(string modPath, List<string> refs)
+        {
+            var resolver = new DefaultAssemblyResolver();
+            string folder = Path.GetDirectoryName(Path.GetFullPath(modPath));
+            if (folder != null) resolver.AddSearchDirectory(folder);
+            foreach (string dir in refs) resolver.AddSearchDirectory(dir);
+            return new ReaderParameters { AssemblyResolver = resolver };
+        }
+
+        /// <summary>True while a Mono mod is checked; its names carry no interop prefix.</summary>
+        private static bool _mono;
+
+        /// <summary>The type by its interop name, through the hierarchy first and the dump's own list second.</summary>
+        /// <remarks>
+        /// DumpIndex spells every type the way interop does, because the plugin only ever asks for those.
+        /// A Mono mod says `ScheduleOne.NPCs.NPC` where the index holds `Il2CppScheduleOne.NPCs.NPC`, and
+        /// without the same rule applied to its names every game type it touches read as missing.
+        /// </remarks>
+        private static TypeDefinition Lookup(Hierarchy types, DumpIndex.Result dump, string fullName)
+        {
+            if (_mono && fullName != null) fullName = DumpIndex.Interop(fullName);
+            return types.Find(fullName) ?? Find(dump.Assembly.MainModule, fullName);
+        }
+
+        /// <summary>
+        /// The methods of this name on the nearest type in the chain that declares any.
+        /// </summary>
+        /// <remarks>
+        /// Harmony's lookups walk up to the first type that declares the name and choose among its
+        /// overloads there, so two methods on that one type are what makes a name-only target ambiguous.
+        /// </remarks>
+        private static List<MethodDefinition> Overloads(Hierarchy types, TypeDefinition type, string name)
+        {
+            foreach (var level in types.Chain(type))
+            {
+                // The dump writes an RPC's hash as `#`; see WithoutRpcHash.
+                string sought = WithoutRpcHash(name);
+                var here = level.Methods.Where(m => m.Name == name || WithoutRpcHash(m.Name) == sought).ToList();
+                if (here.Count > 0) return here;
+            }
+            return new List<MethodDefinition>();
+        }
+
+        /// <summary>Name, version and author from the mod's MelonInfo, or null for a library.</summary>
+        private static string MelonInfo(ModuleDefinition module)
+        {
+            foreach (var attribute in module.Assembly.CustomAttributes)
+            {
+                if (attribute.AttributeType.Name != "MelonInfoAttribute") continue;
+                var values = attribute.ConstructorArguments.Skip(1).Select(a => a.Value as string).ToList();
+                if (values.Count < 2) return null;
+                string author = values.Count > 2 && !string.IsNullOrEmpty(values[2]) ? " by " + values[2] : "";
+                return $"{values[0]} {values[1]}{author}";
+            }
+            return null;
         }
 
         /// <summary>Does the type carry this member, by name and shape?</summary>
@@ -366,15 +566,20 @@ namespace Polyfill.Check
 
         private static void Usage()
         {
-            Console.WriteLine("polyfill-check <mod.dll> [--game <version>] [--dumps <folder>]");
+            Console.WriteLine("polyfill-check <mod.dll> [--game <version>] [--dumps <folder>] [--backend il2cpp|mono] [--refs <folder>]");
             Console.WriteLine();
-            Console.WriteLine("  Says which names your mod asks for that the game no longer has, without");
-            Console.WriteLine("  installing anything. Reads metadata only - your mod is never loaded or run.");
+            Console.WriteLine("  Says which names your mod asks for that the game no longer has, and whether");
+            Console.WriteLine("  Polyfill repairs each one, without installing anything. Reads metadata only -");
+            Console.WriteLine("  your mod is never loaded or run.");
             Console.WriteLine();
-            Console.WriteLine("  --game    which build to check against. Default: the newest one shipped.");
-            Console.WriteLine("  --dumps   where the game surfaces live. Default: the `api` folder beside this.");
+            Console.WriteLine("  --game     which build to check against. Default: the newest one shipped.");
+            Console.WriteLine("  --dumps    where the game surfaces live. Default: the `api` folder beside this.");
+            Console.WriteLine("  --backend  which build of the game. Default: read off the names the mod uses.");
+            Console.WriteLine("  --refs     a folder with the assemblies the mod references (0Harmony, MelonLoader).");
+            Console.WriteLine("             Repeatable. The mod's own folder is always searched.");
             Console.WriteLine();
-            Console.WriteLine("  Exit 0 nothing missing, 1 something missing, 2 could not check.");
+            Console.WriteLine("  Exit 0 nothing missing, 1 something missing that Polyfill does not repair,");
+            Console.WriteLine("  3 something missing and Polyfill repairs all of it, 2 could not check.");
         }
     }
 }
