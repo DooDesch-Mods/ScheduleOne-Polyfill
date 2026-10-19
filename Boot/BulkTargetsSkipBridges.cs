@@ -154,7 +154,7 @@ namespace Polyfill.Boot
             => $"{method.DeclaringType?.Name}.{method.Name}({method.GetParameters().Length} args)";
 
         /// <summary>An interop method with a body that never loads a native method pointer.</summary>
-        private static bool IsBridge(MethodBase method)
+        internal static bool IsBridge(MethodBase method)
         {
             try
             {

@@ -147,6 +147,20 @@ namespace Polyfill.Contract
                         + "method Unity still calls on it every frame (Avatar.cs:147 on 0.4.6f13, :133 on "
                         + "0.4.7f7)",
             },
+
+            // Also a bridge, because Tweakables CALLS the old name. A patch must not land on that bridge: the
+            // game calls GenerateRuntimeIcons directly (ProductManager.cs:1810, :1982, :2153, :2324 on
+            // 0.4.7f12), so DMT Mod's postfix that swaps in its own product icon would never run.
+            new Entry
+            {
+                Type = "Il2CppScheduleOne.Product.ProductIconManager",
+                OldName = "GenerateIcons",
+                NewName = "GenerateRuntimeIcons",
+                Because = "0.4.6's GenerateIcons(productID) made one icon per packaging and returned the product's "
+                        + "own sprite; 0.4.7f12 GenerateRuntimeIcons(productID) does the same, and the product "
+                        + "creation methods assign its result to the new definition's Icon "
+                        + "(ProductIconManager.cs:74-109 on 0.4.7f12)",
+            },
         };
 
         /// <summary>What this name became on the type, or null when nothing is on record.</summary>

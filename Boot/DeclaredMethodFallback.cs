@@ -96,7 +96,7 @@ namespace Polyfill.Boot
         private static void Fallback(Type type, string name, Type[] parameters, Type[] generics,
                                      ref MethodInfo __result)
         {
-            if (__result != null || type == null || name == null) return;
+            if (type == null || name == null) return;
 
             // A METHOD THE BUILD RENAMED, answered with what took over. Nothing is written back for
             // these: a hook Polyfill writes is a name the game never calls, so a patch on it binds and
@@ -104,18 +104,39 @@ namespace Polyfill.Boot
             // returns false. Tweakables suppresses the vanilla packaging animation exactly that way.
             // Redirecting the lookup puts the patch on the method the game really calls, where a prefix
             // is still a prefix.
+            //
+            // The old name can still be found when a bridge put it back for another mod's CALL
+            // (ProductIconManager.GenerateIcons, called by Tweakables, patched by DMT Mod). Harmony then
+            // finds the bridge, so a found method is replaced too when it is a bridge.
             string renamed = RenamedMethods.Successor(type.FullName, name);
+            if (__result != null && (renamed == null || !BulkTargetsSkipBridges.IsBridge(__result))) return;
+            bool overBridge = __result != null;
+
             if (renamed != null)
             {
                 try
                 {
                     var moved = AccessTools.Method(type, renamed, parameters, generics);
-                    if (moved != null) { __result = Canonical(moved); return; }
+                    if (moved != null)
+                    {
+                        __result = Canonical(moved);
+                        if (overBridge)
+                            _log?.Msg($"[harmony] a patch on {type.Name}.{name} goes to {renamed} - {name} is a Polyfill "
+                                    + "bridge the game never calls.");
+                        return;
+                    }
+                    if (overBridge)
+                        _log?.Warning($"[harmony] {type.Name}.{renamed} is not there, so a patch on {type.Name}.{name} "
+                                    + "stays on the Polyfill bridge and runs only where a mod calls the old name.");
                 }
-                catch { }
+                catch (Exception e)
+                {
+                    _log?.Warning($"[harmony] could not look up {type.Name}.{renamed} for a patch on {name}: "
+                                + e.Message);
+                }
             }
 
-            if (!RenamedTypes.IsStandIn(type.FullName)) return;
+            if (overBridge || !RenamedTypes.IsStandIn(type.FullName)) return;
 
             try
             {
