@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.20] - 2026-10-19
+
+### Fixed
+- DMT Mod mixes show DMT's own product icons on 0.4.7 again instead of the game's icon.
+- Total Daily Profit no longer shows as blocked on the compatibility list.
+
 ## [0.13.19] - 2026-10-18
 
 ### Fixed
