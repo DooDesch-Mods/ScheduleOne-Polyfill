@@ -38,7 +38,7 @@ namespace Polyfill.ModFixes
         internal override string Id => "s1mapi-instanced-trees";
         internal override string Mod => "S1MAPI";
         internal override string ModVersions => "*";
-        internal override string GameVersions => "0.4.6*";
+        internal override string GameVersions => ">=0.4.6";
         internal override string What => "trees cleared for a building stop being drawn, not only walked through";
 
         internal override string StandsDownBecause
