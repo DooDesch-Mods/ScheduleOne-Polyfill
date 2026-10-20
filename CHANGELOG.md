@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.22] - 2026-10-20
+
+### Fixed
+- Casino Direct Deposit: Philip offers "Quick question about payouts." again. It failed with "Method not found:
+  set_GenericDialogue" before.
+- Over The Counter: Static is set up on 0.4.7 again and reacts after taking cocaine. It failed with "Method not
+  found: get_onConsumeDone" before.
+- Rain, wet surfaces and wind keep running when a mod removes part of a building. The log filled with a
+  NullReferenceException every frame before.
+
 ## [0.13.21] - 2026-10-20
 
 ### Fixed
