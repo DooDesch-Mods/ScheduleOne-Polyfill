@@ -12,7 +12,8 @@ using UnityEngine;
 namespace Polyfill.ModFixes
 {
     /// <summary>
-    /// Stop OverTheCounter's drifters and managers from being cloned out of an employee.
+    /// Stop OverTheCounter's drifters and managers from being cloned out of an employee or out of an NPC
+    /// that has no data object.
     /// </summary>
     /// <remarks>
     /// OverTheCounter spawns its own NPCs to deal to. It looks for the spawnable prefab named
@@ -54,11 +55,13 @@ namespace Polyfill.ModFixes
         internal override string ModVersions => "2.0.10";
         internal override string GameVersions => "*";
         internal override string What
-            => "the drifters and the managers stop being cloned out of an employee and throwing every tick";
+            => "the drifters and the managers stop being cloned out of an employee or a nameless NPC, "
+             + "which throws every tick or fails the spawn";
 
         internal override string StandsDownBecause
             => "OverTheCounter's drifters and hired managers may be cloned from an employee prefab, which "
-             + "throws a NullReferenceException in Employee.UpdateBehaviour on every tick.";
+             + "throws a NullReferenceException in Employee.UpdateBehaviour on every tick, or from an NPC "
+             + "with no data object, which fails every drifter spawn at NPC.get_ID.";
 
         private static MelonLogger.Instance _log;
         private static readonly List<NetworkObject> _pool = new();
@@ -117,23 +120,22 @@ namespace Polyfill.ModFixes
             try { found = __result.gameObject; } catch { }
             if (found == null) return;
 
-            // An employee carries a configuration that only AssignProperty creates. Nothing else about the
-            // prefab matters here.
-            Employee employee = null;
-            try { employee = found.GetComponent<Employee>(); } catch { }
-            if (employee == null) return;
+            // Two kinds of prefab break a clone: an employee carries a configuration that only AssignProperty
+            // creates, and an NPC without a data object has no identity at all (see Unusable).
+            string why = Unusable(found);
+            if (why == null) return;
 
             var better = Replacement();
             if (better == null)
             {
-                Say("[fix] otc-drifter-prefab: OverTheCounter fell back to the employee prefab "
-                  + $"'{found.name}', and this build has no spawnable NPC that is not an employee. Left "
-                  + "alone; the drifters will keep throwing in Employee.UpdateBehaviour.");
+                Say("[fix] otc-drifter-prefab: OverTheCounter fell back to the prefab "
+                  + $"'{found.name}' - {why} - and this build has no spawnable NPC that can stand in for it. "
+                  + "Left alone; the spawn will keep failing.");
                 return;
             }
 
             Say($"[fix] otc-drifter-prefab: OverTheCounter asked for 'CivilianNPC', which this build does not "
-              + $"have, and fell back to '{found.name}' - an employee. Handed it one of {_pool.Count} "
+              + $"have, and fell back to '{found.name}' - {why}. Handed it one of {_pool.Count} "
               + $"spawnable NPC prefab(s) instead, a different one each time: {Names()}.");
 
             // THE NEXT FEW BY NAME, and this is not chatter. "The customers are all the same two people"
@@ -153,6 +155,36 @@ namespace Polyfill.ModFixes
             }
 
             __result = better;
+        }
+
+        /// <summary>
+        /// Why a clone of this prefab cannot be a drifter, or null when it can.
+        /// </summary>
+        /// <remarks>
+        /// AN NPC WITH NO DATA OBJECT HAS NO ID. On 0.4.7 the fallback lands on <c>SpecialCustomerNPC</c>,
+        /// which is not an employee, so the employee test let it through. Its <c>_defaultNPCData</c> is
+        /// empty, and NPC.Awake builds the runtime data only from that field (NPC.cs:3309-3311). NPC.ID
+        /// reads <c>NPCData.BasicInfo.ID</c> (NPC.cs:173-188), so every clone throws on its own id, and
+        /// OverTheCounter reads it while setting up the drifter's messages: "Spawn failed:
+        /// NullReferenceException at NPC.get_ID()".
+        /// </remarks>
+        private static string Unusable(GameObject go)
+        {
+            try
+            {
+                if (go.GetComponent<Employee>() != null) return "an employee";
+
+                var npc = go.GetComponent<NPC>();
+                if (npc != null && NpcDataProperty != null && NpcData(npc) == null)
+                    return "an NPC without the data object its id is read from";
+                return null;
+            }
+            catch (Exception e)
+            {
+                _log?.Warning($"[fix] otc-drifter-prefab: could not inspect '{go.name}', left it alone: "
+                            + e.Message);
+                return null;
+            }
         }
 
 
@@ -443,9 +475,21 @@ namespace Polyfill.ModFixes
                     if (go == null) continue;
 
                     NPC npc = null;
-                    Employee employee = null;
-                    try { npc = go.GetComponent<NPC>(); employee = go.GetComponent<Employee>(); } catch { }
-                    if (npc == null || employee != null) continue;
+                    try { npc = go.GetComponent<NPC>(); }
+                    catch (Exception e)
+                    {
+                        _log?.Warning($"[fix] otc-drifter-prefab: could not read '{go.name}': {e.Message}");
+                        continue;
+                    }
+                    if (npc == null) continue;
+
+                    // The same test the postfix uses, so the pool never hands back what it replaces.
+                    string why = Unusable(go);
+                    if (why != null)
+                    {
+                        _log?.Msg($"[fix] otc-drifter-prefab: '{go.name}' is not a candidate - {why}.");
+                        continue;
+                    }
 
                     // A DUPLICATE GUID DISPLACES ITS OWNER IN THE REGISTRY, SILENTLY. A clone inherits
                     // the prefab's BakedGUID, NPC.Awake registers it, and GUIDManager.RegisterObject
