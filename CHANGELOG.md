@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.23] - 2026-10-21
+
+### Fixed
+- Over The Counter and Chemical Plant together no longer crash the game with a stack overflow.
+- Over The Counter: drifters spawn on 0.4.7 again. Every spawn failed with a NullReferenceException at
+  NPC.get_ID before.
+- Over The Counter: no more trees standing inside the dispensary, the Westville shack and the warehouse.
+- Contact pictures of characters added by mods, such as Static, Vic and Bella, show the face up close like the
+  game's own. The face filled only half the picture before.
+- Building mods that clear the ground around their buildings leave game businesses such as the post office
+  standing.
+
 ## [0.13.22] - 2026-10-20
 
 ### Fixed
