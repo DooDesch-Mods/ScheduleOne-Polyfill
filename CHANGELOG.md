@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.21] - 2026-10-20
+
+### Fixed
+- Deals Gone Wrong customers turn on you after a deal on 0.4.7 again. It failed with "Method not found:
+  set_Aggression" before.
+- Section 97: the deal completion popup shows after every sale again, and robberies still hide its title and payment.
+- Multiplayer Tracker Fix: deals you tracked stay on the HUD and compass after loading a save.
+- Visual Assets Overhaul keeps replacing icons after you load a save from the menu. They stopped for the rest of
+  the session before.
+- Visual Assets Overhaul no longer shows as needing a fix on the compatibility list.
+
 ## [0.13.20] - 2026-10-19
 
 ### Fixed
