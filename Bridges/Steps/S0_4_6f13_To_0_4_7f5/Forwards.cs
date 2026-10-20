@@ -921,8 +921,9 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
         /// answer is rebuilt as that class around the same native object. Without that class there is nothing
         /// to return the answer as, and the getter is not written.
         ///
-        /// There is no setter: 0.4.7 keeps one generic conversation for every controller, on the
-        /// DialogueManager, so a value written for one NPC has nowhere to live.
+        /// 0.4.7 keeps one generic conversation for every controller, on the DialogueManager, so a value a mod
+        /// writes for one NPC is kept beside that controller by Polyfill's mod (see <see cref="Held"/>). The
+        /// getter asks for that value first and answers the shared conversation when there is none.
         /// </remarks>
         private static MethodDefinition EmitGenericDialogue(ModuleDefinition module, TypeDefinition controller)
         {
@@ -932,7 +933,20 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             if (container == null) return null;
             var method = new MethodDefinition("get_GenericDialogue",
                 MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName, container);
+            var slot = Held.GetterSlot(module, controller, Held.GenericDialogueGet);
             var il = method.Body.GetILProcessor();
+            var shared = il.Create(OpCodes.Pop);
+
+            il.Emit(OpCodes.Ldsfld, slot);
+            il.Emit(OpCodes.Dup);
+            il.Emit(OpCodes.Brfalse_S, shared);       // no slot: the null is popped below
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Callvirt, Held.GetterInvoke(module));
+            il.Emit(OpCodes.Dup);
+            il.Emit(OpCodes.Brfalse_S, shared);       // nothing kept for this controller
+            il.Emit(OpCodes.Castclass, container);
+            il.Emit(OpCodes.Ret);
+            il.Append(shared);
             il.Emit(OpCodes.Ldarg_0);
             il.Emit(OpCodes.Call, to);
             if (!Core.ShadowTypes.EmitRewrap(module, il, container, out _)) return null;
