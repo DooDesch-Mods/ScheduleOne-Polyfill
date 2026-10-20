@@ -251,6 +251,13 @@ namespace Polyfill.Check
                     if (type == null) continue;        // already reported as a missing type
 
                     var overloads = Overloads(types, type, target.Name);
+                    // A patch on `set_sprite` names an accessor, and the dump holds the property `sprite` as
+                    // a member with its accessors listed. The same rule as for a call (see Has), plus the
+                    // check that the property has the accessor the patch names.
+                    if (overloads.Count == 0 && Accessed(target.Name) is string bare
+                        && types.Chain(type).Any(t => t.Fields.Any(f => f.Name == bare || Managed(f.Name) == bare)
+                                                   && !types.LacksAccessor(t, target.Name)))
+                        continue;
                     int fitting = target.ParameterCount < 0
                         ? overloads.Count
                         : overloads.Count(m => m.Parameters.Count == target.ParameterCount);

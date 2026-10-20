@@ -95,6 +95,8 @@
     <Reference Include="UnityEngine.TextRenderingModule"><HintPath>$(GameManagedPath)/UnityEngine.TextRenderingModule.dll</HintPath><Private>false</Private></Reference>
     <!-- GUI and ScaleMode are here, not in CoreModule. See GuiDrawTexture. -->
     <Reference Include="UnityEngine.IMGUIModule"><HintPath>$(GameManagedPath)/UnityEngine.IMGUIModule.dll</HintPath><Private>false</Private></Reference>
+    <!-- TextMeshProUGUI, the type of the deal popup's labels. See Section97DealPopup. -->
+    <Reference Include="Unity.TextMeshPro"><HintPath>$(GameManagedPath)/Unity.TextMeshPro.dll</HintPath><Private>false</Private></Reference>
   </ItemGroup>
 
   <Target Name="PostBuild" AfterTargets="Build" Condition="'$(OS)' == 'Windows_NT'">
