@@ -79,6 +79,8 @@ namespace Polyfill.ModFixes
             new SupplierMeetingNeverStarts(),
             new PhoneAppIconWithoutFile(),
             new S1ApiPortraitFraming(),
+            new OverTheCounterMugshots(),
+            new ChemicalPlantListingPoster(),
             new ThmButtonCodes(),
             new BiggerTreesScale(),
             new GraphicsModSunToggle(),
