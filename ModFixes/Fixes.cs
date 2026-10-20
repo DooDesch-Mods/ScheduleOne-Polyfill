@@ -81,6 +81,7 @@ namespace Polyfill.ModFixes
             new S1ApiPortraitFraming(),
             new OverTheCounterMugshots(),
             new ChemicalPlantListingPoster(),
+            new CashStackLimitSlotRefresh(),
             new ThmButtonCodes(),
             new BiggerTreesScale(),
             new GraphicsModSunToggle(),
