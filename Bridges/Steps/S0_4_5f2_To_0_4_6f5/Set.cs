@@ -404,7 +404,17 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
                 ParameterCount = 1,
                 Because = "Aggression became a read-only view over AggressionController; vanilla's own "
                         + "migration of this call is MethInstance.cs:51",
-                Emit = EmitOverrideAggression,
+                Emit = (module, npc) => EmitOverrideAggression(module, npc, "OverrideAggression", "aggression"),
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = "Il2CppScheduleOne.NPCs.NPC",
+                OldName = "set_Aggression",
+                ParameterCount = 1,
+                Because = "the old setter wrote the value outright, which on the stack is an Override entry - "
+                        + "the same as OverrideAggression and vanilla's MethInstance.cs:49",
+                Emit = (module, npc) => EmitOverrideAggression(module, npc, "set_Aggression", "value"),
             },
             new Bridge
             {
@@ -1307,7 +1317,8 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         }
 
         /// <summary>
-        /// <c>NPC.OverrideAggression(float)</c> - a plain field write until 0.4.6.
+        /// <c>NPC.OverrideAggression(float)</c> and the <c>NPC.Aggression</c> setter - plain field writes until
+        /// 0.4.6, emitted under <paramref name="name"/>.
         /// </summary>
         /// <remarks>
         /// Aggression is now a read-only view over a labelled stack, and the game migrated its own call site
@@ -1315,7 +1326,8 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
         /// unlike the old field write, a stack entry stays until somebody removes it - so everything Polyfill
         /// pushes is filed under one name and can be taken back off.
         /// </remarks>
-        private static MethodDefinition EmitOverrideAggression(ModuleDefinition module, TypeDefinition npc)
+        private static MethodDefinition EmitOverrideAggression(ModuleDefinition module, TypeDefinition npc,
+                                                              string name, string parameter)
         {
             var getController = Getter(npc, "AggressionController");
             var stack = getController?.ReturnType?.Resolve();
@@ -1325,9 +1337,9 @@ namespace Polyfill.Bridges.Steps.S0_4_5f2_To_0_4_6f5
             var constructor = Method(entry, ".ctor", 4);
             if (getController == null || add == null || constructor == null || mode == null) return null;
 
-            var method = new MethodDefinition("OverrideAggression",
+            var method = new MethodDefinition(name,
                 MethodAttributes.Public | MethodAttributes.HideBySig, module.TypeSystem.Void);
-            method.Parameters.Add(new ParameterDefinition("aggression", ParameterAttributes.None,
+            method.Parameters.Add(new ParameterDefinition(parameter, ParameterAttributes.None,
                                                           module.TypeSystem.Single));
 
             var il = method.Body.GetILProcessor();
