@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.24] - 2026-10-21
+
+### Fixed
+- Over The Counter: drifters and managers get their contact pictures again.
+- Chemical Plant: no more error from its property on every load.
+
 ## [0.13.23] - 2026-10-21
 
 ### Fixed
