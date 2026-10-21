@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.25] - 2026-10-21
+
+### Fixed
+- Over The Counter: suppliers who wait in the warehouse stay at the meetup spot. They walked back to the
+  warehouse right after the meetup started.
+- Cash Stack Limit: moving cash no longer drops the frame rate for a second and a half.
+
 ## [0.13.24] - 2026-10-21
 
 ### Fixed
