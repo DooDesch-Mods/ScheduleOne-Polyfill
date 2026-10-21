@@ -77,6 +77,7 @@ namespace Polyfill.ModFixes
             new DeepPocketsEarlyBroadcast(),
             new MulesPrefsReloadOnAWorker(),
             new SupplierMeetingNeverStarts(),
+            new OverTheCounterSupplierMeetup(),
             new PhoneAppIconWithoutFile(),
             new S1ApiPortraitFraming(),
             new OverTheCounterMugshots(),
