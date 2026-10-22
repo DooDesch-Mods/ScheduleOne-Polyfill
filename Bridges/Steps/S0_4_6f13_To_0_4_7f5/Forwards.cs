@@ -19,6 +19,7 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
         internal override string VerifiedTo => "0.4.7f6";
 
         internal const string Movement = "Il2CppScheduleOne.NPCs.NPCMovement";
+        private const string SpeedControlType = "Il2CppScheduleOne.NPCs.SpeedControl";
         private const string Health = "Il2CppScheduleOne.NPCs.NPCHealth";
         internal const string AvatarType = "Il2CppScheduleOne.AvatarFramework.Avatar";
         internal const string Animation = "Il2CppScheduleOne.AvatarFramework.Animation.AvatarAnimation";
@@ -132,6 +133,20 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                         + "Every behaviour's control has priority 1 or more and still outranks it. The 0.4.5 step's "
                         + "bridge needs ActiveSpeedControl, which 0.4.7 does not have",
                 Emit = EmitSetSpeedScale,
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = SpeedControlType, OldName = ".ctor", ParameterCount = 3,
+                ParameterTypes = new[] { "System.String", "System.Int32", "System.Single" },
+                AllowOverload = true,   // beside 0.4.7's four-argument constructor
+                Because = "0.4.6's NPCSpeedController.SpeedControl(id, priority, speed) took the speed as a "
+                        + "fraction, the game's own default control being 0.08 (NPCSpeedController.cs:19-24, :27, "
+                        + ":53 on 0.4.6f13); 0.4.7 moved the class to NPCs.SpeedControl and added a fourth "
+                        + "parameter, type, that defaults to Normalized, a fraction of the top speed "
+                        + "(SpeedControl.cs:35, NPCSpeedController.cs:46, :109-121 on 0.4.7f12). The old call is "
+                        + "the new one with that default, which is what a rebuild of the old call against 0.4.7 "
+                        + "compiles to",
+                Emit = EmitSpeedControlWithoutType,
             },
             new Bridge
             {
@@ -535,6 +550,44 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             var get = Getter(movement, "SpeedController");
             controller = get?.ReturnType?.Resolve();
             return get;
+        }
+
+        /// <summary>
+        /// <c>new SpeedControl(id, priority, speed)</c>: <c>new SpeedControl(id, priority, speed, Normalized)</c>.
+        /// </summary>
+        /// <remarks>
+        /// A mod compiled against 0.4.6 names the old nested class, which Polyfill puts back as a class
+        /// deriving from this one. A constructor is not inherited, so the injector gives that class the same
+        /// constructor, chained to this one.
+        /// </remarks>
+        private static MethodDefinition EmitSpeedControlWithoutType(ModuleDefinition module, TypeDefinition control)
+        {
+            MethodDefinition full = null;
+            foreach (var candidate in control.Methods)
+                if (candidate.IsConstructor && !candidate.IsStatic && candidate.Parameters.Count == 4
+                    && candidate.Parameters[0].ParameterType.FullName == "System.String"
+                    && candidate.Parameters[1].ParameterType.FullName == "System.Int32"
+                    && candidate.Parameters[2].ParameterType.FullName == "System.Single"
+                    && candidate.Parameters[3].ParameterType.FullName == SpeedControlType + "/EType")
+                    full = candidate;
+            if (full == null) return null;
+
+            var method = new MethodDefinition(".ctor",
+                MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName
+                | MethodAttributes.RTSpecialName, module.TypeSystem.Void);
+            method.Parameters.Add(new ParameterDefinition("id", ParameterAttributes.None, module.TypeSystem.String));
+            method.Parameters.Add(new ParameterDefinition("priority", ParameterAttributes.None, module.TypeSystem.Int32));
+            method.Parameters.Add(new ParameterDefinition("speed", ParameterAttributes.None, module.TypeSystem.Single));
+
+            var il = method.Body.GetILProcessor();
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Ldarg_1);
+            il.Emit(OpCodes.Ldarg_2);
+            il.Emit(OpCodes.Ldarg_3);
+            il.Emit(OpCodes.Ldc_I4_0);   // SpeedControl.EType.Normalized
+            il.Emit(OpCodes.Call, full);
+            il.Emit(OpCodes.Ret);
+            return method;
         }
 
         private static MethodDefinition EmitWalkSpeed(ModuleDefinition module, TypeDefinition movement)
