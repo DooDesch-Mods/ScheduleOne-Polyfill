@@ -301,6 +301,44 @@ namespace Polyfill.Core
             => type != null && Made.TryGetValue(type.FullName, out var shadow) ? shadow : null;
 
         /// <summary>
+        /// Gives <paramref name="shadow"/> a constructor of the same signature as
+        /// <paramref name="constructor"/>, chained to it. False when the shadow already has one.
+        /// </summary>
+        /// <remarks>
+        /// Only for a constructor a repair put on the type the shadow derives from. Its body is the repair's
+        /// own, so this adds no decision of its own: the call makes the object the repair makes, under the
+        /// old name - the same reasoning as the parameterless constructor in <see cref="TryAdd"/>.
+        /// </remarks>
+        internal static bool CarryConstructor(ModuleDefinition module, TypeDefinition shadow, MethodDefinition constructor)
+        {
+            foreach (var existing in shadow.Methods)
+            {
+                if (!existing.IsConstructor || existing.IsStatic
+                    || existing.Parameters.Count != constructor.Parameters.Count) continue;
+                bool same = true;
+                for (int i = 0; i < existing.Parameters.Count && same; i++)
+                    same = existing.Parameters[i].ParameterType.FullName == constructor.Parameters[i].ParameterType.FullName;
+                if (same) return false;
+            }
+
+            var carried = new MethodDefinition(".ctor",
+                MethodAttributes.Public | MethodAttributes.HideBySig
+                    | MethodAttributes.SpecialName | MethodAttributes.RTSpecialName,
+                module.TypeSystem.Void);
+            foreach (var parameter in constructor.Parameters)
+                carried.Parameters.Add(new ParameterDefinition(parameter.Name, parameter.Attributes, parameter.ParameterType));
+
+            var il = carried.Body.GetILProcessor();
+            il.Emit(OpCodes.Ldarg_0);
+            foreach (var parameter in carried.Parameters) il.Emit(OpCodes.Ldarg, parameter);
+            il.Emit(OpCodes.Call, module.ImportReference(constructor));
+            il.Emit(OpCodes.Ret);
+
+            shadow.Methods.Add(carried);
+            return true;
+        }
+
+        /// <summary>
         /// Is a renamed type buried inside this one, where standing in for it would not work?
         /// </summary>
         /// <remarks>

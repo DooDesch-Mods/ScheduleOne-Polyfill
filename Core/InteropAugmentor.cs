@@ -541,6 +541,19 @@ namespace Polyfill.Core
 
                 type.Methods.Add(built);
 
+                // A CONSTRUCTOR IS NOT INHERITED. A mod that names the type under its old name calls `new` on
+                // the stand-in deriving from this one, and the runtime looks for the constructor there and
+                // nowhere else. Over The Counter's `new NPCSpeedController.SpeedControl(id, priority, speed)`
+                // found the repair on SpeedControl and still threw MissingMethodException.
+                if (built.IsConstructor && !built.IsStatic && ShadowTypes.Shadowing(module, type) is { } standIn)
+                {
+                    if (ShadowTypes.CarryConstructor(module, standIn, built))
+                        result.Applied.Add($"{member.InAssembly}!{standIn.FullName}::.ctor  [chained to the repair above]");
+                    else
+                        MelonLoader.MelonLogger.Warning($"[inject] {standIn.FullName} already has that constructor; "
+                                                        + "the repair on " + label + " is not carried over");
+                }
+
                 // It fits this build - the emitter just proved that by finding everything it needed. Whether
                 // anybody has READ this build is a different question, and the answer belongs in the report
                 // rather than in a decision: refusing here would invent a failure on a game that works.
@@ -551,14 +564,22 @@ namespace Polyfill.Core
                 return true;
             }
 
-            MethodDefinition target = null;
+            var named = new List<MethodDefinition>();
             foreach (var candidate in type.Methods)
-            {
-                if (candidate.Name != member.NewName) continue;
-                if (target != null) { Refuse(result, member, label, $"{member.NewName} is overloaded here, so which one it became is not decidable"); return false; }
-                target = candidate;
-            }
-            if (target == null) { Refuse(result, member, label, $"{member.NewName} is not on this type after all"); return false; }
+                if (candidate.Name == member.NewName) named.Add(candidate);
+
+            // A SAME-NAME FORWARD KNOWS THE CALL IT IS FOR. The name did not change, only a type in the
+            // signature, so the call's own parameter types pick the overload: the one that takes exactly
+            // those, with each stand-in read as the type it derives from. Over The Counter calls
+            // AddSpeedControl(NPCSpeedController.SpeedControl), and 0.4.7 has AddSpeedControl(SpeedControl)
+            // beside AddSpeedControl(id, speed, priority, type) - refusing that as undecidable left the call
+            // unresolved. A rename keeps the refusal: there the call's types describe the old member.
+            if (named.Count > 1 && member.SameNameNewSignature && member.ParameterTypes != null)
+                named = named.FindAll(candidate => TakesTheCall(module, candidate, member.ParameterTypes));
+
+            if (named.Count > 1) { Refuse(result, member, label, $"{member.NewName} is overloaded here, so which one it became is not decidable"); return false; }
+            if (named.Count == 0) { Refuse(result, member, label, $"{member.NewName} is not on this type after all"); return false; }
+            var target = named[0];
 
             if (target.HasGenericParameters)
             { Refuse(result, member, label, $"{member.NewName} is generic"); return false; }
@@ -719,6 +740,22 @@ namespace Polyfill.Core
             // would then be read as an original forever.
             if (Provenance.Read(module) == null) return Provenance.MarkerType;
             return null;
+        }
+
+        /// <summary>
+        /// Does <paramref name="candidate"/> take what the call passes, a stand-in counting as its base?
+        /// </summary>
+        private static bool TakesTheCall(ModuleDefinition module, MethodDefinition candidate, string[] passed)
+        {
+            if (candidate.Parameters.Count != passed.Length) return false;
+            for (int i = 0; i < passed.Length; i++)
+            {
+                var takes = candidate.Parameters[i].ParameterType;
+                if (takes.FullName == passed[i]) continue;
+                if (ShadowTypes.Shadowing(module, takes)?.FullName == passed[i]) continue;
+                return false;
+            }
+            return true;
         }
 
         /// <summary>Same parameter types in the same order - what makes two methods indistinguishable.</summary>
