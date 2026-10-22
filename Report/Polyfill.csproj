@@ -99,6 +99,8 @@
     <Reference Include="Unity.TextMeshPro"><HintPath>$(GameManagedPath)/Unity.TextMeshPro.dll</HintPath><Private>false</Private></Reference>
     <!-- WeatherEnclosure and SkyOverrideEnclosure live here, not in Assembly-CSharp. See WeatherLostEnclosures. -->
     <Reference Include="Il2CppScheduleOne.Core"><HintPath>$(GameManagedPath)/Il2CppScheduleOne.Core.dll</HintPath><Private>false</Private></Reference>
+    <!-- JsonUtility is here, not in CoreModule. See PostOfficeLostSave. -->
+    <Reference Include="UnityEngine.JSONSerializeModule"><HintPath>$(GameManagedPath)/UnityEngine.JSONSerializeModule.dll</HintPath><Private>false</Private></Reference>
   </ItemGroup>
 
   <Target Name="PostBuild" AfterTargets="Build" Condition="'$(OS)' == 'Windows_NT'">
