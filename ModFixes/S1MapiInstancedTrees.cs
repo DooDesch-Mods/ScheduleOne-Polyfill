@@ -69,8 +69,38 @@ namespace Polyfill.ModFixes
             return true;
         }
 
-        /// <summary>Harmony hands the original's own argument over by name.</summary>
-        private static void ClearAreaPostfix(Bounds bounds) => Clear(bounds);
+        /// <summary>The padding S1MAPI's <c>ClearingOptions</c> starts with, used when a caller passes none.</summary>
+        private const float DefaultPadding = 2f;
+
+        /// <summary>Harmony hands the original's own arguments over by name.</summary>
+        private static void ClearAreaPostfix(Bounds bounds, object options)
+        {
+            // The terrain clear takes trees out of the bounds grown by the padding on every side
+            // (TerrainClearer.ClearArea: bounds.Expand(padding * 2) before ClearTerrainTrees). Matching only
+            // the room left a ring of trees whose collision was gone and whose drawing was not, and their
+            // trunks and crowns stood in the walls.
+            float padding = DefaultPadding;
+            if (options != null)
+            {
+                try
+                {
+                    var type = options.GetType();
+                    if (AccessTools.Property(type, "ClearTerrainTrees")?.GetValue(options) is bool trees && !trees)
+                    {
+                        _log?.Msg("[fix] s1mapi-instanced-trees: this clear keeps the trees, so the drawn ones stay too.");
+                        return;
+                    }
+                    if (AccessTools.Property(type, "Padding")?.GetValue(options) is float set) padding = set;
+                    else _log?.Warning($"[fix] s1mapi-instanced-trees: no Padding on {type.FullName}; using {DefaultPadding} m.");
+                }
+                catch (Exception e)
+                {
+                    _log?.Warning($"[fix] s1mapi-instanced-trees: could not read the clearing options ({e.Message}); using {DefaultPadding} m.");
+                }
+            }
+            bounds.Expand(new Vector3(padding * 2f, 0f, padding * 2f));
+            Clear(bounds);
+        }
 
         private static void Clear(Bounds bounds)
         {

@@ -104,6 +104,7 @@ namespace Polyfill.ModFixes
             new GenericDialoguePerNpc(),
             new ConsumeDoneEvent(),
             new WeatherLostEnclosures(),
+            new PostOfficeLostSave(),
 
             // Last, and that is not cosmetic: these read what other mods have patched, so they have to run
             // after every one of them has had its turn.
