@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.26] - 2026-10-22
+
+### Fixed
+- Over The Counter: accepting a desperation deal works again, and the customer runs to the meetup.
+- Over The Counter: trees next to the dispensaries, the Westville shack and the warehouse no longer poke
+  through the walls.
+- A post office lost from a save comes back with its laundering station and storage rack, not owned.
+
 ## [0.13.25] - 2026-10-21
 
 ### Fixed
