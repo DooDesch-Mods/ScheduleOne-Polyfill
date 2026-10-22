@@ -225,8 +225,11 @@ namespace Polyfill.Check
                     { unprovable++; memberCount--; continue; }
 
                     // Up the hierarchy, as the runtime resolves it: a member the game moved onto a base
-                    // class was never missing.
-                    if (types.Chain(type).Any(t => Has(t, reference) && !types.LacksAccessor(t, reference.Name)))
+                    // class was never missing. A constructor is not inherited, so it is the type's own or
+                    // none; a base class's constructor of the same arity would hide a removed one.
+                    if (reference.Name == ".ctor"
+                            ? Has(type, reference)
+                            : types.Chain(type).Any(t => Has(t, reference) && !types.LacksAccessor(t, reference.Name)))
                         continue;
 
                     string repair = reference switch
@@ -440,9 +443,23 @@ namespace Polyfill.Check
                 foreach (var field in type.Fields)
                     if (field.Name == synced) return true;
 
-            // A constructor the dump never lists is not evidence of absence: the generator emits the
-            // ones it sees, and an interop type always has the pointer constructor a mod uses.
-            return wanted.Name == ".ctor";
+            return wanted.Name == ".ctor" && ConstructorPresent(type, wanted);
+        }
+
+        /// <summary>A constructor call no dump line matched: present unless the dump proves otherwise.</summary>
+        /// <remarks>
+        /// The dump drops the pointer constructor every interop type has, and a type that declares no
+        /// constructor still gets the parameterless one, so neither is ever reported. A type whose dump
+        /// lists constructors with parameters lists all of them, and a call that fits none of those throws
+        /// "Method not found" when it is reached: Over The Counter 2.0.10 calls SpeedControl(string, int,
+        /// float), and 0.4.7 has only SpeedControl(string, int, float, EType = Normalized).
+        /// </remarks>
+        private static bool ConstructorPresent(TypeDefinition type, MethodReference wanted)
+        {
+            if (wanted.Parameters.Count == 0) return true;
+            if (wanted.Parameters.Count == 1 && wanted.Parameters[0].ParameterType.FullName == "System.IntPtr")
+                return true;
+            return !type.Methods.Any(m => m.Name == ".ctor" && m.Parameters.Count > 0);
         }
 
         /// <summary>
