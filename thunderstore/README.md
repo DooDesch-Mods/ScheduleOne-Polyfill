@@ -9,7 +9,7 @@
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3+-green)
 [![Polyfill](https://polyfill.doomods.com/badge/polyfill.svg)](https://polyfill.doomods.com/mod/polyfill)
 
-[![MLVScan Polyfill.Boot.dll](https://mlvscan.com/attestations/att_YYVbaVWFTvAnVLCGOArseN40/badge.svg)](https://mlvscan.com/attestations/att_YYVbaVWFTvAnVLCGOArseN40) [![MLVScan Polyfill.dll](https://mlvscan.com/attestations/att_vM1BRkvGbTvCTPKGq7CI9mne/badge.svg)](https://mlvscan.com/attestations/att_vM1BRkvGbTvCTPKGq7CI9mne)
+[![MLVScan Polyfill.Boot.dll](https://mlvscan.com/attestations/att_A9wz6SdQNIA694dCTFWLFerG/badge.svg)](https://mlvscan.com/attestations/att_A9wz6SdQNIA694dCTFWLFerG) [![MLVScan Polyfill.dll](https://mlvscan.com/attestations/att_lX_sMAmDh_0CTRcfpz4ickQb/badge.svg)](https://mlvscan.com/attestations/att_lX_sMAmDh_0CTRcfpz4ickQb)
 
 > ### Do your mods still work?
 >
