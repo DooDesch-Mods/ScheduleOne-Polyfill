@@ -99,7 +99,7 @@ namespace Polyfill.Boot
                 // After the writing, before the first mod's PatchAll - the only window where both halves
                 // of a renamed type can be dealt with. See DeclaredMethodFallback for why the stand-in
                 // class alone leaves every Harmony patch on that name unregistered.
-                if (!DryRun && HelpHarmonyFind) DeclaredMethodFallback.Install(LoggerInstance);
+                if (!DryRun && HelpHarmonyFind && !DebugOff("declared")) DeclaredMethodFallback.Install(LoggerInstance);
                 else if (!HelpHarmonyFind)
                     LoggerInstance.Msg("[harmony] the lookup help is off in MelonPreferences, so a patch "
                                      + "aimed at a type this game renamed will not find it.");
@@ -107,19 +107,21 @@ namespace Polyfill.Boot
                 // Not behind HelpHarmonyFind: that switch is about putting Polyfill in front of another
                 // mod's LOOKUP. This changes nothing about what a patch resolves to - it only stops one
                 // class that will not bind from ending the mod's whole registration.
-                if (!DryRun) PatchClassIsolation.Install(LoggerInstance);
-                if (!DryRun) BulkTargetsSkipBridges.Install(LoggerInstance);
+                if (!DryRun && !DebugOff("isolation")) PatchClassIsolation.Install(LoggerInstance);
+                // Before the first mod patches a game method: every patch from here on goes through it.
+                if (!DryRun && !DebugOff("native")) InteropPatchesStayNative.Install(LoggerInstance);
+                if (!DryRun && !DebugOff("bulk")) BulkTargetsSkipBridges.Install(LoggerInstance);
 
                 // Beside the isolation, and earlier in the failure: this makes an argument bind that
                 // Harmony could not place, so the class the isolation would have caught never fails.
-                if (!DryRun) PatchArgumentByShape.Install(LoggerInstance);
-                if (!DryRun) PatchNeedsAResult.Install(LoggerInstance);
+                if (!DryRun && !DebugOff("shape")) PatchArgumentByShape.Install(LoggerInstance);
+                if (!DryRun && !DebugOff("result")) PatchNeedsAResult.Install(LoggerInstance);
 
                 // Layer 2. Off under DryRun like everything else: it answers the same questions the same way,
                 // but it is still a change to a running game, and "repair nothing" has to mean nothing.
                 if (DryRun)
                     LoggerInstance.Msg("[reflect] not installed - DryRun is on.");
-                else
+                else if (!DebugOff("reflect"))
                     Dynamic.ReflectionFallback.Install(LoggerInstance, Core.InteropIndex.LocateDirectory());
             }
             catch (Exception e)
@@ -144,10 +146,30 @@ namespace Polyfill.Boot
             if (!Enabled || DryRun) return;
             // Here and not in OnPreModsLoaded: it reads the game's method pointers, which needs the runtime up,
             // and it has to be in place before the first mod patches.
-            FoldedTargetsShareOneDetour.Install(LoggerInstance);
-            ChemicalPlantTileHook.Install(LoggerInstance);
-            try { InteropTypeSweep.Install(LoggerInstance, Core.InteropIndex.LocateDirectory()); }
+            if (!DebugOff("folded")) FoldedTargetsShareOneDetour.Install(LoggerInstance);
+            if (!DebugOff("chemtile")) ChemicalPlantTileHook.Install(LoggerInstance);
+            if (!DebugOff("sweep")) try { InteropTypeSweep.Install(LoggerInstance, Core.InteropIndex.LocateDirectory()); }
             catch (Exception e) { LoggerInstance.Warning("[sweep] " + e.Message); }
+        }
+
+        /// <summary>
+        /// A boot layer left out on purpose, for narrowing a crash down to one of them. Debug builds only:
+        /// POLYFILL_DEBUG_OFF holds comma separated ids (declared, isolation, native, bulk, shape, result,
+        /// reflect, folded, chemtile, sweep).
+        /// </summary>
+        internal static bool DebugOff(string id)
+        {
+#if DEBUG
+            string list = Environment.GetEnvironmentVariable("POLYFILL_DEBUG_OFF");
+            if (string.IsNullOrEmpty(list)) return false;
+            foreach (string one in list.Split(','))
+                if (string.Equals(one.Trim(), id, StringComparison.OrdinalIgnoreCase))
+                {
+                    Log?.Warning($"[debug] boot layer '{id}' left out (POLYFILL_DEBUG_OFF).");
+                    return true;
+                }
+#endif
+            return false;
         }
 
         /// <summary>
