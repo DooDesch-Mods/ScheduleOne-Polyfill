@@ -101,6 +101,8 @@
     <Reference Include="Il2CppScheduleOne.Core"><HintPath>$(GameManagedPath)/Il2CppScheduleOne.Core.dll</HintPath><Private>false</Private></Reference>
     <!-- JsonUtility is here, not in CoreModule. See PostOfficeLostSave. -->
     <Reference Include="UnityEngine.JSONSerializeModule"><HintPath>$(GameManagedPath)/UnityEngine.JSONSerializeModule.dll</HintPath><Private>false</Private></Reference>
+    <!-- NavMeshAgent and OffMeshLinkData are here, not in CoreModule. See DaffysHillsRoadLink. -->
+    <Reference Include="UnityEngine.AIModule"><HintPath>$(GameManagedPath)/UnityEngine.AIModule.dll</HintPath><Private>false</Private></Reference>
   </ItemGroup>
 
   <Target Name="PostBuild" AfterTargets="Build" Condition="'$(OS)' == 'Windows_NT'">
