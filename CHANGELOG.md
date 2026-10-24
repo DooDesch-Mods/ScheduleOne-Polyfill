@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.29] - 2026-10-24
+
+### Fixed
+- Police Response Overhaul with S1API: the game no longer closes without an error after a sale.
+
 ## [0.13.28] - 2026-10-24
 
 ### Fixed
