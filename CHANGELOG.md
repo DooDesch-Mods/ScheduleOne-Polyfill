@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.27] - 2026-10-24
+
+### Fixed
+- Cartel Enforcer, NACops, DaffysHills, Smugglers Flight and Delivery Spots Revived load and run on 0.4.7 again.
+- Cartel Enforcer and NACops: NPCs take the new speed when the mod changes it a second time.
+- NACops and Smugglers Flight: characters the mod copies no longer log an error for every piece of clothing.
+
+### For mod authors
+- `polyfill-check` reports a constructor call whose parameters fit none of the game's constructors, such as
+  Over The Counter's three-argument `SpeedControl`.
+
 ## [0.13.26] - 2026-10-22
 
 ### Fixed
