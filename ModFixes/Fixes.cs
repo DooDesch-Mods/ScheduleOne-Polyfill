@@ -107,6 +107,8 @@ namespace Polyfill.ModFixes
             new PostOfficeLostSave(),
             new SpeedControlUpdatesById(),
             new ClonedAvatarAttachments(),
+            new DaffysHillsRoadLink(),
+            new DaffysHillsCabinProperty(),
 
             // Last, and that is not cosmetic: these read what other mods have patched, so they have to run
             // after every one of them has had its turn.
