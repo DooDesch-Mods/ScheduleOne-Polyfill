@@ -1,0 +1,10 @@
+# polyfill-versiondb 1
+# from=0.4.7f9
+# to=0.4.7f10
+# counts=R:0 -:2 ?:3
+# op|kind|type|from|to|arity|origin|rule|confidence|note
+-|M|ScheduleOne.PlayerScripts.PlayerMovement|SetPlayerRotation||1|derived|removed|high|
+-|M|ScheduleOne.PlayerScripts.PlayerMovement|Teleport||3|derived|removed|high|
+?|M|ScheduleOne.Product.ProductManager|IsMixNameValid||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.Product.ProductManager|MakeIDFileSafe||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|F|ScheduleOne.UI.NewMixScreen|mixAlreadyExistsText||0|derived|ambiguous|high|1->1 of that shape moved at once

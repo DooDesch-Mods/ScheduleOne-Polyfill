@@ -1,0 +1,73 @@
+# polyfill-versiondb 1
+# from=0.4.7f6
+# to=0.4.7f9
+# counts=R:4 -:39 ?:25
+# op|kind|type|from|to|arity|origin|rule|confidence|note
+R|F|ScheduleOne.SpecialCustomers.SpecialCustomerData|AdditionalBuyQuantityPerRank|_additionalBuyQuantityPerRank|0|derived|name-underscore|high|
+R|F|ScheduleOne.SpecialCustomers.SpecialCustomerData|MaxBuyQuantity|_maxBuyQuantity|0|derived|name-underscore|high|
+R|F|ScheduleOne.Storage.StoredItem|footprintX|_footprintX|0|derived|name-underscore|high|
+R|F|ScheduleOne.Storage.StoredItem|footprintY|_footprintY|0|derived|name-underscore|high|
+-|F|ScheduleOne.Development.DevTesting|animationName||0|derived|removed|high|
+-|F|ScheduleOne.Development.DevTesting|animator||0|derived|removed|high|
+-|F|ScheduleOne.Development.DevTesting|avatar||0|derived|removed|high|
+-|M|ScheduleOne.Growing.GrowContainerSurfaceCover|ApplyPour||2|derived|removed|high|
+-|M|ScheduleOne.Growing.GrowContainerSurfaceCover|ApplyPourOverTime||0|derived|removed|high|
+-|M|ScheduleOne.Growing.GrowContainerSurfaceCover|CheckQueue||0|derived|removed|high|
+-|F|ScheduleOne.Growing.GrowContainerSurfaceCover|Delay||0|derived|removed|high|
+-|M|ScheduleOne.Growing.GrowContainerSurfaceCover|DelayedApplyPour||1|derived|removed|high|
+-|M|ScheduleOne.Growing.GrowContainerSurfaceCover|GetCoverage||0|derived|removed|high|
+-|M|ScheduleOne.Growing.GrowContainerSurfaceCover|GetPourMaskValue||2|derived|removed|high|
+-|F|ScheduleOne.Growing.GrowContainerSurfaceCover|PourMask||0|derived|removed|high|
+-|F|ScheduleOne.Growing.GrowContainerSurfaceCover|PourRadius||0|derived|removed|high|
+-|P|ScheduleOne.Growing.GrowContainerSurfaceCover|UseApplyOverTime||0|derived|removed|high|
+-|F|ScheduleOne.Growing.GrowContainerSurfaceCover|_applyPoutOverTimeCurve||0|derived|removed|high|
+-|F|ScheduleOne.Growing.GrowContainerSurfaceCover|mainTex||0|derived|removed|high|
+-|F|ScheduleOne.Growing.GrowContainerSurfaceCover|normalizedOffset||0|derived|removed|high|
+-|F|ScheduleOne.Growing.GrowContainerSurfaceCover|originPixel||0|derived|removed|high|
+-|F|ScheduleOne.Growing.GrowContainerSurfaceCover|tempTex||0|derived|removed|high|
+-|F|ScheduleOne.Growing.GrowContainerSurfaceCover|vector2||0|derived|removed|high|
+-|F|ScheduleOne.NPCs.Actions.NPCActions|_rainySpeedControl||0|derived|removed|high|
+-|F|ScheduleOne.Storage.StoredItem|CoordinateFootprintTilePairs||0|derived|removed|high|
+-|P|ScheduleOne.Storage.StoredItem|CoordinatePairs||0|derived|removed|high|
+-|P|ScheduleOne.Storage.StoredItem|OriginFootprint||0|derived|removed|high|
+-|P|ScheduleOne.Storage.StoredItem|Rotation||0|derived|removed|high|
+-|F|ScheduleOne.Storage.StoredItem|coordinatePairs||0|derived|removed|high|
+-|P|ScheduleOne.Storage.StoredItem|item||0|derived|removed|high|
+-|P|ScheduleOne.Storage.StoredItem|parentGrid||0|derived|removed|high|
+-|F|ScheduleOne.Storage.StoredItem|rotation||0|derived|removed|high|
+-|M|ScheduleOne.Vehicles.AI.VehicleAgent|BetterSweepTurn||6|derived|removed|high|
+-|M|ScheduleOne.Vehicles.AI.VehicleAgent|GetClosestForwardObstruction||1|derived|removed|high|
+-|F|ScheduleOne.Vehicles.AI.VehicleAgent|INFREQUENT_UPDATE_RATE||0|derived|removed|high|
+-|F|ScheduleOne.Vehicles.AI.VehicleAgent|MAX_STEER_ANGLE_OVERRIDE||0|derived|removed|high|
+-|F|ScheduleOne.Vehicles.AI.VehicleAgent|MainGraphSamplePoint||0|derived|removed|high|
+-|F|ScheduleOne.Vehicles.AI.VehicleAgent|MaxAxlePositionShift||0|derived|removed|high|
+-|F|ScheduleOne.Vehicles.AI.VehicleAgent|OBSTACLE_MAX_RANGE||0|derived|removed|high|
+-|F|ScheduleOne.Vehicles.AI.VehicleAgent|OBSTACLE_MIN_RANGE||0|derived|removed|high|
+-|F|ScheduleOne.Vehicles.AI.VehicleAgent|Steer_Rate||0|derived|removed|high|
+-|M|ScheduleOne.Vehicles.AI.VehicleAgent|SweepTurn||6|derived|removed|high|
+-|F|ScheduleOne.Vehicles.AI.VehicleAgent|sweepMask||0|derived|removed|high|
+?|F|ScheduleOne.Development.DevTesting|isAnimationActive||0|derived|ambiguous|high|1->4 of that shape moved at once
+?|M|ScheduleOne.Economy.Customer|EndWait||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.Growing.GrowContainerSurfaceCover|Blank||0|derived|ambiguous|high|1->5 of that shape moved at once
+?|P|ScheduleOne.Growing.GrowContainerSurfaceCover|CurrentCoverage||0|derived|ambiguous|high|2->2 of that shape moved at once
+?|P|ScheduleOne.Growing.GrowContainerSurfaceCover|PourApplicationStrength||0|derived|ambiguous|high|2->2 of that shape moved at once
+?|M|ScheduleOne.Growing.GrowContainerSurfaceCover|QueuePour||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|F|ScheduleOne.Growing.GrowContainerSurfaceCover|_applyPoutOverTimeDuration||0|derived|ambiguous|high|3->3 of that shape moved at once
+?|F|ScheduleOne.Growing.GrowContainerSurfaceCover|_pourApplicationStrength||0|derived|ambiguous|high|3->3 of that shape moved at once
+?|P|ScheduleOne.Growing.GrowContainerSurfaceCover|_sideLength||0|derived|ambiguous|high|3->3 of that shape moved at once
+?|F|ScheduleOne.Growing.GrowContainerSurfaceCover|queued||0|derived|ambiguous|high|1->4 of that shape moved at once
+?|F|ScheduleOne.Growing.GrowContainerSurfaceCover|queuedWorldPos||0|derived|ambiguous|high|2->1 of that shape moved at once
+?|F|ScheduleOne.Growing.GrowContainerSurfaceCover|relative||0|derived|ambiguous|high|2->1 of that shape moved at once
+?|F|ScheduleOne.NPCs.Framework.WeatherBehaviour|MaxWalkSpeedInRainMultiplier||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|F|ScheduleOne.PlayerScripts.PlayerCrimeData|NearestOfficer||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|M|ScheduleOne.Product.ProductItemInstance|GetStoredItem||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|P|ScheduleOne.Product.ProductItemInstance|StoredItem||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|P|ScheduleOne.Storage.StorableItemInstance|StoredItem||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|P|ScheduleOne.Storage.StoredItem|Destroyed||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|P|ScheduleOne.Storage.StoredItem|FootprintX||0|derived|ambiguous|high|5->2 of that shape moved at once
+?|P|ScheduleOne.Storage.StoredItem|FootprintY||0|derived|ambiguous|high|5->2 of that shape moved at once
+?|P|ScheduleOne.Storage.StoredItem|totalArea||0|derived|ambiguous|high|5->2 of that shape moved at once
+?|F|ScheduleOne.Storage.StoredItem|xSize||0|derived|ambiguous|high|5->2 of that shape moved at once
+?|F|ScheduleOne.Storage.StoredItem|ySize||0|derived|ambiguous|high|5->2 of that shape moved at once
+?|F|ScheduleOne.Storage.StoredItem_GenericBox|ReferenceIconWidth||0|derived|ambiguous|high|1->1 of that shape moved at once
+?|F|ScheduleOne.Vehicles.Motorbike|_checkKnockedOverRoutine||0|derived|ambiguous|high|1->1 of that shape moved at once
