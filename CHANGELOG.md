@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.28] - 2026-10-24
+
+### Fixed
+- DaffysHills: people walk the road up to Clifftop instead of freezing on it and jumping across.
+- DaffysHills: the cabin no longer logs an error on every load.
+
 ## [0.13.27] - 2026-10-24
 
 ### Fixed
