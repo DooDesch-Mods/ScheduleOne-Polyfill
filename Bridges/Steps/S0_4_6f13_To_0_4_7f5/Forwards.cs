@@ -541,7 +541,279 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                         + "InstanceFinder.IsHost (Player.cs:687, :823 on 0.4.7f7)",
                 Emit = EmitRequestPlayerData,
             },
+
+            // ---- the enforcer's look (Cartel Enforcer, NACops) ----
+            Empty(AvatarType, "SetAdditionalWeight", 1, m => m.TypeSystem.Void,
+                  "0.4.6's AvatarEffects wrote its own additional weight back into the avatar every frame the "
+                + "avatar was not culled (AvatarEffects.cs:107-114 on 0.4.6f13), so a mod's value lasted until "
+                + "the next frame; 0.4.7 keeps that weight in AvatarEffects alone and has no setter on the avatar",
+                  m => m.TypeSystem.Single),
+            Empty(AvatarType, "get_onSettingsLoaded", 0,
+                  m => TypeIn(m, "UnityEngine.CoreModule", "UnityEngine.Events", "UnityEvent"),
+                  "0.4.6 raised onSettingsLoaded after a look was applied (Avatar.cs:111, :350, :394 on "
+                + "0.4.6f13); 0.4.7 raises AvatarAppearance.OnNakedAppearanceChanged instead "
+                + "(AvatarAppearance.cs:112 on 0.4.7f12), and the event reads as null, which every caller "
+                + "checks for before raising it"),
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = Impostor, OldName = "EnableImpostor", ParameterCount = 0,
+                Because = "0.4.7's impostor is Enable()/Disable(), and Enable also moves it to the hips first "
+                        + "(AvatarImpostor.cs:42-46 on 0.4.7f12; EnableImpostor, AvatarImpostor.cs:25-28 on 0.4.6f13)",
+                Emit = (module, impostor) => EmitForward(module, impostor, "EnableImpostor", "Enable"),
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = Impostor, OldName = "SetAvatarSettings", ParameterCount = 1,
+                Because = "0.4.6's SetAvatarSettings(settings) put the settings' impostor texture on the impostor "
+                        + "(AvatarImpostor.cs:11-23 on 0.4.6f13); 0.4.7's SetTexture(texture) does the same with "
+                        + "the texture alone (AvatarImpostor.cs:22-33 on 0.4.7f12)",
+                Emit = EmitSetAvatarSettings,
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = Health, OldName = "set_Health", ParameterCount = 1,
+                Because = "0.4.6's Health setter wrote the synced value as the server (NPCHealth.cs:48-60, :84-101 "
+                        + "on 0.4.6f13); 0.4.7 keeps it in _currentHealth with no setter, and its own writes set "
+                        + "the field and the SyncVar the same way (NPCHealth.cs:29-43, :73-90 on 0.4.7f12). 0.4.6 "
+                        + "also read MaxHealth live from NPCData.Health, which 0.4.7 copies once in SetHealthData "
+                        + "(NPCHealth.cs:71, :115-121), so the write takes the NPC data's current maximum along",
+                Emit = EmitSetHealth,
+            },
+
+            // ---- the active speed (NACops) ----
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = "Il2CppScheduleOne.NPCs.NPCSpeedController",
+                OldName = "get_ActiveSpeedControl", ParameterCount = 0,
+                Because = "0.4.6 kept the top of the speed control stack as ActiveSpeedControl "
+                        + "(NPCSpeedController.cs:99-105 on 0.4.6f13); 0.4.7 sorts the stack by priority and moves "
+                        + "by its first entry (NPCSpeedController.cs:109-128 on 0.4.7f12)",
+                Emit = EmitActiveSpeedControl,
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = SpeedControlType, OldName = "get_speed", ParameterCount = 0,
+                Because = "renamed: 0.4.6's speed field is 0.4.7's Speed, the same number for a control made with "
+                        + "the old constructor (SpeedControl.cs:15, :27 on 0.4.7f12)",
+                Emit = (module, control) => EmitGetterRename(module, control, "get_speed", "Speed"),
+            },
+
+            // ---- the Benzies logo (Cartel Enforcer) ----
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = "Il2CppScheduleOne.NPCs.NPC",
+                OldName = "GetMessagingIcon", ParameterCount = 0,
+                Because = "0.4.6 answered the mugshot, and Thomas his MessagingIcon (NPC.cs:410-413, Thomas.cs:28-31 "
+                        + "on 0.4.6f13); 0.4.7 dropped both methods and kept the field and the mugshot "
+                        + "(Thomas.cs:20, NPC.cs:206 on 0.4.7f12)",
+                Emit = EmitGetMessagingIcon,
+            },
+
+            // ---- the dock's parking spot (DeliverySpotsRevived) ----
+            Empty(ParkingSpot, "set_OccupantVehicle_Readonly", 1, m => m.TypeSystem.Void,
+                  "0.4.6's OccupantVehicle_Readonly mirrored OccupantVehicle for the inspector and nothing read it "
+                + "(ParkingSpot.cs:14-15, :41-45 on 0.4.6f13); 0.4.7 dropped it (ParkingSpot.cs on 0.4.7f12)",
+                  m => m.GetType("Il2CppScheduleOne.Vehicles.LandVehicle")),
+
+            // ---- the road graph's name (DaffysHills) ----
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = "Il2CppScheduleOne.Vehicles.AI.VehicleAgent",
+                OldName = "get_RoadGraphName", ParameterCount = 0,
+                Because = "renamed: 0.4.6's RoadGraphName is 0.4.7's RoadNodesGraphName, both \"Road Nodes\" "
+                        + "(VehicleAgent.cs:50 on 0.4.6f13 and on 0.4.7f12)",
+                Emit = EmitRoadGraphName,
+            },
         };
+
+        // ---------------------------------------------------------------- the enforcer, the speed, the dock
+
+        /// <summary><c>impostor.SetAvatarSettings(settings)</c>: <c>impostor.SetTexture(settings.ImpostorTexture)</c>.</summary>
+        /// <remarks>0.4.6 threw on null settings; here they change nothing.</remarks>
+        private static MethodDefinition EmitSetAvatarSettings(ModuleDefinition module, TypeDefinition impostor)
+        {
+            var settings = module.GetType("Il2CppScheduleOne.AvatarFramework.AvatarSettings");
+            var texture = Getter(settings, "ImpostorTexture");
+            var setTexture = Method(impostor, "SetTexture", 1);
+            if (texture == null || setTexture == null || setTexture.IsStatic) return null;
+
+            var method = new MethodDefinition("SetAvatarSettings", MethodAttributes.Public | MethodAttributes.HideBySig,
+                                              module.TypeSystem.Void);
+            method.Parameters.Add(new ParameterDefinition("settings", ParameterAttributes.None,
+                                                          module.ImportReference(settings)));
+            var il = method.Body.GetILProcessor();
+            var end = il.Create(OpCodes.Ret);
+            il.Emit(OpCodes.Ldarg_1);
+            il.Emit(OpCodes.Brfalse, end);
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Ldarg_1);
+            il.Emit(OpCodes.Call, module.ImportReference(texture));
+            il.Emit(OpCodes.Call, module.ImportReference(setTexture));
+            il.Append(end);
+            return method;
+        }
+
+        /// <summary><c>health.Health = value</c>, as 0.4.6's setter did it.</summary>
+        /// <remarks>
+        /// <code>
+        /// var data = _npc?.NPCData?.Health; if (data != null) MaxHealth = data.MaxHealth;
+        /// _currentHealth = value; syncVar____currentHealth?.SetValue(value, true);
+        /// </code>
+        /// The two writes are 0.4.7's own set-as-server (NPCHealth.cs:73-90 on 0.4.7f12). Its interop
+        /// property <c>SyncAccessor__currentHealth</c> would be shorter, but that setter hands the wrapper's
+        /// bool argument a pointer into the float (Il2CppScheduleOne.NPCs/NPCHealth.cs:722-728 in the interop),
+        /// so the host would skip the write for most values.
+        /// </remarks>
+        private static MethodDefinition EmitSetHealth(ModuleDefinition module, TypeDefinition health)
+        {
+            var setField = Method(health, "set__currentHealth", 1);
+            var getSync = Getter(health, "syncVar____currentHealth");
+            var setMax = Method(health, "set_MaxHealth", 1);
+            var getNpc = Getter(health, "_npc");
+            if (setField == null || getSync == null || setMax == null || getNpc == null) return null;
+
+            var getData = Getter(getNpc.ReturnType.Resolve(), "NPCData");
+            var getDataHealth = getData == null ? null : Getter(getData.ReturnType.Resolve(), "Health");
+            var healthData = getDataHealth?.ReturnType.Resolve();
+            var getMax = healthData == null || healthData.IsValueType ? null : Getter(healthData, "MaxHealth");
+            if (getMax == null) return null;
+
+            if (getSync.ReturnType is not GenericInstanceType syncInstance) return null;
+            var setValueDefinition = Method(syncInstance.Resolve(), "SetValue", 2);
+            if (setValueDefinition == null) return null;
+            var setValue = Against(module, setValueDefinition, module.ImportReference(syncInstance));
+
+            var method = new MethodDefinition("set_Health",
+                MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName, module.TypeSystem.Void);
+            method.Parameters.Add(new ParameterDefinition("value", ParameterAttributes.None, module.TypeSystem.Single));
+            var data = new VariableDefinition(module.ImportReference(getDataHealth.ReturnType));
+            var sync = new VariableDefinition(module.ImportReference(syncInstance));
+            method.Body.Variables.Add(data);
+            method.Body.Variables.Add(sync);
+            method.Body.InitLocals = true;
+
+            var il = method.Body.GetILProcessor();
+            var write = il.Create(OpCodes.Ldarg_0);
+            var end = il.Create(OpCodes.Ret);
+
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, module.ImportReference(getNpc));
+            il.Emit(OpCodes.Dup);
+            var noNpc = il.Create(OpCodes.Pop);
+            il.Emit(OpCodes.Brfalse, noNpc);
+            il.Emit(OpCodes.Call, module.ImportReference(getData));
+            il.Emit(OpCodes.Dup);
+            il.Emit(OpCodes.Brfalse, noNpc);
+            il.Emit(OpCodes.Call, module.ImportReference(getDataHealth));
+            il.Emit(OpCodes.Stloc, data);
+            il.Emit(OpCodes.Ldloc, data);
+            il.Emit(OpCodes.Brfalse, write);
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Ldloc, data);
+            il.Emit(OpCodes.Call, module.ImportReference(getMax));
+            il.Emit(OpCodes.Call, module.ImportReference(setMax));
+            il.Emit(OpCodes.Br, write);
+            il.Append(noNpc);
+
+            il.Append(write);                                   // ldarg.0
+            il.Emit(OpCodes.Ldarg_1);
+            il.Emit(OpCodes.Call, module.ImportReference(setField));
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, module.ImportReference(getSync));
+            il.Emit(OpCodes.Stloc, sync);
+            il.Emit(OpCodes.Ldloc, sync);
+            il.Emit(OpCodes.Brfalse, end);
+            il.Emit(OpCodes.Ldloc, sync);
+            il.Emit(OpCodes.Ldarg_1);
+            il.Emit(OpCodes.Ldc_I4_1);
+            il.Emit(OpCodes.Call, setValue);
+            il.Append(end);
+            return AsProperty(health, method);
+        }
+
+        /// <summary><c>controller.ActiveSpeedControl</c>: the first entry of the sorted stack, or null.</summary>
+        private static MethodDefinition EmitActiveSpeedControl(ModuleDefinition module, TypeDefinition controller)
+        {
+            var getStack = Getter(controller, "_speedControlStack");
+            if (getStack?.ReturnType is not GenericInstanceType listInstance) return null;
+            var list = listInstance.Resolve();
+            var countDefinition = Getter(list, "Count");
+            var itemDefinition = Method(list, "get_Item", 1);
+            if (countDefinition == null || itemDefinition == null) return null;
+            var count = Against(module, countDefinition, module.ImportReference(listInstance));
+            var item = Against(module, itemDefinition, module.ImportReference(listInstance));
+
+            var method = new MethodDefinition("get_ActiveSpeedControl",
+                MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName,
+                module.ImportReference(listInstance.GenericArguments[0]));
+            var stack = new VariableDefinition(module.ImportReference(listInstance));
+            method.Body.Variables.Add(stack);
+            method.Body.InitLocals = true;
+
+            var il = method.Body.GetILProcessor();
+            var none = il.Create(OpCodes.Ldnull);
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, module.ImportReference(getStack));
+            il.Emit(OpCodes.Stloc, stack);
+            il.Emit(OpCodes.Ldloc, stack);
+            il.Emit(OpCodes.Brfalse, none);
+            il.Emit(OpCodes.Ldloc, stack);
+            il.Emit(OpCodes.Callvirt, count);
+            il.Emit(OpCodes.Ldc_I4_0);
+            il.Emit(OpCodes.Ble, none);
+            il.Emit(OpCodes.Ldloc, stack);
+            il.Emit(OpCodes.Ldc_I4_0);
+            il.Emit(OpCodes.Callvirt, item);
+            il.Emit(OpCodes.Ret);
+            il.Append(none);
+            il.Emit(OpCodes.Ret);
+            return AsProperty(controller, method);
+        }
+
+        /// <summary>
+        /// <c>npc.GetMessagingIcon()</c>: Thomas's MessagingIcon when it is set, otherwise the mugshot.
+        /// </summary>
+        private static MethodDefinition EmitGetMessagingIcon(ModuleDefinition module, TypeDefinition npc)
+        {
+            var thomas = module.GetType("Il2CppScheduleOne.NPCs.CharacterClasses.Thomas");
+            var getIcon = Getter(thomas, "MessagingIcon");
+            var getMugshot = Getter(npc, "MugshotSprite");
+            var tryCast = thomas == null ? null : GenericUp(module, npc, "TryCast", thomas);
+            if (getIcon == null || getMugshot == null || tryCast == null) return null;
+
+            var method = new MethodDefinition("GetMessagingIcon", MethodAttributes.Public | MethodAttributes.HideBySig,
+                                              module.ImportReference(getMugshot.ReturnType));
+            var il = method.Body.GetILProcessor();
+            var mugshot = il.Create(OpCodes.Ldarg_0);
+            var dropped = il.Create(OpCodes.Pop);
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, tryCast);
+            il.Emit(OpCodes.Dup);
+            il.Emit(OpCodes.Brfalse, dropped);
+            il.Emit(OpCodes.Call, module.ImportReference(getIcon));
+            il.Emit(OpCodes.Dup);
+            il.Emit(OpCodes.Brfalse, dropped);
+            il.Emit(OpCodes.Ret);
+            il.Append(dropped);
+            il.Append(mugshot);
+            il.Emit(OpCodes.Call, module.ImportReference(getMugshot));
+            il.Emit(OpCodes.Ret);
+            return method;
+        }
+
+        /// <summary><c>VehicleAgent.RoadGraphName</c>: <c>VehicleAgent.RoadNodesGraphName</c>.</summary>
+        private static MethodDefinition EmitRoadGraphName(ModuleDefinition module, TypeDefinition agent)
+        {
+            var target = Getter(agent, "RoadNodesGraphName");
+            if (target == null || !target.IsStatic) return null;
+            var method = new MethodDefinition("get_RoadGraphName",
+                MethodAttributes.Public | MethodAttributes.Static | MethodAttributes.HideBySig | MethodAttributes.SpecialName,
+                module.ImportReference(target.ReturnType));
+            var il = method.Body.GetILProcessor();
+            il.Emit(OpCodes.Call, module.ImportReference(target));
+            il.Emit(OpCodes.Ret);
+            return AsProperty(agent, method);
+        }
 
         // ---------------------------------------------------------------- speeds
 

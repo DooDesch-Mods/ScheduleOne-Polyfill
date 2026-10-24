@@ -192,6 +192,58 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                         + "Polyfill describes each one as the settings it replaced",
                 Emit = EmitMaleBaseAppearancesStandIn,
             },
+
+            // WHAT THE SETTINGS SAID, AND THE TWO HALVES OF A LOAD. 0.4.6 answered IsMale and IsWhite from
+            // CurrentSettings, and a load applied the body and the accessories in two public steps that a mod
+            // could call on their own (Avatar.cs:185-201, :387-398, :674-725 on 0.4.6f13). 0.4.7 keeps the
+            // body in Appearance.AppliedNakedAppearance and the accessories among the worn objects
+            // (AvatarAppearance.cs:83, :133-147 on 0.4.7f12). Stand-ins, answered by AvatarSettingsBridge.
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = AvatarType, OldName = "IsMale", ParameterCount = 0,
+                Because = "0.4.6 answered Gender < 0.5 from CurrentSettings, and true without settings "
+                        + "(Avatar.cs:185-192 on 0.4.6f13); 0.4.7 keeps the gender in "
+                        + "Appearance.AppliedNakedAppearance (AvatarAppearance.cs:83, :234 on 0.4.7f12)",
+                Emit = (module, avatar) => EmitTrueStandIn(module, "IsMale"),
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = AvatarType, OldName = "IsWhite", ParameterCount = 0,
+                Because = "0.4.6 answered r + g + b > 1.5 of the skin colour in CurrentSettings, and true without "
+                        + "settings (Avatar.cs:194-201 on 0.4.6f13); 0.4.7 keeps the skin colour in "
+                        + "Appearance.AppliedNakedAppearance (AvatarAppearance.cs:83, :232 on 0.4.7f12)",
+                Emit = (module, avatar) => EmitTrueStandIn(module, "IsWhite"),
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = AvatarType, OldName = "ApplyBodySettings",
+                ParameterCount = 1, ParameterTypes = new[] { AvatarSettingsType },
+                Because = "0.4.6 applied gender, weight, skin colour and height from the settings and left the rest "
+                        + "of the look alone (Avatar.cs:387-398 on 0.4.6f13); 0.4.7 applies the same four from a "
+                        + "NakedAppearance without touching its avatar objects "
+                        + "(AvatarAppearance.cs:227-246 on 0.4.7f12), and Polyfill translates one into the other",
+                Emit = (module, avatar) => EmitSettingsStandIn(module, "ApplyBodySettings"),
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = AvatarType, OldName = "ApplyAccessorySettings",
+                ParameterCount = 1, ParameterTypes = new[] { AvatarSettingsType },
+                Because = "0.4.6 swapped the accessories for the first nine in the settings and left body and "
+                        + "clothing layers alone (Avatar.cs:674-725 on 0.4.6f13); 0.4.7 wears accessories as "
+                        + "avatar objects in the outfit (AvatarAppearance.cs:133-147 on 0.4.7f12), and Polyfill "
+                        + "swaps the accessories in it",
+                Emit = (module, avatar) => EmitSettingsStandIn(module, "ApplyAccessorySettings"),
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = AvatarType, OldName = "get_appliedAccessories",
+                ParameterCount = 0,
+                Because = "0.4.6 kept the accessory components it had instantiated in nine slots, null where a slot "
+                        + "was empty (Avatar.cs:102, :674-725 on 0.4.6f13); 0.4.7 has no Accessory components on "
+                        + "an avatar and wears accessories as avatar objects (AvatarAppearance.cs:133-147 on "
+                        + "0.4.7f12), so the slots read empty, as on a 0.4.6 avatar without accessories",
+                Emit = EmitAppliedAccessoriesStandIn,
+            },
             Forwards.Empty(AvatarType, "set_appliedHair", 1, m => m.TypeSystem.Void,
                   "0.4.6's avatar kept the hair it had instantiated in appliedHair and destroyed it before the next "
                 + "one (Avatar.cs:96, :449-466 on 0.4.6f13); 0.4.7 keeps hair as one of the appearance's avatar "
@@ -1076,6 +1128,53 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                                                           module.TypeSystem.Int32));
             method.Body.GetILProcessor().Emit(OpCodes.Ret);
             return method;
+        }
+
+        /// <summary>An avatar method taking one AvatarSettings, with no body of its own.</summary>
+        private static MethodDefinition EmitSettingsStandIn(ModuleDefinition module, string name)
+        {
+            var settings = module.GetType(AvatarSettingsType);
+            if (settings == null) return null;
+
+            var method = new MethodDefinition(name, MethodAttributes.Public | MethodAttributes.HideBySig,
+                                              module.TypeSystem.Void);
+            method.Parameters.Add(new ParameterDefinition("settings", ParameterAttributes.None,
+                                                          module.ImportReference(settings)));
+            method.Body.GetILProcessor().Emit(OpCodes.Ret);
+            return method;
+        }
+
+        /// <summary>
+        /// An avatar question answering true, 0.4.6's answer without settings, until the Report half answers it.
+        /// </summary>
+        private static MethodDefinition EmitTrueStandIn(ModuleDefinition module, string name)
+        {
+            var method = new MethodDefinition(name, MethodAttributes.Public | MethodAttributes.HideBySig,
+                                              module.TypeSystem.Boolean);
+            var il = method.Body.GetILProcessor();
+            il.Emit(OpCodes.Ldc_I4_1);
+            il.Emit(OpCodes.Ret);
+            return method;
+        }
+
+        /// <summary><c>Avatar.appliedAccessories</c>, answering nothing until the Report half answers for it.</summary>
+        private static MethodDefinition EmitAppliedAccessoriesStandIn(ModuleDefinition module, TypeDefinition avatar)
+        {
+            var accessory = module.GetType("Il2CppScheduleOne.AvatarFramework.Accessory");
+            var array = Forwards.ReferenceArray(module);
+            if (accessory == null || array == null) return null;
+            foreach (var property in avatar.Properties)
+                if (property.Name == "appliedAccessories") return null;
+
+            var returns = new GenericInstanceType(array);
+            returns.GenericArguments.Add(module.ImportReference(accessory));
+
+            var getter = new MethodDefinition("get_appliedAccessories",
+                MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName, returns);
+            var il = getter.Body.GetILProcessor();
+            il.Emit(OpCodes.Ldnull);
+            il.Emit(OpCodes.Ret);
+            return WithProperty(avatar, getter);
         }
 
         /// <summary><c>GoonPool.MaleBaseAppearances</c>, answering nothing until the Report half answers for it.</summary>
