@@ -15,8 +15,9 @@ namespace Polyfill.ModFixes
     /// 0.4.6 applied one AvatarSettings and kept it (Avatar.cs:328-354 on 0.4.6f13). 0.4.7 applies a
     /// NakedAppearance and an outfit through Avatar.Appearance (AvatarAppearance.cs:96-147 on 0.4.7f6), and
     /// keeps no settings object at all. The plugin puts <c>CurrentSettings</c>, <c>LoadAvatarSettings</c>,
-    /// <c>LoadNakedSettings</c> and the goon pool's <c>MaleBaseAppearances</c> back as empty stand-ins; this
-    /// gives them their behaviour.
+    /// <c>LoadNakedSettings</c>, the goon pool's <c>MaleBaseAppearances</c>, <c>IsMale</c>, <c>IsWhite</c>,
+    /// <c>ApplyBodySettings</c>, <c>ApplyAccessorySettings</c> and <c>appliedAccessories</c> back as empty
+    /// stand-ins; this gives them their behaviour.
     ///
     /// THE TRANSLATION RESTS ON THE LEGACY ASSETS. Every layer, hair and accessory asset 0.4.6 named by
     /// path still loads on 0.4.7, knows its own path (<c>AssetPath</c>) and points at the 0.4.7 object that
@@ -53,6 +54,9 @@ namespace Polyfill.ModFixes
         /// <summary>0.4.6 wrote Height to the scale directly, 0.4.7 divides by this (AvatarAppearance.cs:240).</summary>
         private const float HeightScale = 1.875f;
 
+        /// <summary>0.4.6 avatars kept this many accessory slots (Avatar.cs:674-725 on 0.4.6f13).</summary>
+        private const int AccessorySlotCount = 9;
+
         /// <summary>Body layers above this order were clothes in 0.4.6 (Avatar.cs:356 on 0.4.6f13).</summary>
         private const int NakedMaxOrder = 19;
 
@@ -79,10 +83,17 @@ namespace Polyfill.ModFixes
             var dataLook = Declared(typeof(Il2CppScheduleOne.NPCs.Framework.Appearance), "set_AvatarSettings", 1);
             var loadNaked = Declared(avatar, "LoadNakedSettings", 3);
             var goonBases = Declared(typeof(Il2CppScheduleOne.Cartel.GoonPool), "get_MaleBaseAppearances", 0);
-            if (current == null && load == null && dataLook == null && loadNaked == null && goonBases == null)
+            var isMale = Declared(avatar, "IsMale", 0);
+            var isWhite = Declared(avatar, "IsWhite", 0);
+            var body = Declared(avatar, "ApplyBodySettings", 1);
+            var accessories = Declared(avatar, "ApplyAccessorySettings", 1);
+            var slots = Declared(avatar, "get_appliedAccessories", 0);
+            if (current == null && load == null && dataLook == null && loadNaked == null && goonBases == null
+                && isMale == null && isWhite == null && body == null && accessories == null && slots == null)
             {
                 log.Msg($"[fix] {Id}: no mod uses CurrentSettings, LoadAvatarSettings, LoadNakedSettings, an NPC's "
-                      + "AvatarSettings or the goon pool's base appearances; nothing to translate.");
+                      + "AvatarSettings, the goon pool's base appearances, IsMale, IsWhite, ApplyBodySettings, "
+                      + "ApplyAccessorySettings or appliedAccessories; nothing to translate.");
                 return false;
             }
 
@@ -134,11 +145,25 @@ namespace Polyfill.ModFixes
                 harmony.Patch(loadNaked, prefix: new HarmonyMethod(typeof(AvatarSettingsBridge), nameof(LoadNaked)));
             if (goonBases != null)
                 harmony.Patch(goonBases, prefix: new HarmonyMethod(typeof(AvatarSettingsBridge), nameof(GoonBases)));
+            if (isMale != null)
+                harmony.Patch(isMale, prefix: new HarmonyMethod(typeof(AvatarSettingsBridge), nameof(IsMale)));
+            if (isWhite != null)
+                harmony.Patch(isWhite, prefix: new HarmonyMethod(typeof(AvatarSettingsBridge), nameof(IsWhite)));
+            if (body != null)
+                harmony.Patch(body, prefix: new HarmonyMethod(typeof(AvatarSettingsBridge), nameof(ApplyBody)));
+            if (accessories != null)
+                harmony.Patch(accessories, prefix: new HarmonyMethod(typeof(AvatarSettingsBridge), nameof(ApplyAccessories)));
+            if (slots != null)
+                harmony.Patch(slots, prefix: new HarmonyMethod(typeof(AvatarSettingsBridge), nameof(AccessorySlots)));
 
             var bridged = new[] { current != null ? "CurrentSettings" : null, load != null ? "LoadAvatarSettings" : null,
                                   loadNaked != null ? "LoadNakedSettings" : null,
                                   dataLook != null ? "an NPC's AvatarSettings" : null,
-                                  goonBases != null ? "the goon pool's base appearances" : null }.Where(x => x != null);
+                                  goonBases != null ? "the goon pool's base appearances" : null,
+                                  isMale != null ? "IsMale" : null, isWhite != null ? "IsWhite" : null,
+                                  body != null ? "ApplyBodySettings" : null,
+                                  accessories != null ? "ApplyAccessorySettings" : null,
+                                  slots != null ? "appliedAccessories" : null }.Where(x => x != null);
             log.Msg($"[fix] {Id}: {string.Join(", ", bridged)} now translate to the 0.4.7 appearance.");
             return true;
         }
@@ -241,6 +266,21 @@ namespace Polyfill.ModFixes
             var outfit = Cast(ScriptableObject.CreateInstance(Il2CppInterop.Runtime.Il2CppType.From(_outfit)), _outfit);
             Set(outfit, "AvatarObjects", Call(extras, "ToArray"));
             Set(settings, "EquivalentOutfit", outfit);
+            return PadAccessories(settings);
+        }
+
+        /// <summary>
+        /// Fills the accessory list up to the nine slots a 0.4.6 avatar always had.
+        /// </summary>
+        /// <remarks>
+        /// Every 0.4.6 NPC settings asset carried six to nine accessory entries, the unused ones with an empty
+        /// path, and mods index into them: Cartel Enforcer's boss writes slots 0 to 2 of a copy. An empty path
+        /// is skipped by <see cref="Translate"/>, so the padding puts nothing on.
+        /// </remarks>
+        private static AvatarSettings PadAccessories(AvatarSettings settings)
+        {
+            while (settings.AccessorySettings.Count < AccessorySlotCount)
+                settings.AccessorySettings.Add(Accessory("", Color.white));
             return settings;
         }
 
@@ -427,6 +467,214 @@ namespace Polyfill.ModFixes
         /// <summary>0.4.6's order test: no limit below zero (Avatar.cs:630 on 0.4.6f13).</summary>
         private static bool Fits(int order, int maxOrder) => maxOrder <= -1 || order <= maxOrder;
 
+        // ------------------------------------------------------------------ IsMale, IsWhite
+
+        /// <summary>
+        /// <c>Avatar.IsMale()</c>: CurrentSettings.Gender below 0.5, and true without settings
+        /// (Avatar.cs:185-192 on 0.4.6f13).
+        /// </summary>
+        /// <remarks>
+        /// CurrentSettings is the settings last loaded, or else the applied body, so the gender is read from
+        /// the same two places without building a settings object for every question.
+        /// </remarks>
+        private static bool IsMale(Il2CppScheduleOne.AvatarFramework.Avatar __instance, ref bool __result)
+        {
+            try
+            {
+                if (Applied.TryGetValue(__instance.GetInstanceID(), out var kept) && kept != null)
+                    __result = kept.Gender < 0.5f;
+                else
+                {
+                    var naked = AppliedBody(__instance);
+                    __result = naked == null || (float)Get(naked, "Gender") < 0.5f;
+                }
+            }
+            catch (Exception e)
+            {
+                _log?.Warning($"[fix] avatar-settings-bridge: IsMale on {Who(__instance)} could not read the body; "
+                            + "answering true: " + e.Message);
+                __result = true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// <c>Avatar.IsWhite()</c>: r + g + b of CurrentSettings.SkinColor above 1.5, and true without settings
+        /// (Avatar.cs:194-201 on 0.4.6f13).
+        /// </summary>
+        private static bool IsWhite(Il2CppScheduleOne.AvatarFramework.Avatar __instance, ref bool __result)
+        {
+            try
+            {
+                Color? skin = null;
+                if (Applied.TryGetValue(__instance.GetInstanceID(), out var kept) && kept != null) skin = kept.SkinColor;
+                else if (AppliedBody(__instance) is { } naked) skin = (Color)Get(naked, "SkinColor");
+                __result = skin == null || skin.Value.r + skin.Value.g + skin.Value.b > 1.5f;
+            }
+            catch (Exception e)
+            {
+                _log?.Warning($"[fix] avatar-settings-bridge: IsWhite on {Who(__instance)} could not read the body; "
+                            + "answering true: " + e.Message);
+                __result = true;
+            }
+            return false;
+        }
+
+        private static object AppliedBody(Il2CppScheduleOne.AvatarFramework.Avatar avatar)
+        {
+            var appearance = Get(avatar, "Appearance");
+            return appearance == null ? null : Get(appearance, "AppliedNakedAppearance");
+        }
+
+        // ------------------------------------------------------------------ ApplyBodySettings
+
+        /// <summary>
+        /// <c>Avatar.ApplyBodySettings(settings)</c>: gender, weight, skin colour and height from the settings,
+        /// the rest of the look untouched.
+        /// </summary>
+        /// <remarks>
+        /// 0.4.6 set the four and copied the skin colour into CurrentSettings (Avatar.cs:387-398 on 0.4.6f13).
+        /// On 0.4.7 the four live in the applied NakedAppearance, which the avatar re-reads every frame, so a
+        /// copy of it takes the new values and is applied without its avatar objects
+        /// (AvatarAppearance.cs:227-246 on 0.4.7f12). Setting them one by one through SetWeight or SetGender
+        /// would last a frame.
+        /// </remarks>
+        private static bool ApplyBody(Il2CppScheduleOne.AvatarFramework.Avatar __instance, AvatarSettings settings)
+        {
+            if (settings == null)
+            {
+                // 0.4.6 threw here.
+                _log?.Warning($"[fix] avatar-settings-bridge: ApplyBodySettings(null) on {Who(__instance)}; ignored.");
+                return false;
+            }
+
+            try
+            {
+                var appearance = Get(__instance, "Appearance");
+                var before = appearance == null ? null : Get(appearance, "AppliedNakedAppearance");
+                if (before == null)
+                {
+                    _log?.Warning($"[fix] avatar-settings-bridge: {Who(__instance)} has no body yet; "
+                                + "ApplyBodySettings not applied.");
+                    return false;
+                }
+
+                var naked = Call(before, "Clone");
+                Set(naked, "Height", settings.Height * HeightScale);
+                Set(naked, "Gender", settings.Gender);
+                Set(naked, "Weight", settings.Weight);
+                Set(naked, "SkinColor", settings.SkinColor);
+                Call(appearance, "ApplyNakedAppearanceExcludingAvatarObjects", naked, true);
+
+                if (Applied.TryGetValue(__instance.GetInstanceID(), out var kept) && kept != null)
+                    kept.SkinColor = settings.SkinColor;
+                _log?.Msg($"[fix] avatar-settings-bridge: {Who(__instance)} took height {settings.Height:0.##}, "
+                        + $"weight {settings.Weight:0.##}, gender {settings.Gender:0.##} from '{settings.name}'.");
+            }
+            catch (Exception e)
+            {
+                _log?.Warning($"[fix] avatar-settings-bridge: {Who(__instance)} could not take its body settings: " + e);
+            }
+            return false;
+        }
+
+        // ------------------------------------------------------------------ ApplyAccessorySettings
+
+        /// <summary>
+        /// <c>Avatar.ApplyAccessorySettings(settings)</c>: the accessories become the first nine in the settings,
+        /// clothing stays.
+        /// </summary>
+        /// <remarks>
+        /// 0.4.6 kept nine accessory slots apart from the body and clothing layers (Avatar.cs:674-725 on
+        /// 0.4.6f13). On 0.4.7 accessories and clothing are one outfit, so the worn list is split by what each
+        /// entry was in 0.4.6: accessories are replaced, everything else stays, including objects 0.4.6 had no
+        /// counterpart for.
+        /// </remarks>
+        private static bool ApplyAccessories(Il2CppScheduleOne.AvatarFramework.Avatar __instance, AvatarSettings settings)
+        {
+            if (settings == null)
+            {
+                // 0.4.6 threw here.
+                _log?.Warning($"[fix] avatar-settings-bridge: ApplyAccessorySettings(null) on {Who(__instance)}; ignored.");
+                return false;
+            }
+
+            try
+            {
+                var appearance = Get(__instance, "Appearance");
+                if (appearance == null)
+                {
+                    _log?.Warning($"[fix] avatar-settings-bridge: {Who(__instance)} has no Appearance; "
+                                + "accessories not applied.");
+                    return false;
+                }
+
+                var index = Legacy.Index;
+                var added = new List<object>();
+                var missing = new List<string>();
+                var list = settings.AccessorySettings;
+                for (int i = 0; list != null && i < list.Count && i < AccessorySlotCount; i++)
+                {
+                    var accessory = list[i];
+                    if (accessory == null || string.IsNullOrEmpty(accessory.path)) continue;
+                    var equivalent = index.Equivalent(accessory.path);
+                    if (equivalent == null) { missing.Add(accessory.path); continue; }
+                    added.Add(Call(equivalent, "SerializeWithPrimaryColor", accessory.color));
+                }
+                if (missing.Count > 0)
+                    _log?.Warning($"[fix] avatar-settings-bridge: {Who(__instance)}: {missing.Count} accessory(s) have "
+                                + "no 0.4.7 equivalent and were left off: " + string.Join(", ", missing.Distinct()));
+
+                if (!Worn.TryGetValue(Instance(appearance), out var wornBefore))
+                {
+                    // Without the worn list the old accessories cannot be told from the clothes, and replacing
+                    // the outfit would undress the character; the new ones go on top.
+                    foreach (var entry in added) Call(appearance, "ApplyWornObject", entry, true);
+                    _log?.Warning($"[fix] avatar-settings-bridge: {Who(__instance)}'s outfit is not known; "
+                                + $"{added.Count} accessory(s) put on over what it wears.");
+                    return false;
+                }
+
+                var worn = Activator.CreateInstance(_list);
+                int removed = 0;
+                foreach (var entry in wornBefore)
+                {
+                    if (index.ById.TryGetValue(ObjectId(entry), out var legacy) && legacy.Kind == Kind.Accessory)
+                    {
+                        removed++;
+                        continue;
+                    }
+                    Call(worn, "Add", entry);
+                }
+                foreach (var entry in added) Call(worn, "Add", entry);
+                Call(appearance, "ApplyOutfit", worn);
+                _log?.Msg($"[fix] avatar-settings-bridge: {Who(__instance)} took the accessories of "
+                        + $"'{settings.name}' ({removed} taken off, {added.Count} put on).");
+            }
+            catch (Exception e)
+            {
+                _log?.Warning($"[fix] avatar-settings-bridge: {Who(__instance)} could not take its accessories: " + e);
+            }
+            return false;
+        }
+
+        // ------------------------------------------------------------------ appliedAccessories
+
+        /// <summary>
+        /// <c>Avatar.appliedAccessories</c>: nine empty slots.
+        /// </summary>
+        /// <remarks>
+        /// 0.4.6 kept the Accessory components it had instantiated there, null in an empty slot
+        /// (Avatar.cs:102 on 0.4.6f13). 0.4.7 has no such components on an avatar, so every slot is empty,
+        /// as on a 0.4.6 avatar without accessories, and a caller that walks the nine slots finds nothing
+        /// instead of throwing on a null array.
+        /// </remarks>
+        private static bool AccessorySlots(ref Il2CppReferenceArray<Accessory> __result)
+        {
+            __result = new Il2CppReferenceArray<Accessory>(AccessorySlotCount);
+            return false;
+        }
+
         // ------------------------------------------------------------------ the goon pool
 
         /// <summary>
@@ -459,7 +707,7 @@ namespace Polyfill.ModFixes
                         _log?.Warning("[fix] avatar-settings-bridge: a male goon appearance holds no body; left out.");
                         continue;
                     }
-                    var settings = DescribeBody(naked);
+                    var settings = PadAccessories(DescribeBody(naked));
                     settings.name = ((UnityEngine.Object)entry).name;
                     settings.hideFlags = HideFlags.DontUnloadUnusedAsset;
                     bases.Add(settings);
