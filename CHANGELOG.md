@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.30] - 2026-10-28
+
+### Added
+- Type `polyfillcheck` in the console to see which of your mods are outdated or throw errors. The answer opens on
+  polyfill.doomods.com as a link you can share.
+- No game at hand: drop `MelonLoader/Latest.log` on [polyfill.doomods.com/check](https://polyfill.doomods.com/check).
+
 ## [0.13.29] - 2026-10-24
 
 ### Fixed
