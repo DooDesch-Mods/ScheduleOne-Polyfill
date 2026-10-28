@@ -48,6 +48,7 @@ namespace Polyfill.Report
             {
                 LoggerInstance.Warning(ReportReader.Problem
                     ?? "no startup report found - is Polyfill.Boot.dll in your Plugins folder?");
+                LoggerInstance.Msg($"To see which of your mods are outdated, drop MelonLoader/Latest.log on {LogCheck.Site}.");
                 return;
             }
 
@@ -65,6 +66,13 @@ namespace Polyfill.Report
                   + "nothing is missing. " + where
                 : $"{blocked} of {ReportReader.Mods.Count} mod(s) ask for something this game version does not "
                   + "have. " + where);
+
+            // The one line a player reads when they open their log looking for what went wrong, so it
+            // names the place that answers that from the same log.
+            LoggerInstance.Msg(Contract.Headless.Yes()
+                ? $"To see which of your mods are outdated, drop MelonLoader/Latest.log on {LogCheck.Site}."
+                : $"To see which of your mods are outdated, type `polyfillcheck` in the console or drop "
+                  + $"MelonLoader/Latest.log on {LogCheck.Site}.");
         }
 
         private bool _fixesRun;
@@ -91,6 +99,7 @@ namespace Polyfill.Report
 
         public override void OnUpdate()
         {
+            LogCheck.OnUpdate();
             if (_fixesRun) return;
             var live = PrefabLookup.Names();
             if (live == null || live.Count == 0) return;
