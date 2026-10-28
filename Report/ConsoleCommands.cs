@@ -40,6 +40,7 @@ namespace Polyfill.Report
             ["polyfillfixes"] = ListFixes,
             ["polyfillrestore"] = _ => Restore(),
             ["polyfillregen"] = _ => Regenerate(),
+            ["polyfillcheck"] = LogCheck.Run,
             ["polyfillshare"] = Share,
 #if DEBUG
             // A UI repair cannot be checked without the screen it repairs, and the game has no command
