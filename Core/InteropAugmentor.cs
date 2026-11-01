@@ -762,6 +762,7 @@ namespace Polyfill.Core
         private static bool SameShape(MethodDefinition a, MethodDefinition b)
         {
             if (a.Parameters.Count != b.Parameters.Count) return false;
+            if (a.ReturnType.FullName != b.ReturnType.FullName) return false;
             for (int i = 0; i < a.Parameters.Count; i++)
                 if (a.Parameters[i].ParameterType.FullName != b.Parameters[i].ParameterType.FullName)
                     return false;

@@ -58,6 +58,16 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             },
             new Bridge
             {
+                Assembly = "Assembly-CSharp", DeclaringType = "Il2CppScheduleOne.NPCs.Framework.Appearance",
+                OldName = "get_AvatarSettings", ParameterCount = 0,
+                Because = "0.4.6 NPC data held the look as one AvatarSettings (Appearance on 0.4.6f13, applied at "
+                        + "NPC.cs:335-344); 0.4.7's holds a body and an outfit (Appearance.cs:10-16 on 0.4.7f12), so "
+                        + "Polyfill's mod describes those two as settings, the way it answers Avatar.CurrentSettings",
+                Emit = (module, appearance) => EmitHeldGetter(module, appearance, "get_AvatarSettings",
+                    module.GetType("Il2CppScheduleOne.AvatarFramework.AvatarSettings")),
+            },
+            new Bridge
+            {
                 Assembly = "Assembly-CSharp", DeclaringType = Consume,
                 OldName = "get_onConsumeDone", ParameterCount = 0,
                 Because = ConsumeDone,

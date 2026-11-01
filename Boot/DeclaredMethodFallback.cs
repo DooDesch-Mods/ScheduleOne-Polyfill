@@ -77,6 +77,15 @@ namespace Polyfill.Boot
                     harmony.Patch(property,
                         postfix: new HarmonyMethod(typeof(DeclaredMethodFallback), nameof(ForProperty)));
 
+                var anyProperty = AccessTools.Method(typeof(AccessTools), nameof(AccessTools.Property),
+                    new[] { typeof(Type), typeof(string) });
+                if (anyProperty != null)
+                    harmony.Patch(anyProperty,
+                        postfix: new HarmonyMethod(typeof(DeclaredMethodFallback), nameof(ForRenamedMember)));
+                else
+                    log.Warning("[harmony] AccessTools.Property is not where it was, so a mod looking up a renamed "
+                              + "private member by name still finds nothing.");
+
                 log.Msg("[harmony] a patch aimed at a type this build renamed will be pointed at the "
                       + "member the game has.");
             }
@@ -317,6 +326,37 @@ namespace Polyfill.Boot
                 __result = found;
             }
             catch { }
+        }
+
+        /// <summary>A private member looked up by a name this build renamed, answered with the new one.</summary>
+        /// <remarks>
+        /// Moon Rocks takes <c>NPC._npcData</c> this way before it clones an NPC, and a null here stops every
+        /// alien and resident from spawning. See <see cref="RenamedMembers"/>.
+        /// </remarks>
+        private static void ForRenamedMember(Type type, string name, ref PropertyInfo __result)
+        {
+            if (__result != null || type == null || name == null) return;
+
+            for (var at = type; at != null; at = at.BaseType)
+            {
+                string renamed = RenamedMembers.Successor(at.FullName, name);
+                if (renamed == null) continue;
+
+                try
+                {
+                    __result = AccessTools.Property(at, renamed);
+                    if (__result != null)
+                        _log?.Msg($"[harmony] a lookup of {at.Name}.{name} goes to {renamed}.");
+                    else
+                        _log?.Warning($"[harmony] {at.Name}.{renamed} is not there, so a lookup of {at.Name}.{name} "
+                                    + "finds nothing.");
+                }
+                catch (Exception e)
+                {
+                    _log?.Warning($"[harmony] could not look up {at.Name}.{renamed} for {name}: " + e.Message);
+                }
+                return;
+            }
         }
     }
 }
