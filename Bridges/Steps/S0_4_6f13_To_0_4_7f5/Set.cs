@@ -763,7 +763,7 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
         /// <remarks>Empty rather than null, because 0.4.6's list was always there.</remarks>
         private static MethodDefinition EmitNoRagdollForces(ModuleDefinition module, TypeDefinition owner)
         {
-            var list = Forwards.TypeIn(module, "Il2Cppmscorlib", "Il2CppSystem.Collections.Generic", "List`1");
+            var list = InteropList(module);
             var force = Forwards.TypeIn(module, "UnityEngine.PhysicsModule", "UnityEngine", "ConstantForce");
             if (list == null || force == null) return null;
             list.GenericParameters.Add(new GenericParameter("T", list));
@@ -776,6 +776,20 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             il.Emit(OpCodes.Newobj, new MethodReference(".ctor", module.TypeSystem.Void, forces) { HasThis = true });
             il.Emit(OpCodes.Ret);
             return WithProperty(owner, method);
+        }
+
+        /// <summary>The interop's generic list, copied from the reference this module already holds.</summary>
+        /// <remarks>
+        /// Not named by its namespace: that name in Polyfill.Boot.dll fails the release guard, because the plugin
+        /// loads before that assembly exists. A copy, because the caller adds a generic parameter to it and the
+        /// module's own reference has to stay as it is.
+        /// </remarks>
+        private static TypeReference InteropList(ModuleDefinition module)
+        {
+            foreach (var reference in module.GetTypeReferences())
+                if (reference.Name == "List`1" && reference.Scope?.Name == "Il2Cppmscorlib")
+                    return new TypeReference(reference.Namespace, reference.Name, module, reference.Scope);
+            return null;
         }
 
         private static MethodDefinition EmitDefaultNormalizedSpeed(ModuleDefinition module, TypeDefinition controller)
