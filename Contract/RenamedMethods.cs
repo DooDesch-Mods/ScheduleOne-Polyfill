@@ -51,6 +51,16 @@ namespace Polyfill.Contract
                 Because = "the price control became the game's general amount box in 0.4.6, and SetPrice"
                         + "(float) became SetAmount(float) on it (AmountSelector.cs:61)",
             },
+            new Entry
+            {
+                Type = "Il2CppScheduleOne.NPCs.NPC",
+                OldName = "CreateMessageConversation",
+                NewName = "CreateAndAssignDefaultMessageConversation",
+                Because = "0.4.6f13 CreateMessageConversation() built the NPC's MSGConversation and made it known, called "
+                        + "when the player spawned (NPC.cs:381, :384-403); 0.4.7f12 "
+                        + "CreateAndAssignDefaultMessageConversation() does the same at the same point "
+                        + "(NPC.cs:603, :613, :616-627)",
+            },
 
             // The one station screen whose begin handler changed its name along with the screen. Cauldron,
             // mixing station, packaging station, lab oven and brick press all still have a public

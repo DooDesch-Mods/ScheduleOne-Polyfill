@@ -81,6 +81,8 @@ namespace Polyfill.ModFixes
             var current = Declared(avatar, "get_CurrentSettings", 0);
             var load = Declared(avatar, "LoadAvatarSettings", 1);
             var dataLook = Declared(typeof(Il2CppScheduleOne.NPCs.Framework.Appearance), "set_AvatarSettings", 1);
+            var dataLookSlot = typeof(Il2CppScheduleOne.NPCs.Framework.Appearance)
+                .GetField("<polyfill>get_AvatarSettings", BindingFlags.Public | BindingFlags.Static);
             var loadNaked = Declared(avatar, "LoadNakedSettings", 3);
             var goonBases = Declared(typeof(Il2CppScheduleOne.Cartel.GoonPool), "get_MaleBaseAppearances", 0);
             var isMale = Declared(avatar, "IsMale", 0);
@@ -88,7 +90,8 @@ namespace Polyfill.ModFixes
             var body = Declared(avatar, "ApplyBodySettings", 1);
             var accessories = Declared(avatar, "ApplyAccessorySettings", 1);
             var slots = Declared(avatar, "get_appliedAccessories", 0);
-            if (current == null && load == null && dataLook == null && loadNaked == null && goonBases == null
+            if (current == null && load == null && dataLook == null && dataLookSlot == null && loadNaked == null
+                && goonBases == null
                 && isMale == null && isWhite == null && body == null && accessories == null && slots == null)
             {
                 log.Msg($"[fix] {Id}: no mod uses CurrentSettings, LoadAvatarSettings, LoadNakedSettings, an NPC's "
@@ -155,10 +158,11 @@ namespace Polyfill.ModFixes
                 harmony.Patch(accessories, prefix: new HarmonyMethod(typeof(AvatarSettingsBridge), nameof(ApplyAccessories)));
             if (slots != null)
                 harmony.Patch(slots, prefix: new HarmonyMethod(typeof(AvatarSettingsBridge), nameof(AccessorySlots)));
+            dataLookSlot?.SetValue(null, new Func<object, object>(GetDataLook));
 
             var bridged = new[] { current != null ? "CurrentSettings" : null, load != null ? "LoadAvatarSettings" : null,
                                   loadNaked != null ? "LoadNakedSettings" : null,
-                                  dataLook != null ? "an NPC's AvatarSettings" : null,
+                                  dataLook != null || dataLookSlot != null ? "an NPC's AvatarSettings" : null,
                                   goonBases != null ? "the goon pool's base appearances" : null,
                                   isMale != null ? "IsMale" : null, isWhite != null ? "IsWhite" : null,
                                   body != null ? "ApplyBodySettings" : null,
@@ -200,14 +204,23 @@ namespace Polyfill.ModFixes
         /// The game gave an avatar a body of its own, so the settings last loaded no longer describe it -
         /// in 0.4.6 every path that changed the look went through LoadAvatarSettings and replaced them.
         /// </summary>
-        private static void BodyChanged(object __instance)
+        /// <remarks>
+        /// The one exception is a body built from settings an NPC's data took (<see cref="SetDataLook"/>). That is
+        /// 0.4.6's load of those settings at the same point (NPC.cs:335-344 on 0.4.6f13), so they stay what
+        /// CurrentSettings answers.
+        /// </remarks>
+        private static void BodyChanged(object __instance, object __0)
         {
             if (_applying) return;
             try
             {
                 var avatar = Get(__instance, "gameObject") is GameObject go
-                    ? go.GetComponentInParent<Il2CppScheduleOne.AvatarFramework.Avatar>() : null;
-                if (avatar != null) Applied.Remove(avatar.GetInstanceID());
+                    ? go.GetComponentInParent<Il2CppScheduleOne.AvatarFramework.Avatar>(true) : null;
+                if (avatar == null) return;
+                if (__0 is Il2CppObjectBase body && DataBodies.TryGetValue(body.Pointer, out var taken) && taken.Value != null)
+                    Applied[avatar.GetInstanceID()] = taken.Value;
+                else
+                    Applied.Remove(avatar.GetInstanceID());
             }
             catch (Exception e) { _log?.Warning("[fix] avatar-settings-bridge: could not note a body change: " + e.Message); }
         }
@@ -250,13 +263,21 @@ namespace Polyfill.ModFixes
             }
 
             var settings = DescribeBody(naked);
-            var index = Legacy.Index;
-
-            // Worn objects the 0.4.6 catalogue has no path for cannot become a layer or an accessory; they
-            // ride along in EquivalentOutfit, and a load puts them back on from there.
             Worn.TryGetValue(Instance(appearance), out var worn);
+            DescribeWorn(settings, worn ?? new List<object>());
+            return PadAccessories(settings);
+        }
+
+        /// <summary>Adds what is worn to the settings.</summary>
+        /// <remarks>
+        /// Worn objects the 0.4.6 catalogue has no path for cannot become a layer or an accessory; they ride
+        /// along in EquivalentOutfit, and a load puts them back on from there.
+        /// </remarks>
+        private static void DescribeWorn(AvatarSettings settings, IEnumerable<object> worn)
+        {
+            var index = Legacy.Index;
             var extras = Activator.CreateInstance(_list);
-            foreach (var entry in worn ?? new List<object>())
+            foreach (var entry in worn)
             {
                 if (!index.ById.TryGetValue(ObjectId(entry), out var legacy)) { Call(extras, "Add", entry); continue; }
                 if (legacy.Kind == Kind.Accessory) settings.AccessorySettings.Add(Accessory(legacy.Path, Tint(entry)));
@@ -266,7 +287,6 @@ namespace Polyfill.ModFixes
             var outfit = Cast(ScriptableObject.CreateInstance(Il2CppInterop.Runtime.Il2CppType.From(_outfit)), _outfit);
             Set(outfit, "AvatarObjects", Call(extras, "ToArray"));
             Set(settings, "EquivalentOutfit", outfit);
-            return PadAccessories(settings);
         }
 
         /// <summary>
@@ -875,10 +895,12 @@ namespace Polyfill.ModFixes
 
             try
             {
+                DataLooks[((Il2CppObjectBase)__instance).Pointer] = new DataLook { Owner = __instance, Value = value };
                 var look = Translate(value, value.name);
                 var body = Cast(ScriptableObject.CreateInstance(Il2CppInterop.Runtime.Il2CppType.From(_nakedObject)), _nakedObject);
                 Set(body, "Appearance", look.Naked);
                 Set(__instance, "DefaultAppearance", body);
+                DataBodies[((Il2CppObjectBase)look.Naked).Pointer] = new DataLook { Owner = look.Naked, Value = value };
 
                 if (look.ReplacesOutfit)
                 {
@@ -896,11 +918,69 @@ namespace Polyfill.ModFixes
             return false;
         }
 
+        /// <summary>
+        /// What each NPC data part answers for its AvatarSettings, by native address. The owner is held with
+        /// it, so that address cannot go to another part while the entry lives.
+        /// </summary>
+        private sealed class DataLook
+        {
+            internal object Owner;
+            internal AvatarSettings Value;
+        }
+
+        private static readonly Dictionary<IntPtr, DataLook> DataLooks = new();
+
+        /// <summary>The settings each body built by <see cref="SetDataLook"/> came from, by the body's native address.</summary>
+        private static readonly Dictionary<IntPtr, DataLook> DataBodies = new();
+
+        /// <summary>
+        /// <c>NPCs.Framework.Appearance.AvatarSettings</c>, read: what was last set, else the body and the
+        /// outfit described as settings.
+        /// </summary>
+        /// <remarks>
+        /// Reached through the doorway in Bridges/.../Held.cs. A copy of the data (Appearance.GetCopy,
+        /// Appearance.cs:18-27 on 0.4.7f12) is a new native object, so it is described on its own and setting
+        /// a look on it leaves the source NPC as it is. The result survives the asset sweep of a scene change,
+        /// as the 0.4.6 asset did.
+        /// </remarks>
+        private static object GetDataLook(object appearance)
+        {
+            try
+            {
+                var pointer = ((Il2CppObjectBase)appearance).Pointer;
+                if (DataLooks.TryGetValue(pointer, out var kept) && kept.Value != null) return kept.Value;
+
+                var body = Get(appearance, "DefaultAppearance");
+                var naked = body == null ? null : Get(body, "Appearance");
+                if (naked == null)
+                {
+                    _log?.Msg("[fix] avatar-settings-bridge: an NPC's data holds no body; its AvatarSettings is null.");
+                    return null;
+                }
+
+                var settings = DescribeBody(naked);
+                var outfit = Get(appearance, "DefaultOutfit");
+                DescribeWorn(settings, outfit == null ? new List<object>() : Objects(Get(outfit, "AvatarObjects")));
+                PadAccessories(settings);
+                settings.name = ((UnityEngine.Object)body).name;
+                settings.hideFlags = HideFlags.DontUnloadUnusedAsset;
+                if (Get(appearance, "Impostor") is Texture2D impostor) settings.ImpostorTexture = impostor;
+
+                DataLooks[pointer] = new DataLook { Owner = appearance, Value = settings };
+                return settings;
+            }
+            catch (Exception e)
+            {
+                _log?.Error("[fix] avatar-settings-bridge: an NPC's AvatarSettings could not be read: " + e);
+                return null;
+            }
+        }
+
         // ------------------------------------------------------------------ the legacy assets
 
-        private enum Kind { Face, Body, Hair, Accessory }
+        internal enum Kind { Face, Body, Hair, Accessory }
 
-        private sealed class Legacy
+        internal sealed class Legacy
         {
             internal string Path;
             internal Kind Kind;
@@ -915,7 +995,7 @@ namespace Polyfill.ModFixes
         }
 
         /// <summary>Every legacy asset, by the 0.4.7 object id it points at and by its own path.</summary>
-        private sealed class Catalogue
+        internal sealed class Catalogue
         {
             internal readonly Dictionary<string, Legacy> ById = new(StringComparer.OrdinalIgnoreCase);
             private readonly Dictionary<string, Legacy> _byPath = new(StringComparer.OrdinalIgnoreCase);

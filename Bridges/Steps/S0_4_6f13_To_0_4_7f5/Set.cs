@@ -28,6 +28,11 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             + "(NPCMovement.cs:407), 0.4.7 multiplies MoveSpeed by NPCSpeedController._speedMultiplier "
             + "(NPCSpeedController.cs:117), which SetSpeedMultiplier writes";
 
+        private const string RagdollForces = "0.4.6 kept each body's ConstantForce components in a permanent list "
+            + "(NPCMovement.cs:140, :231 on 0.4.6f13); 0.4.7 builds them with each Ragdoll and writes their force "
+            + "absolutely (Ragdoll.cs SetGravityMultiplier on 0.4.7f12). An empty list runs a caller's loop without "
+            + "an effect, so a scale it applies cannot stack with a repair at the Ragdoll";
+
         internal override IEnumerable<Bridge> Declare() => new[]
         {
             new Bridge
@@ -405,6 +410,137 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                         + "so a 0.4.6 caller that loops over it without a null check still runs",
                 Emit = EmitRagdollRigidbodies,
             },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = "Il2CppScheduleOne.AvatarFramework.Avatar",
+                OldName = "get__Ragdolled_k__BackingField",
+                ParameterCount = 0,
+                Because = "0.4.6's Ragdolled was an auto-property, and the interop exposes its backing field by "
+                        + "this name (Avatar.cs:131 on 0.4.6f13); 0.4.7's Ragdolled says the same from the active "
+                        + "ragdoll (Avatar.cs:115 on 0.4.7f12)",
+                Emit = (module, avatar) => Forwards.EmitGetterRename(module, avatar,
+                                                                     "get__Ragdolled_k__BackingField", "Ragdolled"),
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = "Il2CppScheduleOne.AvatarFramework.Avatar",
+                OldName = "get_RagdollColliders",
+                ParameterCount = 0,
+                Because = "renamed: 0.4.6's RagdollColliders were the colliders it switched when the ragdoll "
+                        + "toggled (Avatar.cs:61, :782-795 on 0.4.6f13); 0.4.7's _avatarColliders are switched at "
+                        + "the same point (Avatar.cs:85, :187, :200 on 0.4.7f12)",
+                Emit = (module, avatar) => EmitGetterForward(module, avatar, "get_RagdollColliders", "_avatarColliders"),
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = "Il2CppScheduleOne.AvatarFramework.Animation.AvatarAnimation",
+                OldName = "get_SITTING_OFFSET",
+                ParameterCount = 0,
+                Because = "renamed: 0.4.6's public static SITTING_OFFSET (AvatarAnimation.cs:50 on 0.4.6f13) is "
+                        + "0.4.7's SittingOffset, the same (0, -0.825, 0) (AvatarAnimation.cs:47 on 0.4.7f12)",
+                Emit = (module, animation) => EmitGetterForward(module, animation, "get_SITTING_OFFSET", "SittingOffset"),
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = Movement,
+                OldName = "get__CurrentLadder_k__BackingField",
+                ParameterCount = 0,
+                Because = "0.4.6's CurrentLadder was an auto-property, and the interop exposes its backing field by "
+                        + "this name (NPCMovement.cs:212 on 0.4.6f13); 0.4.7 keeps the same ladder in _currentLadder "
+                        + "(NPCMovement.cs:145 on 0.4.7f12)",
+                Emit = (module, movement) => EmitGetterForward(module, movement,
+                                                               "get__CurrentLadder_k__BackingField", "_currentLadder"),
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = Movement,
+                OldName = "get__HasDestination_k__BackingField",
+                ParameterCount = 0,
+                Because = "0.4.6's HasDestination was an auto-property, and the interop exposes its backing field by "
+                        + "this name (NPCMovement.cs:178 on 0.4.6f13); 0.4.7 keeps the same flag in _hasDestination "
+                        + "(NPCMovement.cs:127 on 0.4.7f12)",
+                Emit = (module, movement) => EmitGetterForward(module, movement,
+                                                               "get__HasDestination_k__BackingField", "_hasDestination"),
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = Movement,
+                OldName = "get_ragdollForceComponents",
+                ParameterCount = 0,
+                Because = RagdollForces,
+                Emit = EmitNoRagdollForces,
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = "Il2CppScheduleOne.PlayerScripts.Player",
+                OldName = "get_ragdollForceComponents",
+                ParameterCount = 0,
+                Because = RagdollForces,
+                Emit = EmitNoRagdollForces,
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = "Il2CppScheduleOne.NPCs.NPCManager",
+                OldName = "get_NPCWarpPoints",
+                ParameterCount = 0,
+                Because = "renamed: NPCManager.cs:18-19 on 0.4.7f12 carries [FormerlySerializedAs(\"NPCWarpPoints\")] "
+                        + "on _npcsWarpPoints, the same serialized array",
+                Emit = (module, manager) => EmitGetterForward(module, manager, "get_NPCWarpPoints", "_npcsWarpPoints"),
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = "Il2CppScheduleOne.NPCs.NPCSpeedController",
+                OldName = "get_DefaultNormalizedSpeed",
+                ParameterCount = 0,
+                Because = "0.4.6's constant 0.08 (NPCSpeedController.cs:27 on 0.4.6f13) was the normalized speed of "
+                        + "the default control; 0.4.7's default control is absolute (NPCSpeedController.cs:29-33 on "
+                        + "0.4.7f12) and has no such number, so the old value is handed back to the caller's own lerp",
+                Emit = EmitDefaultNormalizedSpeed,
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = "Il2CppScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour",
+                OldName = "get_ConsumedProduct",
+                ParameterCount = 0,
+                Because = "renamed: 0.4.6's ConsumedProduct was set when the effects applied and cleared when they "
+                        + "ended (ConsumeProductBehaviour.cs:53, :472, :414 on 0.4.6f13); 0.4.7's _appliedProduct is "
+                        + "set and cleared at the same two points (ConsumeProductBehaviour.cs:395-397, :441-444 on "
+                        + "0.4.7f12)",
+                Emit = (module, behaviour) => EmitGetterForward(module, behaviour, "get_ConsumedProduct", "_appliedProduct"),
+            },
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp",
+                DeclaringType = "Il2CppScheduleOne.NPCs.Behaviour.ConsumeProductBehaviour",
+                OldName = "ClearEffects",
+                ParameterCount = 0,
+                Because = "renamed: 0.4.6's ClearEffects (ConsumeProductBehaviour.cs:80 on 0.4.6f13) is 0.4.7's "
+                        + "ClearEffects_Client, an observers RPC that also runs locally (ConsumeProductBehaviour.cs:172-176 "
+                        + "on 0.4.7f12)",
+                Emit = (module, behaviour) => Forwards.EmitForward(module, behaviour, "ClearEffects", "ClearEffects_Client"),
+            },
+            Forwards.Empty("Il2CppScheduleOne.NPCs.Framework.Appearance", "set_ChristmasAppearance", 1,
+                m => m.TypeSystem.Void,
+                "0.4.6 NPC data carried a seasonal look beside the regular one (Appearance on 0.4.6f13); 0.4.7's holds "
+                + "Mugshot, DefaultAppearance, DefaultOutfit and Impostor and no seasonal look (Appearance.cs:10-16 on "
+                + "0.4.7f12), so there is nothing to write it to",
+                m => m.GetType(AvatarSettingsType)),
+            Forwards.Empty(Forwards.AvatarType, "SetFaceTexture", 2,
+                m => m.TypeSystem.Void,
+                "0.4.6's SetFaceTexture drew a face texture on the body mesh (Avatar.cs:594 on 0.4.6f13); 0.4.7 draws "
+                + "faces as avatar objects and has no such call, so a caller painting a face has no surface to paint",
+                m => Forwards.TypeIn(m, "UnityEngine.CoreModule", "UnityEngine", "Texture2D"),
+                ColorIn),
 
             new Bridge
             {
@@ -621,6 +757,44 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             il.Append(have);
             il.Emit(OpCodes.Ret);
             return WithProperty(avatar, method);
+        }
+
+        /// <summary><c>ragdollForceComponents</c>: a new empty list, the same on NPCMovement and Player.</summary>
+        /// <remarks>Empty rather than null, because 0.4.6's list was always there.</remarks>
+        private static MethodDefinition EmitNoRagdollForces(ModuleDefinition module, TypeDefinition owner)
+        {
+            var list = Forwards.TypeIn(module, "Il2Cppmscorlib", "Il2CppSystem.Collections.Generic", "List`1");
+            var force = Forwards.TypeIn(module, "UnityEngine.PhysicsModule", "UnityEngine", "ConstantForce");
+            if (list == null || force == null) return null;
+            list.GenericParameters.Add(new GenericParameter("T", list));
+            var forces = new GenericInstanceType(list);
+            forces.GenericArguments.Add(force);
+
+            var method = new MethodDefinition("get_ragdollForceComponents",
+                MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName, forces);
+            var il = method.Body.GetILProcessor();
+            il.Emit(OpCodes.Newobj, new MethodReference(".ctor", module.TypeSystem.Void, forces) { HasThis = true });
+            il.Emit(OpCodes.Ret);
+            return WithProperty(owner, method);
+        }
+
+        private static MethodDefinition EmitDefaultNormalizedSpeed(ModuleDefinition module, TypeDefinition controller)
+        {
+            var method = new MethodDefinition("get_DefaultNormalizedSpeed",
+                MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName | MethodAttributes.Static,
+                module.TypeSystem.Single);
+            var il = method.Body.GetILProcessor();
+            il.Emit(OpCodes.Ldc_R4, 0.08f);
+            il.Emit(OpCodes.Ret);
+            return WithProperty(controller, method);
+        }
+
+        /// <summary><c>UnityEngine.Color</c>, flagged as a struct, or the signature would not match a caller's.</summary>
+        private static TypeReference ColorIn(ModuleDefinition module)
+        {
+            var color = Forwards.TypeIn(module, "UnityEngine.CoreModule", "UnityEngine", "Color");
+            if (color != null) color.IsValueType = true;
+            return color;
         }
 
         /// <summary>
@@ -1083,8 +1257,9 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
         {
             var settings = module.GetType(AvatarSettingsType);
             if (settings == null) return null;
+            // The property may already be there with only the getter from Held on it.
             foreach (var property in appearance.Properties)
-                if (property.Name == "AvatarSettings") return null;
+                if (property.Name == "AvatarSettings" && property.SetMethod != null) return null;
 
             var setter = new MethodDefinition("set_AvatarSettings",
                 MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName,
@@ -1092,10 +1267,7 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             setter.Parameters.Add(new ParameterDefinition("value", ParameterAttributes.None,
                                                           module.ImportReference(settings)));
             setter.Body.GetILProcessor().Emit(OpCodes.Ret);
-
-            appearance.Properties.Add(new PropertyDefinition("AvatarSettings", PropertyAttributes.None,
-                                                             module.ImportReference(settings)) { SetMethod = setter });
-            return setter;
+            return Forwards.AsProperty(appearance, setter);
         }
 
         /// <summary><c>Avatar.LoadAvatarSettings(settings)</c>, with no body of its own.</summary>

@@ -234,8 +234,15 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             // 0.4.6 dressed avatars in texture layers - a clothing item named a texture by path and an
             // application type. 0.4.7 dresses them in prefab AvatarObjects through Avatar.Appearance
             // (ClothingDefinition.ClothingAvatarObject, AvatarAppearance.cs on 0.4.7f6), so no path is left to
-            // answer. Every caller in the mod checks the path for null before painting.
-            Empty(Clothing, "get_ClothingAssetPath", 0, m => m.TypeSystem.String, Layers),
+            // answer. Every caller in the mod checks the path for null before painting. A mod that only reads
+            // the catalogue through these names gets it from ModFixes/MoonRocksTouristWardrobe, which fills the
+            // two slots; with the slots empty both answer as below.
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = Clothing, OldName = "get_ClothingAssetPath", ParameterCount = 0,
+                Because = Layers,
+                Emit = (module, clothing) => Held.EmitHeldGetter(module, clothing, "get_ClothingAssetPath", module.TypeSystem.String),
+            },
             new Bridge
             {
                 Assembly = "Assembly-CSharp", DeclaringType = Clothing, OldName = "get_ApplicationType", ParameterCount = 0,
@@ -247,8 +254,18 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                     var type = ApplicationTypeEnum(module);
                     var method = new MethodDefinition("get_ApplicationType",
                         MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName, type);
+                    var slot = Held.GetterSlot(module, clothing, "<polyfill>get_ApplicationType");
                     var il = method.Body.GetILProcessor();
+                    var asked = il.Create(OpCodes.Ldarg_0);
+                    il.Emit(OpCodes.Ldsfld, slot);
+                    il.Emit(OpCodes.Dup);
+                    il.Emit(OpCodes.Brtrue_S, asked);
+                    il.Emit(OpCodes.Pop);
                     il.Emit(OpCodes.Ldc_I4_0);
+                    il.Emit(OpCodes.Ret);
+                    il.Append(asked);
+                    il.Emit(OpCodes.Callvirt, Held.GetterInvoke(module));
+                    il.Emit(OpCodes.Unbox_Any, module.TypeSystem.Int32);
                     il.Emit(OpCodes.Ret);
                     return AsProperty(clothing, method);
                 },
@@ -593,9 +610,12 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             new Bridge
             {
                 Assembly = "Assembly-CSharp", DeclaringType = SpeedControlType, OldName = "get_speed", ParameterCount = 0,
-                Because = "renamed: 0.4.6's speed field is 0.4.7's Speed, the same number for a control made with "
-                        + "the old constructor (SpeedControl.cs:15, :27 on 0.4.7f12)",
-                Emit = (module, control) => EmitGetterRename(module, control, "get_speed", "Speed"),
+                Because = "0.4.6's speed field is 0.4.7's Speed, the same number for a control made with the old "
+                        + "constructor (SpeedControl.cs:15, :27 on 0.4.7f12); the two controls 0.4.7 sets in metres "
+                        + "per second, default and rainy, were 0.08 on 0.4.6 (NPCSpeedController.cs:27, :53, "
+                        + "NPCActions.cs:113 on 0.4.6f13); standing still is a negative number on 0.4.6 and 0 on "
+                        + "0.4.7 (NPCMovement.cs:403-408 on 0.4.6f13, SpeedControl.cs:149-157 on 0.4.7f12)",
+                Emit = EmitControlSpeed,
             },
 
             // ---- the Benzies logo (Cartel Enforcer) ----
@@ -767,7 +787,63 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             il.Emit(OpCodes.Ret);
             il.Append(none);
             il.Emit(OpCodes.Ret);
-            return AsProperty(controller, method);
+            AsProperty(controller, method);
+
+            // A mod built on 0.4.6 asks for the nested NPCSpeedController.SpeedControl as the return type, and
+            // the runtime matches that too: the plain form alone throws MissingMethodException in its face.
+            var standIn = Core.ShadowTypes.Shadowing(module, listInstance.GenericArguments[0]);
+            if (standIn == null) return method;
+            controller.Methods.Add(method);
+
+            var underOldName = new MethodDefinition("get_ActiveSpeedControl",
+                MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName, standIn);
+            var wrap = underOldName.Body.GetILProcessor();
+            wrap.Emit(OpCodes.Ldarg_0);
+            wrap.Emit(OpCodes.Call, method);
+            return Core.ShadowTypes.EmitRewrap(module, wrap, standIn, out _) ? underOldName : null;
+        }
+
+        /// <summary>
+        /// <c>control.speed</c>: the 0.4.6 number, a share of the way from walking to running.
+        /// </summary>
+        /// <remarks>
+        /// A Normalized control still holds that share. An Absolute one holds metres per second, which a mod
+        /// clamping to 0-1 reads as a full run. 0.4.7 makes only two of those, "default" and "rainy"
+        /// (NPCSpeedController.cs:32, NPCActions.cs:116 on 0.4.7f12), and 0.4.6 made both with 0.08
+        /// (NPCSpeedController.cs:27, :53, NPCActions.cs:113 on 0.4.6f13).
+        ///
+        /// A share of 0 is the walking pace on 0.4.6, which said "stand still" with a negative number
+        /// (NPCMovement.cs:403-408 on 0.4.6f13). On 0.4.7 a share of 0 stands still and a negative one is clamped
+        /// to it (SpeedControl.cs:149-157, NPCSpeedController.cs:109-116 on 0.4.7f12), so a control that holds an
+        /// NPC in place reads negative here. A mod clamping to 0-1 still gets 0.
+        /// </remarks>
+        private static MethodDefinition EmitControlSpeed(ModuleDefinition module, TypeDefinition control)
+        {
+            var speed = Getter(control, "Speed");
+            var kind = Getter(control, "Type");
+            if (speed == null || speed.IsStatic || kind == null) return null;
+
+            var method = new MethodDefinition("get_speed",
+                MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName,
+                module.ImportReference(speed.ReturnType));
+            var il = method.Body.GetILProcessor();
+            var normalized = il.Create(OpCodes.Ldarg_0);
+            var moves = il.Create(OpCodes.Ret);
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, kind);
+            il.Emit(OpCodes.Brfalse, normalized);     // EType.Normalized is 0 (SpeedControl.cs:9-13 on 0.4.7f12)
+            il.Emit(OpCodes.Ldc_R4, 0.08f);
+            il.Emit(OpCodes.Ret);
+            il.Append(normalized);
+            il.Emit(OpCodes.Call, speed);
+            il.Emit(OpCodes.Dup);
+            il.Emit(OpCodes.Ldc_R4, 0f);
+            il.Emit(OpCodes.Bgt, moves);
+            il.Emit(OpCodes.Pop);
+            il.Emit(OpCodes.Ldc_R4, -1f);
+            il.Emit(OpCodes.Ret);
+            il.Append(moves);
+            return AsProperty(control, method);
         }
 
         /// <summary>
