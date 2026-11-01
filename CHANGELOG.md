@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.31] - 2026-11-01
+
+### Fixed
+- Moon Rocks 1.1.0 loads and runs on 0.4.7 again: aliens, residents and tourists are back on the moon.
+- Moon Rocks: knocked-down NPCs fall in moon gravity, leaders get their full health back and tourists wear their
+  own clothes.
+
 ## [0.13.30] - 2026-10-28
 
 ### Added
