@@ -255,6 +255,12 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                 + "objects and removes it with the body (AvatarAppearance.cs:39, :261-263 on 0.4.7f7), so there is "
                 + "no reference on the avatar to clear and the write does nothing",
                   m => m.GetType("Il2CppScheduleOne.AvatarFramework.Hair")),
+            Forwards.Empty("Il2CppScheduleOne.NPCs.NPCMovement", "SetRagdollDraggable", 1, m => m.TypeSystem.Void,
+                  "0.4.6's NPCMovement carried a Draggable on the ragdoll that SetRagdollDraggable switched on and off "
+                + "(NPCMovement.cs:172-174, :385 on 0.4.6f12); 0.4.7 has no draggable on an NPC's ragdoll at all, "
+                + "it builds the ragdoll per knock-down and removes it in DeactivateRagdoll (NPCMovement.cs:661-688 "
+                + "on 0.4.7f12), so there is nothing to switch",
+                  m => m.TypeSystem.Boolean),
 
             // SLEEP MOVED OFF THE CLOCK. 0.4.6 kept the sleep hooks on TimeManager: two public Action fields
             // and IsSleepInProgress, raised in its StartSleep RPC (TimeManager.cs:65-67, 104, 802-840 on
