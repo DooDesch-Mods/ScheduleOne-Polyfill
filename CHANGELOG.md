@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.33] - 2026-11-02
+
+### Fixed
+- Harder Working Employees 2.2.3 no longer freezes the game for most of a second once a minute while it checks
+  for stuck employees.
+
 ## [0.13.32] - 2026-11-02
 
 ### Fixed
