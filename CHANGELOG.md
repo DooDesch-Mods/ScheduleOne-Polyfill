@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.32] - 2026-11-02
+
+### Fixed
+- Harder Working Employees 2.2.3 tidies up around a night's sleep again: employees free their shelves and stations
+  before it and get back on their path after it.
+
 ## [0.13.31] - 2026-11-01
 
 ### Fixed
