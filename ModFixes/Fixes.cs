@@ -114,6 +114,7 @@ namespace Polyfill.ModFixes
             new MoonRocksTouristWardrobe(),
             new MoonRocksMaxHealth(),
             new MoonRocksHeavyFlinch(),
+            new HarderWorkingEmployeesSleep(),
 
             // Last, and that is not cosmetic: these read what other mods have patched, so they have to run
             // after every one of them has had its turn.
