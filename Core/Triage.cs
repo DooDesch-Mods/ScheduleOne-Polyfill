@@ -469,6 +469,11 @@ namespace Polyfill.Core
         {
             foreach (var reference in module.GetMemberReferences())
             {
+                // `.ctor`, Get, Set and Address on a multi-dimensional array (`Vector3[,]`) are made by the
+                // runtime for every array type and never declared on the element type. Root() below strips
+                // the array, so without this they were checked against Vector3 and reported missing.
+                if (reference.DeclaringType is ArrayType) continue;
+
                 var declaringReference = Root(reference.DeclaringType);
                 string scope = declaringReference?.Scope?.Name;
                 if (!index.IsTracked(scope)) continue;
