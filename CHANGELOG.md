@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.34] - 2026-11-03
+
+### Fixed
+- Moon Rocks no longer shows "Parts missing" at game start: grids of positions inside a mod were counted as
+  missing parts.
+
 ## [0.13.33] - 2026-11-02
 
 ### Fixed
