@@ -116,6 +116,7 @@ namespace Polyfill.ModFixes
             new MoonRocksHeavyFlinch(),
             new HarderWorkingEmployeesSleep(),
             new HarderWorkingEmployeesStutter(),
+            new HarderWorkingEmployeesChemistStandstill(),
 
             // Last, and that is not cosmetic: these read what other mods have patched, so they have to run
             // after every one of them has had its turn.
