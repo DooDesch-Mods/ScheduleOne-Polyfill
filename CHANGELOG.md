@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.35] - 2026-11-03
+
+### Fixed
+- Harder Working Employees: chemists no longer stand next to a lab oven or cauldron without starting; after 12
+  seconds they are moved to its front.
+
 ## [0.13.34] - 2026-11-03
 
 ### Fixed
