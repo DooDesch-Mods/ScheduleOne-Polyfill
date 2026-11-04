@@ -4,6 +4,8 @@
 
 **Download:** [Nexus Mods](https://www.nexusmods.com/schedule1/mods/2452) · [Thunderstore](https://thunderstore.io/c/schedule-i/p/DooDesch/Polyfill/) · [GitHub Releases](https://github.com/DooDesch-Mods/ScheduleOne-Polyfill/releases)
 
+[![Discord](https://mods.doodesch.de/img/badge.svg)](https://mods.doodesch.de)
+
 **Your old mods stopped working after a Schedule I update? Polyfill gets a lot of them running again.**
 
 ![Version](https://img.shields.io/github/v/release/DooDesch-Mods/ScheduleOne-Polyfill?label=version&color=blue)
@@ -139,6 +141,12 @@ to each command:
 ```
 
 The plugin only needs the first one. A build without `-p:Version=` calls itself `0.0.0-dev`.
+
+## Community
+
+[![DooDesch Mods on Discord](https://mods.doodesch.de/img/card.svg)](https://mods.doodesch.de)
+
+Join the DooDesch Mods Discord: update pings, polls on what comes next, and playtests of new mods.
 
 ## Credits
 

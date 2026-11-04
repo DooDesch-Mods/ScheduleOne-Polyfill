@@ -2,6 +2,8 @@
 
 > 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/polyfill](https://support.doodesch.de/polyfill).
 
+[![Discord](https://mods.doodesch.de/img/badge.svg)](https://mods.doodesch.de)
+
 **Your old mods stopped working after a Schedule I update? Polyfill gets a lot of them running again.**
 
 ![Version](https://img.shields.io/github/v/release/DooDesch-Mods/ScheduleOne-Polyfill?label=version&color=blue)
@@ -70,6 +72,12 @@ Want your mod off the list? [Ask here](https://polyfill.doomods.com/about#withdr
 
 Schedule I by TVGS. Built on [MelonLoader](https://github.com/LavaGang/MelonLoader) and
 [Mono.Cecil](https://github.com/jbevain/cecil). MIT licence.
+
+## Community
+
+[![DooDesch Mods on Discord](https://mods.doodesch.de/img/card.svg)](https://mods.doodesch.de)
+
+Join the DooDesch Mods Discord: update pings, polls on what comes next, and playtests of new mods.
 
 This mod is written with help from generative AI tools (Anthropic Claude, OpenAI Codex).
 
