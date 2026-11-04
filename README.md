@@ -2,6 +2,8 @@
 
 > 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/polyfill](https://support.doodesch.de/polyfill).
 
+**Download:** [Nexus Mods](https://www.nexusmods.com/schedule1/mods/2452) · [Thunderstore](https://thunderstore.io/c/schedule-i/p/DooDesch/Polyfill/) · [GitHub Releases](https://github.com/DooDesch-Mods/ScheduleOne-Polyfill/releases)
+
 **Your old mods stopped working after a Schedule I update? Polyfill gets a lot of them running again.**
 
 ![Version](https://img.shields.io/github/v/release/DooDesch-Mods/ScheduleOne-Polyfill?label=version&color=blue)
@@ -36,9 +38,18 @@ It cannot save every mod. The index tells you which ones.
 
 ## Install
 
-Mod manager: install and it places both files for you.
+### Recommended: Nexus Mods
 
-By hand:
+1. Install **MelonLoader 0.7.3** for Schedule I ([melonwiki.xyz](https://melonwiki.xyz/)).
+2. Download Polyfill from [Nexus Mods](https://www.nexusmods.com/schedule1/mods/2452) and install it with Vortex. It places both files for you.
+
+### Thunderstore mod manager
+
+Install from the [Thunderstore page](https://thunderstore.io/c/schedule-i/p/DooDesch/Polyfill/) with r2modman or Gale. It places both files for you.
+
+### Manual
+
+Download the zip from [GitHub Releases](https://github.com/DooDesch-Mods/ScheduleOne-Polyfill/releases) and put the files here:
 
 1. `Polyfill.Boot.dll` into `Plugins/`
 2. `Polyfill.dll` into `Mods/`
