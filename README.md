@@ -4,14 +4,12 @@
 
 **Download:** [Nexus Mods](https://www.nexusmods.com/schedule1/mods/2452) · [Thunderstore](https://thunderstore.io/c/schedule-i/p/DooDesch/Polyfill/) · [GitHub Releases](https://github.com/DooDesch-Mods/ScheduleOne-Polyfill/releases)
 
-[![Discord](https://mods.doodesch.de/img/badge.svg)](https://mods.doodesch.de)
-
 **Your old mods stopped working after a Schedule I update? Polyfill gets a lot of them running again.**
 
 ![Version](https://img.shields.io/github/v/release/DooDesch-Mods/ScheduleOne-Polyfill?label=version&color=blue)
 ![Game](https://img.shields.io/badge/game-Schedule%20I-purple)
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3+-green)
-[![Polyfill](https://polyfill.doomods.com/badge/polyfill.svg)](https://polyfill.doomods.com/mod/polyfill)
+[![Discord](https://mods.doodesch.de/img/badge.svg)](https://mods.doodesch.de) [![Polyfill](https://polyfill.doomods.com/badge/polyfill.svg)](https://polyfill.doomods.com/mod/polyfill)
 
 [![MLVScan Polyfill.Boot.dll](https://mlvscan.com/attestations/att_2ygvxaydFRNN8TFeDsVDx0NZ/badge.svg)](https://mlvscan.com/attestations/att_2ygvxaydFRNN8TFeDsVDx0NZ) [![MLVScan Polyfill.dll](https://mlvscan.com/attestations/att_FfZY_GTLUulLuH3Qa_b6Tvs6/badge.svg)](https://mlvscan.com/attestations/att_FfZY_GTLUulLuH3Qa_b6Tvs6)
 
