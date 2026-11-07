@@ -80,6 +80,7 @@ namespace Polyfill.ModFixes
             new OverTheCounterSupplierMeetup(),
             new PhoneAppIconWithoutFile(),
             new S1ApiPortraitFraming(),
+            new S1ApiCustomCustomersSave(),
             new OverTheCounterMugshots(),
             new ChemicalPlantListingPoster(),
             new CashStackLimitSlotRefresh(),
