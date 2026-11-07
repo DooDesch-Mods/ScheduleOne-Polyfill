@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.36] - 2026-11-07
+
+### Fixed
+- Customers added by other mods (for example Personnel packs) stay unlocked after a reload.
+
 ## [0.13.35] - 2026-11-03
 
 ### Fixed
