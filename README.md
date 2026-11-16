@@ -11,7 +11,7 @@
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3+-green)
 [![Discord](https://mods.doodesch.de/img/badge.svg)](https://mods.doodesch.de) [![Polyfill](https://polyfill.doomods.com/badge/polyfill.svg)](https://polyfill.doomods.com/mod/polyfill)
 
-[![MLVScan Polyfill.Boot.dll](https://mlvscan.com/attestations/att_WkJR6N89uZZZuDJORowkn-aK/badge.svg)](https://mlvscan.com/attestations/att_WkJR6N89uZZZuDJORowkn-aK) [![MLVScan Polyfill.dll](https://mlvscan.com/attestations/att_9fTz7cg-sCyHb-68VOXIh_bJ/badge.svg)](https://mlvscan.com/attestations/att_9fTz7cg-sCyHb-68VOXIh_bJ)
+[![MLVScan Polyfill.Boot.dll](https://mlvscan.com/attestations/att_J2g6D2mjzMm-YnetkQQkOuvS/badge.svg)](https://mlvscan.com/attestations/att_J2g6D2mjzMm-YnetkQQkOuvS) [![MLVScan Polyfill.dll](https://mlvscan.com/attestations/att_qWxQGxGVRZLPlqUFVOp_rJ7O/badge.svg)](https://mlvscan.com/attestations/att_qWxQGxGVRZLPlqUFVOp_rJ7O)
 
 > ### Do your mods still work?
 >
