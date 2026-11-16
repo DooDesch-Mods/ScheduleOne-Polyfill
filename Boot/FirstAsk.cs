@@ -53,22 +53,25 @@ namespace Polyfill.Boot
         private static extern uint GetCurrentThreadId();
 
         /// <summary>
-        /// Two lines, and that is the whole design.
+        /// One question, a short list of what is sent, one line of what never is.
         /// </summary>
         /// <remarks>
-        /// The first version listed every field sent, every field not sent, and what the data is for -
-        /// five paragraphs. A player who launched a game to play it does not read that; they click
-        /// whichever button ends it, which makes the answer meaningless whichever way it goes.
+        /// A player who launched a game to play it reads a few lines, not paragraphs; anything longer
+        /// gets whichever button ends it, which makes the answer meaningless whichever way it goes.
+        /// Each item is one line, and the only line breaks are between items: MessageBoxW wraps long
+        /// lines itself, and a hard break inside a sentence lands mid-line at the box's own width.
         ///
-        /// So: what happens, what leaves the machine, done. The console command that changes it later
-        /// goes in the log line after the answer, where somebody looking for it will be.
+        /// The list names everything Report/Share.cs sends, header and Body. The console command that
+        /// changes the answer later goes in the log line after it, where somebody looking for it will be.
         /// </remarks>
         private const string Question =
-            "Send anonymous telemetry to help fix broken mods?\n\n"
-          + "Which mods Polyfill repaired, which it could not, and any errors\n"
-          + "they threw while you played.\n\n"
-          + "Mod names, versions and authors, how long you played, and a random\n"
-          + "number for this install. Never your name, your save or your folders.";
+            "Send anonymous reports to help fix broken mods?\n\n"
+          + "Sent:\n"
+          + "• Which mods Polyfill repaired or could not\n"
+          + "• Mod names, versions, authors and errors\n"
+          + "• Game and Polyfill version\n"
+          + "• Play time and a random number for this install\n\n"
+          + "Never sent: your name, your save, your folders.";
 
         /// <summary>
         /// Put the question on screen if it has not been answered, and record the answer.
@@ -134,8 +137,14 @@ namespace Polyfill.Boot
 
             if (answer == 0)
             {
-                log.Msg("[share] nobody answered, so nothing is shared. Asking again next launch "
-                      + $"({state.Asked + 1} of {Attempts}), or turn it on with `polyfillshare on`.");
+                // state.Asked is the count before this launch, so this was ask number state.Asked + 1.
+                int thisAsk = state.Asked + 1;
+                if (thisAsk >= Attempts)
+                    log.Msg($"[share] nobody answered, so nothing is shared. That was the last of {Attempts} "
+                          + "asks; turn it on with `polyfillshare on`.");
+                else
+                    log.Msg("[share] nobody answered, so nothing is shared. Asking again next launch "
+                          + $"({thisAsk + 1} of {Attempts}), or turn it on with `polyfillshare on`.");
                 return;
             }
 
@@ -193,7 +202,10 @@ namespace Polyfill.Boot
                         return true;
                     }, IntPtr.Zero);
             }
-            catch { }
+            catch (Exception e)
+            {
+                log.Warning("[share] the unanswered question could not be closed: " + e.Message);
+            }
 
             done.Wait(TimeSpan.FromSeconds(5));
             return 0;

@@ -47,6 +47,8 @@ namespace Polyfill.Report
             // that opens one. Debug only: it opens a screen the player did not ask for.
             ["polyfillapp"] = PhoneApp.Open,
             ["polyfillpanel"] = ManagementPanel.Open,
+            ["polyfillrack"] = RackSlot.Run,
+            ["polyfillstack"] = StackCheck.Run,
 #endif
             ["polyfillhelp"] = _ => Help(),
         };
