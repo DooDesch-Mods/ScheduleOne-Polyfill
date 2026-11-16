@@ -41,6 +41,8 @@ namespace Polyfill.Report
         /// <summary>Match what a fix repaired against what the report says, and correct the difference.</summary>
         internal static void After(MelonLogger.Instance log)
         {
+            RepairedMods(log);
+
             var repaired = ModFixes.Fixes.Repaired;
             var repairedAt = ModFixes.Fixes.RepairedAt;
             if (repaired.Count == 0 && repairedAt.Count == 0) return;
@@ -81,6 +83,103 @@ namespace Polyfill.Report
                   + "say so now: " + string.Join(", ", names));
 
             InFile(corrected, log);
+        }
+
+        /// <summary>
+        /// Every mod a per-mod fix applied to in this run reports adaptable, findings or not.
+        /// </summary>
+        /// <remarks>
+        /// A ModFix leaves no finding, so without this a mod that runs only because Polyfill patched it
+        /// went out as "clean" and the index showed "Works" over it. The fixes that name no mod ("*") are
+        /// left out: they repair patches other mods aim at the game, and those already arrive as
+        /// harmony-target findings that the loop in After marks applied.
+        ///
+        /// Only ever adds. This runs again when a deferred fix acts, and a fix that applied earlier in the
+        /// session stays the reason the mod needed Polyfill even if its later work found nothing to do.
+        /// </remarks>
+        private static void RepairedMods(MelonLogger.Instance log)
+        {
+            var changed = new List<ModReport>();
+            foreach (var outcome in ModFixes.Fixes.Results)
+            {
+                if (!Applied(outcome.State)) continue;
+                string target = outcome.Fix.Mod;
+                if (target == "*") continue;
+
+                bool listed = false;
+                foreach (var mod in ReportReader.Mods)
+                {
+                    if (!Names(mod, target)) continue;
+                    listed = true;
+                    if (mod.RepairedBy.Contains(outcome.Fix.Id)) continue;
+
+                    string was = mod.Verdict;
+                    mod.RepairedBy.Add(outcome.Fix.Id);
+                    if (mod.Verdict != was && !changed.Contains(mod)) changed.Add(mod);
+                }
+
+                // A library loaded from UserLibs is repaired like any mod and is not in the startup report
+                // when the plugin did not triage it. Nothing is wrong, but nothing can carry the verdict.
+                if (!listed)
+                    log.Msg($"[report] fix {outcome.Fix.Id} applied to {target}, which the startup report "
+                          + "does not list, so no verdict says it.");
+            }
+
+            if (changed.Count == 0) return;
+
+            foreach (var mod in changed)
+                log.Msg($"[report] {mod.Display} {mod.Version} is repaired by a Polyfill fix "
+                      + $"({string.Join(", ", mod.RepairedBy)}), so it reports {mod.Verdict} instead of clean.");
+
+            VerdictsInFile(changed, log);
+        }
+
+        /// <summary>"applied", or a fix's later note that starts with it.</summary>
+        private static bool Applied(string state)
+            => state != null && state.StartsWith("applied", StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Is this report row the mod a fix names? By the name it registers with MelonLoader, which is what
+        /// Fix.Mod holds, or by its assembly for a library that has no MelonInfo.
+        /// </summary>
+        private static bool Names(ModReport mod, string target)
+            => string.Equals(mod.Name, target, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(mod.AssemblyName, target, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(mod.AssemblyName, target + "_Il2Cpp", StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>The verdict column of the mods a fix repaired, in last-run.txt.</summary>
+        private static void VerdictsInFile(List<ModReport> changed, MelonLogger.Instance log)
+        {
+            string path = ReportReader.Path;
+            try
+            {
+                if (!File.Exists(path))
+                {
+                    log.Warning("[report] the in-memory verdicts were corrected and there is no "
+                              + "UserData/Polyfill/last-run.txt to correct. What gets sent is right.");
+                    return;
+                }
+
+                var lines = File.ReadAllLines(path);
+                int touched = 0;
+                foreach (var mod in changed) if (RunReport.CorrectVerdict(lines, mod)) touched++;
+
+                if (touched == 0)
+                {
+                    log.Warning("[report] the in-memory verdicts were corrected and the file was not - no "
+                              + "matching mod line was found. UserData/Polyfill/last-run.txt is out of date "
+                              + "for those mods; what gets sent is right.");
+                    return;
+                }
+
+                File.WriteAllLines(path, lines);
+            }
+            catch (Exception e)
+            {
+                log.Warning("[report] could not write the corrected verdicts back to last-run.txt ("
+                          + e.GetType().Name + ": " + e.Message + "), so the file still shows those mods as "
+                          + "clean. What gets sent is right.");
+            }
         }
 
         /// <summary>

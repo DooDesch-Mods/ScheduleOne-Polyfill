@@ -135,6 +135,8 @@ namespace Polyfill.Report
                 string tail = mod.Findings.Count == 0
                     ? "-"
                     : $"{mod.Findings.Count} missing, {fixable} with a candidate";
+                if (mod.RepairedBy.Count > 0)
+                    tail = (tail == "-" ? "" : tail + ", ") + "repaired by " + string.Join(", ", mod.RepairedBy);
                 Core.Log.Msg($"{mod.Verdict,-9} {mod.Display} {mod.Version}  {tail}");
             }
             Core.Log.Msg("`polyfillshow <mod>` for the detail. Full file: " + ReportReader.Path);
@@ -174,6 +176,8 @@ namespace Polyfill.Report
                 Core.Log.Msg($"{mod.Display} {mod.Version} - {mod.Verdict} "
                            + $"({mod.TypeRefs} type refs, {mod.MemberRefs} member refs, "
                            + $"{mod.HarmonyTargetsChecked} Harmony targets checked)");
+                if (mod.RepairedBy.Count > 0)
+                    Core.Log.Msg("  repaired by Polyfill fix: " + string.Join(", ", mod.RepairedBy));
 
                 int shown = 0, skipped = 0;
                 foreach (var finding in InReadingOrder(mod.Findings))
@@ -487,6 +491,8 @@ namespace Polyfill.Report
                 text.AppendLine($"  file {Path.GetFileName(mod.Path)}"
                               + $"   {mod.TypeRefs} type refs, {mod.MemberRefs} member refs, "
                               + $"{mod.HarmonyTargetsChecked} Harmony target{(mod.HarmonyTargetsChecked == 1 ? "" : "s")} checked");
+                if (mod.RepairedBy.Count > 0)
+                    text.AppendLine("  repaired by Polyfill fix " + string.Join(", ", mod.RepairedBy));
 
                 Section(text, mod, "REPAIRED - Polyfill put these back",
                         f => f.Outcome == Outcome.Applied);

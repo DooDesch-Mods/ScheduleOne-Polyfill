@@ -20,6 +20,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # The compatibility index labels mods from this list (tools/export_modfixes.py). A fix whose mod or
+      # ranges the exporter cannot read would drop out of it without a word, so it fails here instead.
+      - name: The ModFix list exports
+        run: python3 tools/export_modfixes.py > /dev/null
+
       # The build libraries live in the private Workspace repo, and so does the test project. A pull
       # request from a fork has no secret and therefore no Workspace; the steps below are skipped rather
       # than failed, because a contributor cannot fix a secret they cannot have.
