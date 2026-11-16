@@ -85,6 +85,22 @@ namespace Polyfill.Contract
         internal readonly List<Finding> Findings = new();
 
         /// <summary>
+        /// The ids of the per-mod fixes that applied to this mod in this run.
+        /// </summary>
+        /// <remarks>
+        /// A ModFix patches the mod's own code and leaves no finding behind: there is no missing name, only
+        /// behaviour a person read and repaired. Judged by findings alone, a mod that runs only because of
+        /// one read "clean", and the index printed that as "Works" - which a player reads as "works without
+        /// Polyfill". A fix that applied is the same statement as a repaired finding, so it makes the mod
+        /// adaptable.
+        ///
+        /// Filled by the companion mod once the fixes have run (Report.Reconcile). The plugin writes the file
+        /// before any fix exists, so it never sees one, and the file is not given a line of its own for
+        /// them: the verdict column is what changes.
+        /// </remarks>
+        internal readonly List<string> RepairedBy = new();
+
+        /// <summary>
         /// The root namespaces this mod's own types live in.
         /// </summary>
         /// <remarks>
@@ -103,9 +119,9 @@ namespace Polyfill.Contract
                                  : System.IO.Path.GetFileName(Path ?? "");
 
         /// <summary>
-        /// clean - nothing missing. adaptable - everything missing was repaired on this machine, or is
-        /// answered by a named fix. blocked - anything else, including a gap Polyfill had a candidate for
-        /// and did not use.
+        /// clean - nothing missing and no fix needed. adaptable - everything missing was repaired on this
+        /// machine or is answered by a named fix, or a per-mod fix repaired the mod itself. blocked - anything
+        /// else, including a gap Polyfill had a candidate for and did not use.
         /// </summary>
         internal string Verdict
         {
@@ -131,7 +147,7 @@ namespace Polyfill.Contract
                     if (finding.Outcome == Contract.Outcome.Applied || finding.Covered) continue;
                     return "blocked";
                 }
-                return any ? "adaptable" : "clean";
+                return any || RepairedBy.Count > 0 ? "adaptable" : "clean";
             }
         }
     }
@@ -337,13 +353,40 @@ namespace Polyfill.Contract
                 touched++;
             }
 
-            if (touched > 0 && owner >= 0)
-            {
-                var m = lines[owner].TrimEnd(CarriageReturn).Split('|');
-                m[6] = mod.Verdict;
-                lines[owner] = string.Join("|", m);
-            }
+            if (touched > 0 && owner >= 0) SetVerdict(lines, owner, mod);
             return touched;
+        }
+
+        /// <summary>
+        /// Write a mod's verdict onto its line when it changed without any finding changing. Returns whether
+        /// the line changed.
+        /// </summary>
+        /// <remarks>
+        /// What a per-mod fix needs: it has no finding row to correct, and the verdict is the only column
+        /// that says it ran.
+        /// </remarks>
+        internal static bool CorrectVerdict(string[] lines, ModReport mod)
+        {
+            if (lines == null || mod == null) return false;
+            string path = Escape(mod.Path);
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = (lines[i] ?? "").TrimEnd(CarriageReturn);
+                if (!line.StartsWith("M|", StringComparison.Ordinal)) continue;
+                var m = line.Split('|');
+                if (m.Length <= 6 || m[1] != path) continue;
+                return SetVerdict(lines, i, mod);
+            }
+            return false;
+        }
+
+        private static bool SetVerdict(string[] lines, int owner, ModReport mod)
+        {
+            var m = lines[owner].TrimEnd(CarriageReturn).Split('|');
+            if (m[6] == mod.Verdict) return false;
+            m[6] = mod.Verdict;
+            lines[owner] = string.Join("|", m);
+            return true;
         }
 
         private static int Int(string s) => int.TryParse(s, out int value) ? value : 0;
