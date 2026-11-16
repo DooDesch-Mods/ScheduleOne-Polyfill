@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.38] - 2026-11-16
+
+### Fixed
+- A mod that only runs because a Polyfill fix repairs it now shows "Works with Polyfill" on the
+  compatibility list instead of "Works".
+- `polyfilllist` and `polyfillshow` name the fix that repaired a mod.
+
 ## [0.13.37] - 2026-11-16
 
 ### Fixed
