@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.39] - 2026-11-16
+
+### Fixed
+- CustomStackSizes changes stack sizes and drying rack capacity again.
+- AutoRestock no longer throws an error in the main menu and restocks your racks once a save is loaded.
+- AdvancedDealing: the cash and product dead-drop pickers are back on the dealer page of the Dealers app.
+
+### Changed
+- The question about sharing reports is shorter and lists everything a report holds, game and Polyfill version
+  included.
+
 ## [0.13.38] - 2026-11-16
 
 ### Fixed
