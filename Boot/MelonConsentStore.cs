@@ -46,21 +46,28 @@ namespace Polyfill.Boot
             {
                 var category = MelonPreferences.GetCategory(Category)
                                ?? MelonPreferences.CreateCategory(Category);
-                if (category == null) return false;
+                if (category == null)
+                {
+                    MelonLogger.Warning($"[share] could not read preference {Category}.{key}, sharing stays off: the category is missing");
+                    return false;
+                }
 
                 var entry = category.GetEntry<T>(key) ?? category.CreateEntry(key, fallback, key, Describe(key));
                 value = entry.Value;
                 return true;
             }
-            catch { return false; }
+            catch (System.Exception e)
+            {
+                MelonLogger.Warning($"[share] could not read preference {Category}.{key}, sharing stays off: {e.Message}");
+                return false;
+            }
         }
 
         /// <summary>The description a key gets when this is the first thing to register it.</summary>
         private static string Describe(string key)
         {
             if (key == Consent.SharingKey)
-                return "Send anonymous findings - which mod, which symbol, repaired or not. Never your "
-                     + "name, your paths or your save.";
+                return Consent.SharingDescription;
             if (key == Consent.AnsweredKey)
                 return "Whether the question has been answered. Clear this to be asked again.";
             if (key == Consent.AskedKey)
@@ -74,19 +81,29 @@ namespace Polyfill.Boot
             {
                 var category = MelonPreferences.GetCategory(Category)
                                ?? MelonPreferences.CreateCategory(Category);
-                if (category == null) return;
+                if (category == null)
+                {
+                    MelonLogger.Error($"[share] could not write preference {Category}.{key}: the category is missing");
+                    return;
+                }
 
                 var entry = category.GetEntry<T>(key);
                 if (entry == null) category.CreateEntry(key, value, key, description);
                 else entry.Value = value;
             }
-            catch { }
+            catch (System.Exception e)
+            {
+                MelonLogger.Error($"[share] could not write preference {Category}.{key}: {e.Message}");
+            }
         }
 
         public void Flush()
         {
             try { MelonPreferences.Save(); }
-            catch { }
+            catch (System.Exception e)
+            {
+                MelonLogger.Error($"[share] could not save the preferences file: {e.Message}");
+            }
         }
     }
 }

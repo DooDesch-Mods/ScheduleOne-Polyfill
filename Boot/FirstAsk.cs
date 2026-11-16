@@ -61,14 +61,15 @@ namespace Polyfill.Boot
         /// Each item is one line, and the only line breaks are between items: MessageBoxW wraps long
         /// lines itself, and a hard break inside a sentence lands mid-line at the box's own width.
         ///
-        /// The list matches the payload built in Report/Share.cs (Body). The console command that changes the answer
-        /// later goes in the log line after it, where somebody looking for it will be.
+        /// The list names everything Report/Share.cs sends, header and Body. The console command that
+        /// changes the answer later goes in the log line after it, where somebody looking for it will be.
         /// </remarks>
         private const string Question =
             "Send anonymous reports to help fix broken mods?\n\n"
           + "Sent:\n"
           + "• Which mods Polyfill repaired or could not\n"
           + "• Mod names, versions, authors and errors\n"
+          + "• Game and Polyfill version\n"
           + "• Play time and a random number for this install\n\n"
           + "Never sent: your name, your save, your folders.";
 

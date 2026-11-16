@@ -43,6 +43,12 @@ namespace Polyfill.Contract
         internal const string AnsweredKey = "ShareFindingsAnswered";
         internal const string AskedKey = "ShareFindingsAsked";
 
+        /// <summary>The preference text of <see cref="SharingKey"/>; it names what Boot/FirstAsk.cs lists.</summary>
+        internal const string SharingDescription =
+            "Send anonymous reports: which mods Polyfill repaired or could not, mod names, versions, "
+          + "authors and errors, game and Polyfill version, play time and a random number for this "
+          + "install. Never your name, your save or your folders.";
+
         private static IConsentStore _store;
         private static Action<string> _warn, _error;
 
@@ -91,8 +97,7 @@ namespace Polyfill.Contract
             try
             {
                 store.Write(SharingKey, sharing,
-                      "Send anonymous findings - which mod, which symbol, repaired or not. Never your "
-                    + "name, your paths or your save.");
+                      SharingDescription);
                 store.Write(AnsweredKey, answered,
                       "Whether the question has been answered. Clear this to be asked again.");
                 store.Flush();
