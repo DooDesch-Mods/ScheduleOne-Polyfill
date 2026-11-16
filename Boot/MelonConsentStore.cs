@@ -19,7 +19,8 @@ namespace Polyfill.Boot
         private const string Category = "Polyfill";
 
         /// <summary>Install it, once, as early as the assembly runs anything at all.</summary>
-        internal static void Install() => Consent.Use(new MelonConsentStore());
+        internal static void Install()
+            => Consent.Use(new MelonConsentStore(), m => MelonLogger.Warning(m), m => MelonLogger.Error(m));
 
         public bool TryReadBool(string key, out bool value) => Read(key, false, out value);
 

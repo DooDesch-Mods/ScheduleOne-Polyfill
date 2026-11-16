@@ -44,6 +44,7 @@ namespace Polyfill.Contract
         internal const string AskedKey = "ShareFindingsAsked";
 
         private static IConsentStore _store;
+        private static Action<string> _warn, _error;
 
         /// <summary>
         /// Install the store. Called once, early, by whichever assembly loaded first.
@@ -51,8 +52,14 @@ namespace Polyfill.Contract
         /// <remarks>
         /// Without it every read is a no and every write is dropped, which is the correct behaviour for
         /// a build that forgot to wire it up: nothing is sent, and nothing pretends to have been asked.
+        /// The two loggers come from the caller because this folder is linked where MelonLoader is not.
         /// </remarks>
-        internal static void Use(IConsentStore store) => _store = store;
+        internal static void Use(IConsentStore store, Action<string> warn = null, Action<string> error = null)
+        {
+            _store = store;
+            _warn = warn;
+            _error = error;
+        }
 
         /// <summary>May findings be sent right now? The only question the sender is allowed to ask.</summary>
         internal static bool Sharing => Read().Sharing;
@@ -69,7 +76,10 @@ namespace Polyfill.Contract
                 if (store.TryReadBool(AnsweredKey, out bool answered)) state.Answered = answered;
                 if (store.TryReadInt(AskedKey, out int asked)) state.Asked = asked;
             }
-            catch { }                                    // unreadable is the same as not agreed
+            catch (Exception e)                          // unreadable is the same as not agreed
+            {
+                _warn?.Invoke("[share] the sharing settings could not be read, so sharing stays off: " + e.Message);
+            }
             return state;
         }
 
@@ -87,7 +97,10 @@ namespace Polyfill.Contract
                       "Whether the question has been answered. Clear this to be asked again.");
                 store.Flush();
             }
-            catch { }
+            catch (Exception e)
+            {
+                _error?.Invoke("[share] the answer could not be saved: " + e.Message);
+            }
         }
 
         /// <summary>One more launch on which the question was put, whether or not it was answered.</summary>
@@ -102,7 +115,10 @@ namespace Polyfill.Contract
                       "How many launches have asked. After three, the question stops.");
                 store.Flush();
             }
-            catch { }
+            catch (Exception e)
+            {
+                _error?.Invoke("[share] the count of asks could not be saved: " + e.Message);
+            }
         }
     }
 }
