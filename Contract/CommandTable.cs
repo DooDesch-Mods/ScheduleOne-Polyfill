@@ -42,6 +42,7 @@ namespace Polyfill.Contract
             // Debug only, and the table is what the console consults - a handler nothing routes to is a
             // command that silently does not exist, which is how the first attempt at this failed.
             C("polyfillapp",     "open a vanilla phone app, to look at a UI repair", "polyfillapp messages"),
+            C("polyfillpanel",   "open an employee's management panel, to look at a UI repair", "polyfillpanel packager"),
 #endif
             C("polyfillhelp",    "list the polyfill commands", "polyfillhelp"),
         };
