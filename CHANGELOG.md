@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.37] - 2026-11-16
+
+### Fixed
+- MoreEmployeeAssignments: the Packager's route list opens without "Could not create the Packager scroll views"
+  next to Harder Working Employees or Actually Working Employees.
+
 ## [0.13.36] - 2026-11-07
 
 ### Fixed
