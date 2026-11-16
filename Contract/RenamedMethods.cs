@@ -171,6 +171,19 @@ namespace Polyfill.Contract
                         + "creation methods assign its result to the new definition's Icon "
                         + "(ProductIconManager.cs:74-109 on 0.4.7f12)",
             },
+
+            // CustomStackSizes 1.3.5 sets the rack's ItemCapacity in a prefix here, before an employee
+            // checks the rack for room.
+            new Entry
+            {
+                Type = "Il2CppScheduleOne.NPCs.Behaviour.StartDryingRackBehaviour",
+                OldName = "ActiveMinPass",
+                NewName = "OnActiveTick",
+                Because = "Behaviour.ActiveMinPass() and its override on StartDryingRackBehaviour (0.4.1f13, "
+                        + "Behaviour.cs:53, StartDryingRackBehaviour.cs:28) became OnActiveTick() in the same place "
+                        + "in 0.4.2f4 (s1-codearchiver ac4c2cb); on 0.4.7f12 it is the loop that walks the "
+                        + "employee to the rack and starts the work (StartDryingRackBehaviour.cs:76)",
+            },
         };
 
         /// <summary>What this name became on the type, or null when nothing is on record.</summary>

@@ -644,6 +644,17 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
                         + "(VehicleAgent.cs:50 on 0.4.6f13 and on 0.4.7f12)",
                 Emit = EmitRoadGraphName,
             },
+
+            // ---- stack limit (CustomStackSizes 1.3.5, built against interop older than 0.4.4) ----
+            new Bridge
+            {
+                Assembly = "Assembly-CSharp", DeclaringType = "Il2CppScheduleOne.ItemFramework.ItemDefinition",
+                OldName = "get_DEFAULT_STACK_LIMIT", ParameterCount = 0,
+                Because = "moved in 0.4.4: the const ItemDefinition.DEFAULT_STACK_LIMIT (ItemFramework/ItemDefinition.cs:11 "
+                        + "on 0.4.3f3) is BaseItemDefinition.DefaultStackLimit in ScheduleOne.Core, the base class of "
+                        + "ItemDefinition (BaseItemDefinition.cs:37 in the 0.4.7f12 interop)",
+                Emit = EmitDefaultStackLimit,
+            },
         };
 
         // ---------------------------------------------------------------- the enforcer, the speed, the dock
@@ -889,6 +900,20 @@ namespace Polyfill.Bridges.Steps.S0_4_6f13_To_0_4_7f5
             il.Emit(OpCodes.Call, module.ImportReference(target));
             il.Emit(OpCodes.Ret);
             return AsProperty(agent, method);
+        }
+
+        /// <summary><c>ItemDefinition.DEFAULT_STACK_LIMIT</c>: <c>BaseItemDefinition.DefaultStackLimit</c>.</summary>
+        private static MethodDefinition EmitDefaultStackLimit(ModuleDefinition module, TypeDefinition definition)
+        {
+            var target = MethodUp(definition, "get_DefaultStackLimit", 0);
+            if (target == null || !target.IsStatic) return null;
+            var method = new MethodDefinition("get_DEFAULT_STACK_LIMIT",
+                MethodAttributes.Public | MethodAttributes.Static | MethodAttributes.HideBySig | MethodAttributes.SpecialName,
+                module.ImportReference(target.ReturnType));
+            var il = method.Body.GetILProcessor();
+            il.Emit(OpCodes.Call, module.ImportReference(target));
+            il.Emit(OpCodes.Ret);
+            return AsProperty(definition, method);
         }
 
         // ---------------------------------------------------------------- speeds
