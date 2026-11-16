@@ -43,6 +43,8 @@ namespace Polyfill.Contract
             // command that silently does not exist, which is how the first attempt at this failed.
             C("polyfillapp",     "open a vanilla phone app, to look at a UI repair", "polyfillapp messages"),
             C("polyfillpanel",   "open an employee's management panel, to look at a UI repair", "polyfillpanel packager"),
+            C("polyfillrack",    "list, fill or empty a storage-rack slot, to watch a restock mod", "polyfillrack fill pseudo 5 largestoragerack"),
+            C("polyfillstack",   "log an item's stack limit and the inventory slots that hold it", "polyfillstack pseudo"),
 #endif
             C("polyfillhelp",    "list the polyfill commands", "polyfillhelp"),
         };
