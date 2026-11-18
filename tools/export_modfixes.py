@@ -11,6 +11,10 @@ Read from the source rather than from a running game: the four values are string
 values are not literals, or a registered fix that cannot be found, is an error, so the list never silently
 loses a fix. CI runs this for that reason.
 
+Each fix also says whether the index may read the list as "this mod needs Polyfill": `armed` is a fix
+that installs a guard which may never act in a run, and `neededWithoutPolyfill` is false for a fix that
+repairs what Polyfill itself changed or improves a mod that works without it. Both default as in Fix.cs.
+
 Fixes for no mod in particular (Mod => "*") are left out. They repair patches that other mods aim at the
 game, and those already reach the index as findings.
 
@@ -28,6 +32,8 @@ FIXES = ROOT / "ModFixes"
 CLASS = re.compile(r"\bclass\s+(\w+)\s*:\s*(\w+)")
 PROP = re.compile(r"override\s+string\s+(Id|Mod|ModVersions|GameVersions)\s*=>\s*([^;]+);")
 CONST = re.compile(r"const\s+string\s+(\w+)\s*=\s*\"([^\"]*)\"\s*;")
+FLAG = re.compile(r"override\s+bool\s+(Armed|NeededWithoutPolyfill)\s*=>\s*([^;]+);")
+FLAG_DEFAULTS = {"Armed": False, "NeededWithoutPolyfill": True}
 LITERAL = re.compile(r"^\"([^\"]*)\"$")
 
 
@@ -77,6 +83,11 @@ def classes():
                     values[name] = consts[expression]
                 else:
                     fail(f"{path.name}: {head.group(1)}.{name} is '{expression}', which is not a string literal")
+            for name, expression in FLAG.findall(body):
+                expression = expression.strip()
+                if expression not in ("true", "false"):
+                    fail(f"{path.name}: {head.group(1)}.{name} is '{expression}', which is not true or false")
+                values[name] = expression == "true"
             found[head.group(1)] = (path.name, values)
     return found
 
@@ -100,6 +111,10 @@ def main():
                 "mod": values["Mod"],
                 "modVersions": values["ModVersions"],
                 "gameVersions": values["GameVersions"],
+                "armed": values.get("Armed", FLAG_DEFAULTS["Armed"]),
+                "neededWithoutPolyfill": values.get(
+                    "NeededWithoutPolyfill", FLAG_DEFAULTS["NeededWithoutPolyfill"]
+                ),
             }
         )
 

@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Test-only probe for tests/phoneapp_icon_check.ps1. Never shipped; built with -p:DeployVerifyDisable=true. -->
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <IsPackable>false</IsPackable>
+    <AssemblyName>PhoneAppNoIconProbe</AssemblyName>
+    <NoWarn>$(NoWarn);MSB3277;MSB3245;CS0436</NoWarn>
+    <WorkspaceLibPath Condition="'$(WorkspaceLibPath)' == ''">$(MSBuildThisFileDirectory)../../../../Workspace/lib</WorkspaceLibPath>
+    <GameManagedPath>$(WorkspaceLibPath)/il2cpp/game</GameManagedPath>
+    <MelonLoaderPath>$(WorkspaceLibPath)/il2cpp/melonloader</MelonLoaderPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="MelonLoader"><HintPath>$(MelonLoaderPath)/MelonLoader.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Il2CppInterop.Runtime"><HintPath>$(MelonLoaderPath)/Il2CppInterop.Runtime.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Il2Cppmscorlib"><HintPath>$(GameManagedPath)/Il2Cppmscorlib.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(GameManagedPath)/UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="S1API.Il2Cpp.MelonLoader"><HintPath>$(WorkspaceLibPath)/il2cpp/s1api/S1API.Il2Cpp.MelonLoader.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+
+</Project>

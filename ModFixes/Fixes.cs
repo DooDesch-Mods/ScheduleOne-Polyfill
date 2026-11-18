@@ -48,7 +48,7 @@ namespace Polyfill.ModFixes
         {
             internal Fix Fix;
             internal string Mod;          // the version actually installed, or null when the mod is absent
-            internal string State;        // applied | off | not installed | wrong version | did nothing
+            internal string State;        // applied | armed | off | not installed | wrong version | did nothing
         }
 
         internal static readonly List<Outcome> Results = new();
@@ -212,8 +212,39 @@ namespace Polyfill.ModFixes
                 }
                 finally { CrashGuard.Left(log); }
 
-                outcome.State = did ? "applied" : "did nothing";
-                if (did) log.Msg($"[fix] {fix.Id}: {fix.What}");
+                outcome.State = !did ? "did nothing" : fix.Armed ? "armed" : "applied";
+                if (did && fix.Armed) log.Msg($"[fix] {fix.Id} is armed and acts when needed: {fix.What}");
+                else if (did) log.Msg($"[fix] {fix.Id}: {fix.What}");
+            }
+        }
+
+        /// <summary>
+        /// An armed fix changed something for the first time: it now reports "applied", and the report
+        /// learns that its mod was repaired.
+        /// </summary>
+        /// <remarks>
+        /// The reconcile already ran on the first frame of the world, before the guard could act, so it
+        /// is asked again from here. Only the first act of a fix gets here; later ones find the state
+        /// already applied and cost a loop.
+        /// </remarks>
+        internal static void Acted(string id, MelonLogger.Instance log)
+        {
+            bool changed = false;
+            foreach (var outcome in Results)
+            {
+                if (!string.Equals(outcome.Fix.Id, id, StringComparison.OrdinalIgnoreCase)) continue;
+                if (outcome.State != "armed") continue;
+                outcome.State = "applied";
+                changed = true;
+            }
+            if (!changed) return;
+
+            log?.Msg($"[fix] {id} acted in this run, so it counts as applied.");
+            try { Report.Reconcile.After(log); }
+            catch (Exception e)
+            {
+                log?.Warning($"[fix] {id} acted and the report could not be told ({e.GetType().Name}: "
+                           + $"{e.Message}), so it does not list the mod as repaired by it.");
             }
         }
 

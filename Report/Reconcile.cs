@@ -96,6 +96,9 @@ namespace Polyfill.Report
         ///
         /// Only ever adds. This runs again when a deferred fix acts, and a fix that applied earlier in the
         /// session stays the reason the mod needed Polyfill even if its later work found nothing to do.
+        ///
+        /// Two kinds of fix are not counted: an armed one until it has acted ("armed" does not start with
+        /// "applied"), and one the mod does not need without Polyfill (Fix.NeededWithoutPolyfill).
         /// </remarks>
         private static void RepairedMods(MelonLogger.Instance log)
         {
@@ -105,6 +108,13 @@ namespace Polyfill.Report
                 if (!Applied(outcome.State)) continue;
                 string target = outcome.Fix.Mod;
                 if (target == "*") continue;
+                if (!outcome.Fix.NeededWithoutPolyfill)
+                {
+                    if (NotCounted.Add(outcome.Fix.Id))
+                        log.Msg($"[report] fix {outcome.Fix.Id} applied to {target} and does not make it "
+                              + "adaptable: the mod runs without it when Polyfill is not installed.");
+                    continue;
+                }
 
                 bool listed = false;
                 foreach (var mod in ReportReader.Mods)
@@ -133,6 +143,9 @@ namespace Polyfill.Report
 
             VerdictsInFile(changed, log);
         }
+
+        /// <summary>Fixes already said to be left out of the verdict, so a second pass does not repeat it.</summary>
+        private static readonly HashSet<string> NotCounted = new(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>"applied", or a fix's later note that starts with it.</summary>
         private static bool Applied(string state)
