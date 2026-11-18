@@ -40,6 +40,10 @@ namespace Polyfill.ModFixes
 
         internal override bool NeedsAScreen => true;
 
+        // Only an app without an icon file meets the throw. With none installed S1API runs clean, so the
+        // patch alone does not mean S1API needed Polyfill in this run.
+        internal override bool Armed => true;
+
         internal override string What
             => "a phone app whose icon is a sprite rather than a file registers instead of throwing";
 
@@ -88,6 +92,7 @@ namespace Polyfill.ModFixes
                 _said = true;
                 _log?.Msg("[fix] phoneapp-icon-without-file: an app asked for its icon by a file name it "
                         + "does not have. It keeps the icon the game gives it and registers.");
+                Fixes.Acted("phoneapp-icon-without-file", _log);
             }
             return false;
         }

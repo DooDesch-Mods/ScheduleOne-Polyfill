@@ -32,6 +32,10 @@ namespace Polyfill.ModFixes
         internal override string ModVersions => "*";
         internal override string GameVersions => ">=0.4.7";
 
+        // This repairs what Boot.InteropPatchesStayNative changes. Without Polyfill S1API saves these
+        // customers itself, so the fix does not make S1API a mod that needs Polyfill.
+        internal override bool NeededWithoutPolyfill => false;
+
         internal override string What
             => "customers added by mods keep their unlock and relationship after a reload";
 

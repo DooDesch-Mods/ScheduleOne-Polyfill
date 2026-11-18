@@ -84,6 +84,29 @@ namespace Polyfill.ModFixes
         /// </remarks>
         internal virtual bool NeedsAScreen => false;
 
+        /// <summary>
+        /// Does Apply only put a guard in place, which changes something later or never?
+        /// </summary>
+        /// <remarks>
+        /// Most fixes repair at Apply: the patch they move or the table they rewrite is broken on every
+        /// machine with that mod. A guard for a case that may not come up is different. Installing it says
+        /// nothing about this run, and reporting it as "applied" made every installation of S1API read
+        /// "needs Polyfill" although S1API runs clean without it.
+        ///
+        /// So an armed fix reports "armed" after Apply, and "applied" only once its guard has changed
+        /// something, through <see cref="Fixes.Acted"/>.
+        /// </remarks>
+        internal virtual bool Armed => false;
+
+        /// <summary>Does the mod need this fix to run without Polyfill?</summary>
+        /// <remarks>
+        /// False for a fix that repairs what Polyfill itself changed, or one that improves a mod that
+        /// works without it. Such a fix still runs and is listed by `polyfillfixes`, but it does not make
+        /// the mod adaptable: the index would tell a player without Polyfill to install it for a mod
+        /// that already works for them.
+        /// </remarks>
+        internal virtual bool NeededWithoutPolyfill => true;
+
         /// <summary>One line, for the log and the console list. What the player gets, not how.</summary>
         internal abstract string What { get; }
 

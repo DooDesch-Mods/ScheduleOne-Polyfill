@@ -28,6 +28,11 @@ namespace Polyfill.ModFixes
 
         internal override bool NeedsAScreen => true;
 
+        // A contact picture is only drawn for a character a mod adds, so the patch may never act. And
+        // when it does, S1API still works without it: the picture is only framed wider.
+        internal override bool Armed => true;
+        internal override bool NeededWithoutPolyfill => false;
+
         internal override string What
             => "contact pictures of characters added by mods are framed on the face, like the game's own";
 
@@ -101,6 +106,7 @@ namespace Polyfill.ModFixes
                 go.transform.position += Vector3.up * Lift;
 
                 _framed++;
+                if (_framed == 1) Fixes.Acted("s1api-portrait-framing", _log);
                 if (_framed == 1 || _framed % 10 == 0)
                     _log?.Msg($"[fix] s1api-portrait-framing: framed {_framed} contact picture(s) on the face.");
             }
