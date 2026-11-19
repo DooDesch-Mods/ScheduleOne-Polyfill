@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.40] - 2026-11-19
+
+### Fixed
+
+- The compatibility list no longer shows S1API as needing Polyfill only because a Polyfill guard is in place. It
+  counts as repaired once a fix acts, for example for a phone app without an icon file.
+
 ## [0.13.39] - 2026-11-16
 
 ### Fixed
